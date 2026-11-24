@@ -77,7 +77,7 @@ class GitHubApi {
             put("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
         }.toString()
         val raw = postForm("https://github.com/login/oauth/access_token", body)
-            ?: return@withContext ApiResult.Error("轮询 token 失败：网络不可达")
+            ?: return@withContext ApiResult.Success(TokenPoll.NetworkError)
         when (val parsed = parse<TokenResponse>(raw)) {
             is ApiResult.Error -> parsed
             is ApiResult.Success -> {
@@ -248,6 +248,7 @@ sealed class TokenPoll {
     data class Success(val token: String) : TokenPoll()
     data object Pending : TokenPoll()
     data object SlowDown : TokenPoll()
+    data object NetworkError : TokenPoll()
     data object Expired : TokenPoll()
     data object Denied : TokenPoll()
 }
