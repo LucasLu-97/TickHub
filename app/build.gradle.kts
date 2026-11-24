@@ -1,4 +1,4 @@
-import java.util.Properties
+import java.util.Base64
 
 plugins {
     alias(libs.plugins.android.application)
@@ -30,9 +30,9 @@ android {
         create("release") {
             val keystoreBase64 = System.getenv("KEYSTORE_BASE64")
             if (!keystoreBase64.isNullOrBlank()) {
-                val ksFile = File(buildDir, "tickhub-release.p12")
+                val ksFile = layout.buildDirectory.file("tickhub-release.p12").get().asFile
                 ksFile.parentFile.mkdirs()
-                ksFile.writeBytes(java.util.Base64.getDecoder().decode(keystoreBase64))
+                ksFile.writeBytes(Base64.getDecoder().decode(keystoreBase64))
                 storeFile = ksFile
                 storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
                 keyAlias = System.getenv("KEY_ALIAS") ?: "tickhub"

@@ -344,6 +344,8 @@
 
 - `android-actions/setup-android@v3` 在当前 runner 会执行已废弃的 `sdkmanager tools` 并失败 → **已从 CI 移除**，直接用 ubuntu-latest 预装 SDK。
 - KSP 插件最新仅到 `2.3.14`（对应 Kotlin 2.3.x），**没有匹配 Kotlin 2.4.20 的 KSP 版本** → 骨架阶段先移除 KSP 与 Room compiler；M2 引入 Room 实体时需重新评估：要么把 Kotlin 降到 2.3.x 配 KSP 2.3.14，要么用 Room 的 KAPT 或其他注解处理器方案。这是一个**待解决的版本冲突**，已记录在风险表。
+- **AGP 9.x 内置 Kotlin**：`org.jetbrains.kotlin.android` 插件与 AGP 9 的新 DSL 不兼容，必须移除；Compose 编译器插件 `org.jetbrains.kotlin.plugin.compose` 保留。AGP 9 运行时自带 KGP 2.2.10。官方迁移说明：https://developer.android.com/build/migrate-to-built-in-kotlin 。
+- Gradle 脚本中 `buildDir` 在 AGP 9 下已弃用并视为编译错误，改用 `layout.buildDirectory.file(...).get().asFile`；`java.util.Base64` 需要顶部显式 import。
 
 **关键风险——纯 Android 项目引用 KMP 库**：Miuix 是 Compose Multiplatform 库，其 POM 依赖 `org.jetbrains.compose.foundation:foundation:1.12.0` 等 JetBrains 坐标，而纯 Android 项目通常用 `androidx.compose.*`。两者在 Android 上最终映射到同一套 AndroidX 库，但 **存在 BOM 冲突与依赖解析歧义的可能**。
 
