@@ -2,6 +2,7 @@ package com.lucaslu.tickhub.data
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.lucaslu.tickhub.network.ApiResult
@@ -13,8 +14,8 @@ import kotlinx.serialization.json.Json
 import java.time.LocalDate
 
 private val Context.holidayDataStore by preferencesDataStore(name = "tickhub_holidays")
-private const val KEY_HOLIDAY_JSON = "holiday_json"
-private const val KEY_HOLIDAY_YEAR = "holiday_year"
+private val KEY_HOLIDAY_JSON = stringPreferencesKey("holiday_json")
+private val KEY_HOLIDAY_YEAR = intPreferencesKey("holiday_year")
 
 @Serializable
 data class HolidayDay(
