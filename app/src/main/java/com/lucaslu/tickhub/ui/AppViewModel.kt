@@ -70,63 +70,70 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 is ApiResult.Success -> {
                     val device = result.data
                     AppLogger.i("Auth", "device code obtained, expiresIn=${device.expiresIn}s interval=${device.interval}s")
-                    activeDeviceCode = device.deviceCode
                     _login.value = LoginUiState(
                         userCode = device.userCode,
                         verificationUri = device.verificationUri,
                         status = "请在浏览器打开 ${device.verificationUri} 并输入设备码",
                         loading = false
                     )
-                    pollJob?.cancel()
-                    pollJob = viewModelScope.launch { pollLoop(device.deviceCode, device.interval.coerceAtLeast(5), device.expiresIn) }
+                    pollLoop(device.deviceCode, device.interval.coerceAtLeast(5), device.expiresIn)
                 }
             }
         }
     }
 
-    private var activeDeviceCode: String? = null
-    private var pollJob: kotlinx.coroutines.Job? = null
-
     private suspend fun pollLoop(deviceCode: String, intervalSec: Int, expiresIn: Int) {
         val deadline = System.currentTimeMillis() + expiresIn * 1000L
         var currentInterval = intervalSec
-        var networkRetries = 0
+        var consecutiveNetworkErrors = 0
         while (System.currentTimeMillis() < deadline) {
             delay(currentInterval * 1000L)
-            val result = api.pollToken(deviceCode)
-            when (result) {
+            when (val result = api.pollToken(deviceCode)) {
                 is ApiResult.Error -> {
-                    // Parse/HTTP error: log but keep polling (transient server hiccups happen)
-                    AppLogger.w("Auth", "poll error (will retry): ${result.message}")
+                    // Unexpected API-layer error (parse failure etc). Treat as transient too,
+                    // but do not abort - device code is still valid until deadline.
+                    consecutiveNetworkErrors++
+                    AppLogger.w("Auth", "poll error (transient #$consecutiveNetworkErrors): ${result.message}")
+                    _login.value = _login.value.copy(
+                        status = "网络暂时不可达，正在重试（$consecutiveNetworkErrors）…请保持本 APP 在前台或切回来",
+                        error = null
+                    )
                 }
-                is ApiResult.Success -> when (val poll = result.data) {
-                    is TokenPoll.Success -> {
-                        AppLogger.i("Auth", "token obtained, fetching user")
-                        tokenStore.saveToken(poll.token)
-                        val userResult = api.getCurrentUser(poll.token)
-                        val loginName = if (userResult is ApiResult.Success) userResult.data.login else "GitHub 用户"
-                        repository.saveUser(loginName)
-                        AppLogger.i("Auth", "LOGIN OK user=$loginName")
-                        _login.value = LoginUiState(isLoggedIn = true, status = "登录成功：$loginName")
-                        return
-                    }
-                    TokenPoll.Pending -> Unit
-                    TokenPoll.SlowDown -> currentInterval += 5
-                    TokenPoll.NetworkError -> {
-                        networkRetries++
-                        AppLogger.w("Auth", "poll network unreachable, retry $networkRetries (keep polling)")
-                        _login.value = _login.value.copy(
-                            error = null,
-                            status = "网络暂时不可达，正在重试（第 $networkRetries 次）。你也可以在完成网页授权后点「我已完成授权」"
-                        )
-                    }
-                    TokenPoll.Expired -> {
-                        _login.value = _login.value.copy(error = "设备码已过期，请重新发起", loading = false)
-                        return
-                    }
-                    TokenPoll.Denied -> {
-                        _login.value = _login.value.copy(error = "你拒绝了授权", loading = false)
-                        return
+                is ApiResult.Success -> {
+                    when (val poll = result.data) {
+                        is TokenPoll.Success -> {
+                            AppLogger.i("Auth", "token obtained, fetching user")
+                            tokenStore.saveToken(poll.token)
+                            val userResult = api.getCurrentUser(poll.token)
+                            val loginName = if (userResult is ApiResult.Success) userResult.data.login else "GitHub 用户"
+                            repository.saveUser(loginName)
+                            AppLogger.i("Auth", "LOGIN OK user=$loginName")
+                            _login.value = LoginUiState(isLoggedIn = true, status = "登录成功：$loginName")
+                            return
+                        }
+                        TokenPoll.Pending -> {
+                            if (consecutiveNetworkErrors > 0) {
+                                consecutiveNetworkErrors = 0
+                                _login.value = _login.value.copy(status = "已重新连接，等待你在浏览器完成授权…")
+                            }
+                        }
+                        TokenPoll.SlowDown -> currentInterval += 5
+                        TokenPoll.NetworkError -> {
+                            consecutiveNetworkErrors++
+                            AppLogger.d("Auth", "poll network unreachable (#$consecutiveNetworkErrors), retrying")
+                            _login.value = _login.value.copy(
+                                status = "网络暂时不可达，正在重试（$consecutiveNetworkErrors）…请切回本 APP 或保持前台",
+                                error = null
+                            )
+                        }
+                        TokenPoll.Expired -> {
+                            _login.value = _login.value.copy(error = "设备码已过期，请重新发起", loading = false)
+                            return
+                        }
+                        TokenPoll.Denied -> {
+                            _login.value = _login.value.copy(error = "你拒绝了授权", loading = false)
+                            return
+                        }
                     }
                 }
             }
@@ -134,60 +141,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _login.value = _login.value.copy(error = "授权超时，请重试", loading = false)
     }
 
-    /** Manual check after user finished browser authorization. */
-    fun checkAuthorizationNow() {
-        val deviceCode = activeDeviceCode ?: return
-        pollJob?.cancel()
-        pollJob = viewModelScope.launch {
-            _login.value = _login.value.copy(status = "正在检查授权状态…", error = null)
-            when (val result = api.pollToken(deviceCode)) {
-                is ApiResult.Success -> when (val poll = result.data) {
-                    is TokenPoll.Success -> {
-                        tokenStore.saveToken(poll.token)
-                        val userResult = api.getCurrentUser(poll.token)
-                        val loginName = if (userResult is ApiResult.Success) userResult.data.login else "GitHub 用户"
-                        repository.saveUser(loginName)
-                        AppLogger.i("Auth", "LOGIN OK (manual check) user=$loginName")
-                        _login.value = LoginUiState(isLoggedIn = true, status = "登录成功：$loginName")
-                    }
-                    TokenPoll.Pending -> _login.value = _login.value.copy(status = "授权还未完成，请在浏览器确认后再点此按钮", error = null)
-                    TokenPoll.NetworkError -> _login.value = _login.value.copy(status = "网络不可达，请检查 VPN/流量后重试", error = null)
-                    TokenPoll.Expired -> _login.value = _login.value.copy(error = "设备码已过期，请重新获取", loading = false)
-                    TokenPoll.Denied -> _login.value = _login.value.copy(error = "你拒绝了授权", loading = false)
-                    TokenPoll.SlowDown -> _login.value = _login.value.copy(status = "请求过快，请稍后再点", error = null)
-                }
-                is ApiResult.Error -> _login.value = _login.value.copy(error = result.message, loading = false)
-            }
-        }
-    }
-
-    /** Login directly with a Personal Access Token (fastest path). */
-    fun loginWithToken(token: String, onResult: (Boolean, String) -> Unit) {
-        val trimmed = token.trim()
-        if (trimmed.isBlank()) {
-            onResult(false, "Token 不能为空")
-            return
-        }
-        viewModelScope.launch {
-            when (val result = api.getCurrentUser(trimmed)) {
-                is ApiResult.Error -> {
-                    AppLogger.w("Auth", "PAT validation failed: ${result.message}")
-                    onResult(false, "Token 无效或网络不可达：${result.message}")
-                }
-                is ApiResult.Success -> {
-                    tokenStore.saveToken(trimmed)
-                    repository.saveUser(result.data.login)
-                    AppLogger.i("Auth", "LOGIN OK (PAT) user=${result.data.login}")
-                    _login.value = LoginUiState(isLoggedIn = true, status = "登录成功：${result.data.login}")
-                    onResult(true, result.data.login)
-                }
-            }
-        }
-    }
-
     fun logout() {
-        activeDeviceCode = null
-        pollJob?.cancel()
         tokenStore.clear()
         viewModelScope.launch {
             repository.clearUser()

@@ -248,9 +248,10 @@ sealed class TokenPoll {
     data class Success(val token: String) : TokenPoll()
     data object Pending : TokenPoll()
     data object SlowDown : TokenPoll()
-    data object NetworkError : TokenPoll()
     data object Expired : TokenPoll()
     data object Denied : TokenPoll()
+    /** Transient network failure while in background - caller should retry, not abort. */
+    data object NetworkError : TokenPoll()
 }
 
 @kotlinx.serialization.Serializable
