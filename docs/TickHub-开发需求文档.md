@@ -340,6 +340,11 @@
 | kotlinx.serialization | 1.8.x | JSON 解析 |
 | WorkManager | （可选，见 §6.3.5） | 仅作为闹钟的兜底补充，非主调度 |
 
+**首次构建实测结论（2026-11-24）**：
+
+- `android-actions/setup-android@v3` 在当前 runner 会执行已废弃的 `sdkmanager tools` 并失败 → **已从 CI 移除**，直接用 ubuntu-latest 预装 SDK。
+- KSP 插件最新仅到 `2.3.14`（对应 Kotlin 2.3.x），**没有匹配 Kotlin 2.4.20 的 KSP 版本** → 骨架阶段先移除 KSP 与 Room compiler；M2 引入 Room 实体时需重新评估：要么把 Kotlin 降到 2.3.x 配 KSP 2.3.14，要么用 Room 的 KAPT 或其他注解处理器方案。这是一个**待解决的版本冲突**，已记录在风险表。
+
 **关键风险——纯 Android 项目引用 KMP 库**：Miuix 是 Compose Multiplatform 库，其 POM 依赖 `org.jetbrains.compose.foundation:foundation:1.12.0` 等 JetBrains 坐标，而纯 Android 项目通常用 `androidx.compose.*`。两者在 Android 上最终映射到同一套 AndroidX 库，但 **存在 BOM 冲突与依赖解析歧义的可能**。
 
 - **首次构建必须验证**：Gradle 依赖树中 JetBrains foundation 与 AndroidX Compose 是否解析到同一版本；若有冲突，用 `resolutionStrategy.force` 统一到 BOM 版本。

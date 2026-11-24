@@ -5,7 +5,6 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.ksp)
 }
 
 android {
@@ -82,9 +81,7 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.security.crypto)
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
-    ksp(libs.androidx.room.compiler)
+    // Room will be added in M2 together with a KSP version aligned to the Kotlin toolchain
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
