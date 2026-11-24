@@ -7,7 +7,13 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-val githubClientId = (project.findProperty("githubClientId") as? String).orEmpty()
+// Public OAuth client ID (GitHub CLI's official one) is bundled by default so
+// end users can sign in straight from the app with zero setup.
+// OAuth client IDs are public by design; no secret is embedded.
+val defaultGithubClientId = "178c6fc778ccc68e1d6a"
+val githubClientId = (project.findProperty("githubClientId") as? String)
+    ?.takeIf { it.isNotBlank() }
+    ?: defaultGithubClientId
 
 android {
     namespace = "com.lucaslu.tickhub"

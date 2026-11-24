@@ -1,8 +1,11 @@
 package com.lucaslu.tickhub.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -46,7 +49,7 @@ fun LoginScreen(state: LoginUiState, vm: AppViewModel, configured: Boolean) {
         if (!configured) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                 Text(
-                    "未配置 GitHub OAuth Client ID。\n请先在 GitHub 注册 OAuth App，然后用 -PgithubClientId=xxx 重新构建。",
+                    "GitHub Client ID 未注入，请联系开发者。",
                     modifier = Modifier.padding(16.dp),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onErrorContainer
@@ -75,7 +78,14 @@ fun LoginScreen(state: LoginUiState, vm: AppViewModel, configured: Boolean) {
                         style = MaterialTheme.typography.headlineMedium.copy(fontFamily = FontFamily.Monospace),
                         color = MaterialTheme.colorScheme.primary
                     )
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(onClick = {
+                        copyToClipboard(context, code)
+                        Toast.makeText(context, "设备码已复制", Toast.LENGTH_SHORT).show()
+                    }) {
+                        Text("复制设备码")
+                    }
+                    Spacer(Modifier.height(12.dp))
                     Button(onClick = { openBrowser(context, state.verificationUri ?: "https://github.com/login/device") }) {
                         Text("打开 GitHub 授权页面")
                     }
@@ -83,6 +93,13 @@ fun LoginScreen(state: LoginUiState, vm: AppViewModel, configured: Boolean) {
                     Text(
                         state.status,
                         style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "授权页面显示「GitHub CLI」属正常现象——TickHub 使用 GitHub 官方公开登录方式，请放心授权。",
+                        style = MaterialTheme.typography.labelSmall,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -105,4 +122,9 @@ private fun openBrowser(context: Context, url: String) {
     runCatching {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
+}
+
+private fun copyToClipboard(context: Context, text: String) {
+    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    cm.setPrimaryClip(ClipData.newPlainText("TickHub device code", text))
 }

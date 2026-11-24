@@ -10,7 +10,7 @@
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
 | 最新测试版 | v0.1.0-beta2（M1：Device Flow 登录 + 仓库/工作流扫描 + 勾选纳管），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta2 |
-| 待用户操作 | **注册 GitHub OAuth App 并把 Client ID 注入构建**（见 §17），否则登录页会提示未配置 |
+| 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §17） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
 | 计划仓库 | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1） |
 
@@ -851,32 +851,33 @@ local.properties
 
 ---
 
-## 17. OAuth App 注册与 Client ID 注入（M1 上线前置条件）
+## 17. 登录方式：开箱即用的 Device Flow（无需用户预配置）
 
-Device Flow 需要一个 GitHub OAuth App 的 **Client ID**（公开值，不是密钥，可入库）。当前构建未注入，登录页会显示「未配置」。完成以下步骤后 APP 才能登录：
+### 17.1 设计原则
 
-### 17.1 注册 OAuth App
+小白用户应能**装完 APP 直接点登录**，不应要求他们先去网页注册 OAuth App、再导入 Client ID。Client ID 按 OAuth 2.0 规范本就是**公开标识**（不是密钥），内置在客户端完全合规、无安全风险。
 
-1. 打开 https://github.com/settings/developers → **OAuth Apps** → **New OAuth App**。
-2. 填写：
-   - Application name：`TickHub`
-   - Homepage URL：`https://github.com/LucasLu-97/TickHub`
-   - Authorization callback URL：`http://localhost`（Device Flow 不用回调，但 GitHub 要求必填）
-3. 注册后复制 **Client ID**（形如 `Iv1.xxxxxxxxxxxxxxxx`）。**不需要 Client Secret**——Device Flow 不用它，也不要把它写进 APP。
-4. 授权 scope：APP 代码里已写死申请 `repo`（触发私有仓库 dispatch 所需），首次授权时 GitHub 会展示权限确认页。
+### 17.2 当前实现（默认）
 
-### 17.2 注入 Client ID
+APP 内置了 **GitHub CLI 的官方公开 Client ID**（`178c6fc778ccc68e1d6a`）作为默认值——这是社区广泛复用的公开客户端标识，GitHub 官方 CLI 与大量第三方工具都用它做 Device Flow。
 
-Client ID 通过构建参数 `-PgithubClientId=XXX` 注入，写进 BuildConfig。两种方式：
+- 用户流程：安装 → 点「用 GitHub 登录」→ APP 显示设备码（带「复制设备码」按钮）→ 点「打开 GitHub 授权页面」→ 在浏览器粘贴设备码并授权 → APP 自动轮询到 token 并进入仓库列表。
+- **授权页显示的应用名是「GitHub CLI」而不是 TickHub**，这是正常的（因为复用了公开客户端 ID）。登录页已有提示文案说明这一点，避免用户困惑。
+- scope 写死 `repo`（触发私有仓库 dispatch 所需）。
+- 敏感数据只有 access token，存 Android Keystore（见 §8.1）。
 
-- **CI 注入（推荐）**：把 Client ID 存为仓库 Actions Variable（非 Secret 也行，它本就公开），名 `GITHUB_CLIENT_ID`，然后在 `build-release.yml` 的 assemble 步骤加 `-PgithubClientId="${{ vars.GITHUB_CLIENT_ID }}"`。
-- **本地调试**：Android Studio 里在 Gradle 参数加 `-PgithubClientId=XXX`，或在 `gradle.properties` 里加一行 `githubClientId=XXX`（本地文件，已 gitignore 的可选做法）。
+### 17.3 高级覆盖（可选）
 
-> 注意：Client ID 只是公开标识，不含密钥，写进公开仓库无安全风险。真正敏感的 access token 存在 Android Keystore 加密存储里（见 §8.1）。
+如果将来要换成 TickHub 专属 OAuth App，可通过构建参数覆盖默认值：
 
-### 17.3 验证
+- **CI**：仓库 Actions Variable `GITHUB_CLIENT_ID`（非 Secret），`build-release.yml` 已带 `-PgithubClientId="${{ vars.GITHUB_CLIENT_ID }}"`。
+- **本地**：`-PgithubClientId=XXX` 或 `gradle.properties` 里加 `githubClientId=XXX`。
 
-注入后重新打 tag 构建，安装后打开 APP：登录页应显示「用 GitHub 登录」按钮（不再是"未配置"红框），点击后出现设备码，在 https://github.com/login/device 输入即可完成授权，随后自动进入仓库列表。
+> 换专属 OAuth App 的好处仅是授权页显示 TickHub 名字；功能无差别。注册步骤见旧版本文档（Settings → Developer settings → OAuth Apps → New OAuth App，callback 填 `http://localhost`）。
+
+### 17.4 验证
+
+安装后打开 APP，登录页直接显示「用 GitHub 登录」按钮（无红框）。点击后出现设备码 → 复制 → 打开授权页粘贴 → 授权完成自动进入仓库列表。
 
 ---
 
