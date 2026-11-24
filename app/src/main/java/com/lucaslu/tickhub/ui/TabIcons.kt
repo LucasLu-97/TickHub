@@ -55,7 +55,7 @@ private fun DrawScope.drawClock(c: Color, w: Float) {
     val cx = size.width / 2
     val cy = size.height / 2
     val r = minOf(size.width, size.height) * 0.36f
-    drawCircle(Offset(cx, cy), r, color = c, style = Stroke(w))
+    drawCircle(color = c, radius = r, center = Offset(cx, cy), style = Stroke(w))
     drawLine(color = c, start = Offset(cx, cy), end = Offset(cx, cy - r * 0.6f), strokeWidth = w)
     drawLine(color = c, start = Offset(cx, cy), end = Offset(cx + r * 0.5f, cy), strokeWidth = w)
 }
@@ -89,7 +89,7 @@ private fun DrawScope.drawSettings(c: Color, w: Float) {
     val cx = size.width / 2
     val cy = size.height / 2
     val r = minOf(size.width, size.height) * 0.36f
-    drawCircle(Offset(cx, cy), r * 0.32f, color = c, style = Stroke(w))
+    drawCircle(color = c, radius = r * 0.32f, center = Offset(cx, cy), style = Stroke(w))
     for (i in 0..7) {
         val angle = i * 45f * kotlin.math.PI.toFloat() / 180f
         val sx = cx + cos(angle) * r * 0.55f
