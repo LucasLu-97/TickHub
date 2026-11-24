@@ -34,6 +34,33 @@ data class ScanSnapshot(
     val scannedAt: Long = 0L
 )
 
+enum class RuleType {
+    ONCE, DAILY, WEEKDAYS, WEEKLY, EVERY_N_DAYS
+}
+
+enum class RuleStatus {
+    ENABLED, DISABLED, PAUSED, COMPLETED
+}
+
+@Serializable
+data class Rule(
+    val id: String,
+    val workflowId: Long,
+    val workflowName: String = "",
+    val repoFullName: String = "",
+    val type: RuleType = RuleType.DAILY,
+    val hour: Int = 8,
+    val minute: Int = 0,
+    val onceDate: String? = null,      // yyyy-MM-dd, for ONCE
+    val weekdays: List<Int> = emptyList(), // 1=Mon..7=Sun, for WEEKLY
+    val intervalDays: Int = 7,          // for EVERY_N_DAYS
+    val startDate: String? = null,      // yyyy-MM-dd, anchor for EVERY_N_DAYS
+    val status: RuleStatus = RuleStatus.ENABLED,
+    val nextFireAt: Long? = null,       // epoch millis, computed by RuleEngine
+    val lastFiredAt: Long? = null,
+    val createdAt: Long = 0L
+)
+
 // ---- GitHub REST DTOs ----
 
 @Serializable

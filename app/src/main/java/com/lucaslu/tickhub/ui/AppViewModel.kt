@@ -3,7 +3,9 @@ package com.lucaslu.tickhub.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.lucaslu.tickhub.data.Rule
 import com.lucaslu.tickhub.data.TokenStore
+import com.lucaslu.tickhub.domain.RuleEngine
 import com.lucaslu.tickhub.network.ApiResult
 import com.lucaslu.tickhub.network.GitHubApi
 import com.lucaslu.tickhub.network.TokenPoll
@@ -36,6 +38,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val repository = AppRepository(app, api)
 
     val snapshot = repository.snapshot
+    val rules = repository.rules
     val loggedInUser = repository.loggedInUser
 
     private val _login = MutableStateFlow(LoginUiState(isLoggedIn = tokenStore.getToken() != null))
@@ -135,5 +138,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun toggleManaged(repoId: Long, managed: Boolean) {
         viewModelScope.launch { repository.setManaged(repoId, managed) }
+    }
+
+    fun saveRule(rule: Rule) {
+        viewModelScope.launch {
+            // Compute next fire time and persist together
+            val next = RuleEngine.computeNextFire(rule, java.time.LocalDateTime.now())
+            val finalRule = rule.copy(
+                nextFireAt = next?.let { RuleEngine.toEpochMillis(it) },
+                createdAt = if (rule.createdAt == 0L) System.currentTimeMillis() else rule.createdAt
+            )
+            repository.saveRule(finalRule)
+        }
+    }
+
+    fun deleteRule(id: String) {
+        viewModelScope.launch { repository.deleteRule(id) }
+    }
+
+    fun setRuleEnabled(id: String, enabled: Boolean) {
+        viewModelScope.launch { repository.setRuleEnabled(id, enabled) }
     }
 }

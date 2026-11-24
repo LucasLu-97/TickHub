@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.lucaslu.tickhub.data.RepoItem
+import com.lucaslu.tickhub.data.Rule
 import com.lucaslu.tickhub.data.ScanSnapshot
 import com.lucaslu.tickhub.data.WorkflowItem
 import com.lucaslu.tickhub.network.ApiResult
@@ -29,6 +30,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
 
     private val json = Json { ignoreUnknownKeys = true }
     private val snapshotKey = stringPreferencesKey("scan_snapshot_json")
+    private val rulesKey = stringPreferencesKey("rules_json")
     private val tokenUserKey = stringPreferencesKey("logged_in_user")
     private val lastScanKey = longPreferencesKey("last_scan_at")
 
@@ -43,6 +45,16 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     }
 
     val loggedInUser: Flow<String?> = context.dataStore.data.map { it[tokenUserKey] }
+
+    val rules: Flow<List<Rule>> = context.dataStore.data.map { prefs ->
+        val raw = prefs[rulesKey]
+        if (raw.isNullOrBlank()) emptyList()
+        else try {
+            json.decodeFromString<List<Rule>>(raw)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 
     suspend fun saveUser(login: String) {
         context.dataStore.edit { it[tokenUserKey] = login }
@@ -123,6 +135,32 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         }
     }
 
+    suspend fun saveRule(rule: Rule) {
+        context.dataStore.edit { prefs ->
+            val current = readRules(prefs).toMutableList()
+            val idx = current.indexOfFirst { it.id == rule.id }
+            if (idx >= 0) current[idx] = rule else current.add(rule)
+            prefs[rulesKey] = json.encodeToString(current)
+        }
+    }
+
+    suspend fun deleteRule(id: String) {
+        context.dataStore.edit { prefs ->
+            val current = readRules(prefs).filterNot { it.id == id }
+            prefs[rulesKey] = json.encodeToString(current)
+        }
+    }
+
+    suspend fun setRuleEnabled(id: String, enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            val current = readRules(prefs).map {
+                if (it.id == id) it.copy(status = if (enabled) com.lucaslu.tickhub.data.RuleStatus.ENABLED else com.lucaslu.tickhub.data.RuleStatus.DISABLED)
+                else it
+            }
+            prefs[rulesKey] = json.encodeToString(current)
+        }
+    }
+
     suspend fun clearSnapshot() {
         context.dataStore.edit { prefs ->
             prefs.remove(snapshotKey)
@@ -136,6 +174,15 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
             json.decodeFromString(raw)
         } catch (e: Exception) {
             ScanSnapshot()
+        }
+    }
+
+    private fun readRules(prefs: Preferences): List<Rule> {
+        val raw = prefs[rulesKey] ?: return emptyList()
+        return try {
+            json.decodeFromString(raw)
+        } catch (e: Exception) {
+            emptyList()
         }
     }
 }

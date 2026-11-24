@@ -41,6 +41,11 @@ jobs:
           echo "code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
           echo "Version: ${VERSION_NAME} (${VERSION_CODE})"
 
+      - name: Run unit tests
+        run: |
+          chmod +x ./gradlew
+          ./gradlew testReleaseUnitTest
+
       - name: Assemble release
         working-directory: .
         env:
