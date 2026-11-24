@@ -148,6 +148,7 @@ class DispatchEngine(private val context: Context) {
                 id = UUID.randomUUID().toString(),
                 ruleId = rule.id,
                 workflowName = rule.workflowName,
+                repoFullName = rule.repoFullName,
                 plannedAt = plannedAt,
                 firedAt = System.currentTimeMillis(),
                 status = status,

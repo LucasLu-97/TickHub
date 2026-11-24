@@ -70,6 +70,7 @@ data class TriggerLog(
     val id: String,
     val ruleId: String,
     val workflowName: String = "",
+    val repoFullName: String = "",
     val plannedAt: Long = 0L,
     val firedAt: Long? = null,
     val status: TriggerStatus = TriggerStatus.SUCCESS,

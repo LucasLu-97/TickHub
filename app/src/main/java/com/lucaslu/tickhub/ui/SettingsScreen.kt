@@ -58,6 +58,28 @@ fun SettingsScreen(vm: AppViewModel) {
         }
         Spacer(Modifier.height(16.dp))
 
+        // exact alarm permission (Android 12+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val alarmManager = context.getSystemService(android.app.AlarmManager::class.java)
+            val canExact = alarmManager?.canScheduleExactAlarms() == true
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("精确闹钟", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        if (canExact) "✓ 已允许精确闹钟，触发更准时" else "⚠ 未允许精确闹钟，触发可能延迟数分钟",
+                        color = if (canExact) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    if (!canExact) {
+                        Button(onClick = { openExactAlarmSettings(context) }) { Text("去开启精确闹钟") }
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("网络恢复等待时长", style = MaterialTheme.typography.titleMedium)
@@ -90,6 +112,17 @@ private fun openBatterySettings(context: Context) {
             data = Uri.parse("package:${context.packageName}")
         }
         context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+}
+
+private fun openExactAlarmSettings(context: Context) {
+    runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                data = Uri.parse("package:${context.packageName}")
+            }
+            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
     }
 }
 

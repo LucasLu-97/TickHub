@@ -58,6 +58,9 @@ private fun LogCard(log: TriggerLog) {
                 Text(log.workflowName.ifBlank { "工作流" }, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                 Text(label, color = color, style = MaterialTheme.typography.labelLarge)
             }
+            if (log.repoFullName.isNotBlank()) {
+                Text(log.repoFullName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Spacer(Modifier.height(4.dp))
             Text("计划：${fmt.format(Date(log.plannedAt))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             log.firedAt?.let { Text("实际：${fmt.format(Date(it))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }

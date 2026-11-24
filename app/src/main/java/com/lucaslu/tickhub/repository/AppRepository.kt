@@ -125,12 +125,15 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     suspend fun setSelected(workflowId: Long, selected: Boolean) {
         context.dataStore.edit { prefs ->
             val current = readSnapshot(prefs)
-            val updated = current.copy(
-                workflows = current.workflows.map {
-                    if (it.id == workflowId) it.copy(selected = selected) else it
-                }
-            )
-            prefs[snapshotKey] = json.encodeToString(updated)
+            val workflows = current.workflows.map {
+                if (it.id == workflowId) it.copy(selected = selected) else it
+            }
+            // keep each repo's managed flag in sync with actual selections
+            val repos = current.repos.map { repo ->
+                val wfs = workflows.filter { it.repoId == repo.id }
+                repo.copy(managed = wfs.isNotEmpty() && wfs.all { it.selected })
+            }
+            prefs[snapshotKey] = json.encodeToString(current.copy(workflows = workflows, repos = repos))
         }
     }
 
@@ -140,10 +143,18 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
             val updated = current.copy(
                 repos = current.repos.map {
                     if (it.id == repoId) it.copy(managed = managed) else it
+                },
+                workflows = current.workflows.map {
+                    if (it.repoId == repoId) it.copy(selected = managed) else it
                 }
             )
             prefs[snapshotKey] = json.encodeToString(updated)
         }
+    }
+
+    /** Set selection for all workflows of a repo, and sync the managed flag. */
+    suspend fun setRepoWorkflowsSelected(repoId: Long, selected: Boolean) {
+        setManaged(repoId, selected)
     }
 
     /** Scan repos and their workflows, preserving existing selection/managed state. */

@@ -115,6 +115,7 @@ private fun RepoCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                Text("全选", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Switch(checked = managed, onCheckedChange = onManagedChange)
             }
             if (expanded) {
