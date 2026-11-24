@@ -142,7 +142,7 @@ class RuleEngineTest {
     }
 
     @Test
-    fun everyNDays_leapYear February() {
+    fun everyNDays_leapYearFebruary() {
         val r = rule(RuleType.EVERY_N_DAYS, hour = 9, minute = 0, intervalDays = 1, startDate = "2028-02-28")
         val from = LocalDateTime.of(2028, 2, 28, 10, 0)
         assertEquals(
