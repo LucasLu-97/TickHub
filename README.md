@@ -14,7 +14,7 @@ Android app that turns your phone into a reliable GitHub Actions scheduler.
 | Device Flow 登录 | 🚧 M1 |
 | 仓库/工作流扫描 | 🚧 M1 |
 | 规则配置 | ✅ M2 完成（5 种周期 + 12 项单测） |
-| 调度引擎 | 🚧 M3 |
+| 调度引擎 | ✅ M3 完成（闹钟+等网络+dispatch+补触发，待真机验证） |
 | 真机验收 | 🚧 M5 |
 | 正式版 | 🚧 M6 |
 
