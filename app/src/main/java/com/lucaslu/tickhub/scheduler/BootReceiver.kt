@@ -26,7 +26,7 @@ class BootReceiver : BroadcastReceiver() {
                 val scheduler = AlarmScheduler(context.applicationContext)
                 val enabled = repository.getRulesOnce().filter { it.status == RuleStatus.ENABLED }
                 AppLogger.i("Boot", "device rebooted, re-scheduling ${enabled.size} enabled rules")
-                enabled.forEach { scheduler.schedule(it) }
+                enabled.forEach { scheduler.schedule(it.copy(nextFireAt = it.effectiveFireAt ?: it.nextFireAt)) }
             } catch (e: Exception) {
                 AppLogger.e("Boot", "re-schedule failed: ${e.message}", e)
             } finally {

@@ -52,7 +52,13 @@ fun RuleEditScreen(
     onSave: (Rule) -> Unit,
     onCancel: () -> Unit
 ) {
-    var selectedWorkflowId by remember { mutableStateOf(existing?.workflowId ?: workflows.firstOrNull()?.id ?: 0L) }
+    var selectedWorkflowIds by remember {
+        mutableStateOf(
+            existing?.resolvedWorkflowIds()?.toSet()
+                ?: workflows.firstOrNull()?.let { setOf(it.id) }
+                ?: emptySet()
+        )
+    }
     var type by remember { mutableStateOf(existing?.type ?: RuleType.DAILY) }
     var hour by remember { mutableStateOf(existing?.hour ?: 8) }
     var minute by remember { mutableStateOf(existing?.minute ?: 0) }
@@ -60,6 +66,7 @@ fun RuleEditScreen(
     var selectedDays by remember { mutableStateOf(existing?.weekdays ?: listOf(1)) }
     var interval by remember { mutableStateOf(existing?.intervalDays ?: 7) }
     var startDate by remember { mutableStateOf(existing?.startDate ?: RuleEngine.formatDate(LocalDate.now())) }
+    var driftMinutes by remember { mutableStateOf(existing?.driftMinutes ?: 0) }
     var error by remember { mutableStateOf<String?>(null) }
 
     val hourItems = (0..23).map { it.toString().padStart(2, '0') }
@@ -90,8 +97,12 @@ fun RuleEditScreen(
                     Row(modifier = Modifier.fillMaxWidth()) {
                         rowWfs.forEach { wf ->
                             FilterChip(
-                                selected = selectedWorkflowId == wf.id,
-                                onClick = { selectedWorkflowId = wf.id },
+                                selected = selectedWorkflowIds.contains(wf.id),
+                                onClick = {
+                                    selectedWorkflowIds = if (selectedWorkflowIds.contains(wf.id)) {
+                                        selectedWorkflowIds - wf.id
+                                    } else selectedWorkflowIds + wf.id
+                                },
                                 label = { Text(wf.name, maxLines = 1) },
                                 modifier = Modifier.weight(1f).padding(end = 4.dp)
                             )
@@ -185,19 +196,40 @@ fun RuleEditScreen(
             }
             else -> Unit
         }
+        Spacer(Modifier.height(20.dp))
+
+        // ---- random drift ----
+        Text("随机漂移（规避签到平台规律检测）", style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth()) {
+            listOf(0, 10, 30, 60).chunked(2).forEach { rowDrifts ->
+                Column(modifier = Modifier.weight(1f)) {
+                    rowDrifts.forEach { d ->
+                        FilterChip(
+                            selected = driftMinutes == d,
+                            onClick = { driftMinutes = d },
+                            label = { Text(if (d == 0) "不漂移" else "${d}分钟内") },
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+                        )
+                    }
+                }
+            }
+        }
+        Text("选中后将在窗口期内随机延后触发时间", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(24.dp))
 
         // preview
         val previewRule = Rule(
             id = existing?.id ?: "preview",
-            workflowId = selectedWorkflowId,
+            workflowIds = selectedWorkflowIds.toList(),
             type = type,
             hour = hour,
             minute = minute,
             onceDate = onceDate,
             weekdays = selectedDays,
             intervalDays = interval,
-            startDate = startDate
+            startDate = startDate,
+            driftMinutes = driftMinutes
         )
         val next = RuleEngine.computeNextFire(previewRule, LocalDateTime.now())
         Text(
@@ -215,16 +247,21 @@ fun RuleEditScreen(
             Button(onClick = {
                 when {
                     workflows.isEmpty() -> error = "请先纳管工作流"
+                    selectedWorkflowIds.isEmpty() -> error = "请至少选择一个工作流"
                     type == RuleType.WEEKLY && selectedDays.isEmpty() -> error = "请至少选择一个星期"
                     next == null -> error = "无法计算下次触发时间，请检查日期/参数"
                     else -> {
-                        val wf = workflows.first { it.id == selectedWorkflowId }
+                        val selectedWfs = workflows.filter { selectedWorkflowIds.contains(it.id) }
+                        val firstWf = selectedWfs.first()
                         onSave(
                             Rule(
                                 id = existing?.id ?: UUID.randomUUID().toString(),
-                                workflowId = wf.id,
-                                workflowName = wf.name,
-                                repoFullName = repoNames[wf.repoId] ?: "",
+                                workflowId = firstWf.id,
+                                workflowIds = selectedWfs.map { it.id },
+                                workflowName = firstWf.name,
+                                workflowNames = selectedWfs.map { it.name },
+                                repoFullName = repoNames[firstWf.repoId] ?: "",
+                                repoId = firstWf.repoId,
                                 type = type,
                                 hour = hour,
                                 minute = minute,
@@ -232,6 +269,7 @@ fun RuleEditScreen(
                                 weekdays = if (type == RuleType.WEEKLY) selectedDays.sorted() else emptyList(),
                                 intervalDays = if (type == RuleType.EVERY_N_DAYS) interval else 7,
                                 startDate = if (type == RuleType.EVERY_N_DAYS) startDate else null,
+                                driftMinutes = driftMinutes,
                                 status = existing?.status ?: RuleStatus.ENABLED,
                                 createdAt = existing?.createdAt ?: System.currentTimeMillis()
                             )

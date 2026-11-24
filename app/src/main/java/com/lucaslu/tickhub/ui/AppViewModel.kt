@@ -184,14 +184,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun saveRule(rule: Rule) {
         viewModelScope.launch {
-            val next = RuleEngine.computeNextFire(rule, LocalDateTime.now())
+            val (next, effective) = repository.computeNextFire(rule, LocalDateTime.now())
+            val base = next?.let { RuleEngine.toEpochMillis(it) }
             val finalRule = rule.copy(
-                nextFireAt = next?.let { RuleEngine.toEpochMillis(it) },
+                nextFireAt = base,
+                effectiveFireAt = effective,
                 createdAt = if (rule.createdAt == 0L) System.currentTimeMillis() else rule.createdAt
             )
             repository.saveRule(finalRule)
             alarmScheduler.cancel(rule.id)
-            if (finalRule.status == RuleStatus.ENABLED) alarmScheduler.schedule(finalRule)
+            if (finalRule.status == RuleStatus.ENABLED && effective != null) {
+                alarmScheduler.schedule(finalRule.copy(nextFireAt = effective))
+            }
         }
     }
 
@@ -207,7 +211,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             repository.setRuleEnabled(id, enabled)
             val rule = repository.getRuleOnce(id)
             if (rule == null) return@launch
-            if (enabled) alarmScheduler.schedule(rule) else alarmScheduler.cancel(id)
+            if (enabled) {
+                alarmScheduler.schedule(rule.copy(nextFireAt = rule.effectiveFireAt ?: rule.nextFireAt))
+            } else alarmScheduler.cancel(id)
         }
     }
 
@@ -216,7 +222,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val enabled = repository.getRulesOnce().filter { it.status == RuleStatus.ENABLED }
             AppLogger.i("App", "syncAlarms: ${enabled.size} enabled rules")
-            enabled.forEach { alarmScheduler.schedule(it) }
+            enabled.forEach { alarmScheduler.schedule(it.copy(nextFireAt = it.effectiveFireAt ?: it.nextFireAt)) }
         }
     }
 
