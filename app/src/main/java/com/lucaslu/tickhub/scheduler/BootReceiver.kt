@@ -6,6 +6,7 @@ import android.content.Intent
 import com.lucaslu.tickhub.data.RuleStatus
 import com.lucaslu.tickhub.network.GitHubApi
 import com.lucaslu.tickhub.repository.AppRepository
+import com.lucaslu.tickhub.util.AppLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -23,11 +24,11 @@ class BootReceiver : BroadcastReceiver() {
             try {
                 val repository = AppRepository(context.applicationContext, GitHubApi())
                 val scheduler = AlarmScheduler(context.applicationContext)
-                repository.getRulesOnce()
-                    .filter { it.status == RuleStatus.ENABLED }
-                    .forEach { scheduler.schedule(it) }
+                val enabled = repository.getRulesOnce().filter { it.status == RuleStatus.ENABLED }
+                AppLogger.i("Boot", "device rebooted, re-scheduling ${enabled.size} enabled rules")
+                enabled.forEach { scheduler.schedule(it) }
             } catch (e: Exception) {
-                // best effort
+                AppLogger.e("Boot", "re-schedule failed: ${e.message}", e)
             } finally {
                 pending.finish()
             }

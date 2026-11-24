@@ -11,6 +11,7 @@ import com.lucaslu.tickhub.network.ApiResult
 import com.lucaslu.tickhub.network.GitHubApi
 import com.lucaslu.tickhub.network.TokenPoll
 import com.lucaslu.tickhub.repository.AppRepository
+import com.lucaslu.tickhub.util.AppLogger
 import com.lucaslu.tickhub.scheduler.AlarmScheduler
 import com.lucaslu.tickhub.scheduler.DispatchEngine
 import com.lucaslu.tickhub.scheduler.DispatchWorker
@@ -62,9 +63,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _login.value = LoginUiState(status = "正在请求设备码…", loading = true)
         viewModelScope.launch {
             when (val result = api.requestDeviceCode()) {
-                is ApiResult.Error -> _login.value = LoginUiState(error = result.message)
+                is ApiResult.Error -> {
+                    AppLogger.e("Auth", "device code request failed: ${result.message}")
+                    _login.value = LoginUiState(error = result.message)
+                }
                 is ApiResult.Success -> {
                     val device = result.data
+                    AppLogger.i("Auth", "device code obtained, expiresIn=${device.expiresIn}s interval=${device.interval}s")
                     _login.value = LoginUiState(
                         userCode = device.userCode,
                         verificationUri = device.verificationUri,
@@ -90,10 +95,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 is ApiResult.Success -> {
                     when (val poll = result.data) {
                         is TokenPoll.Success -> {
+                            AppLogger.i("Auth", "token obtained, fetching user")
                             tokenStore.saveToken(poll.token)
                             val userResult = api.getCurrentUser(poll.token)
                             val loginName = if (userResult is ApiResult.Success) userResult.data.login else "GitHub 用户"
                             repository.saveUser(loginName)
+                            AppLogger.i("Auth", "LOGIN OK user=$loginName")
                             _login.value = LoginUiState(isLoggedIn = true, status = "登录成功：$loginName")
                             return
                         }
@@ -181,9 +188,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Register alarms for all enabled rules (called on app start). */
     fun syncAlarms() {
         viewModelScope.launch {
-            repository.getRulesOnce()
-                .filter { it.status == RuleStatus.ENABLED }
-                .forEach { alarmScheduler.schedule(it) }
+            val enabled = repository.getRulesOnce().filter { it.status == RuleStatus.ENABLED }
+            AppLogger.i("App", "syncAlarms: ${enabled.size} enabled rules")
+            enabled.forEach { alarmScheduler.schedule(it) }
         }
     }
 
@@ -193,6 +200,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val now = System.currentTimeMillis()
             val rules = repository.getRulesOnce().filter { it.status == RuleStatus.ENABLED }
             val logs = repository.getLogsOnce()
+            AppLogger.i("App", "catchUp scan: ${rules.size} enabled rules, ${logs.size} logs")
             for (rule in rules) {
                 val planned = rule.nextFireAt ?: continue
                 if (planned > now) continue // not due yet
@@ -203,6 +211,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 if (alreadyFired) continue
                 // enqueue as makeup dispatch
+                AppLogger.w("App", "catchUp MAKEUP rule=${rule.id.take(8)} missed at=$planned")
                 DispatchWorker.enqueue(getApplication(), rule.id, planned, isMakeup = true)
             }
             repository.setLastCatchUpAt(now)

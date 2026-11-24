@@ -15,6 +15,7 @@ import com.lucaslu.tickhub.domain.RuleEngine
 import com.lucaslu.tickhub.network.ApiResult
 import com.lucaslu.tickhub.network.GitHubApi
 import com.lucaslu.tickhub.repository.AppRepository
+import com.lucaslu.tickhub.util.AppLogger
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.time.LocalDateTime
@@ -35,15 +36,23 @@ class DispatchEngine(private val context: Context) {
 
     /** Execute a rule dispatch. Returns the resulting status. */
     suspend fun execute(ruleId: String, isMakeup: Boolean, plannedAt: Long): TriggerStatus {
-        val rule = repository.getRuleOnce(ruleId) ?: return TriggerStatus.FAILED
+        val rule = repository.getRuleOnce(ruleId)
+        if (rule == null) {
+            AppLogger.e("Engine", "rule not found: ${ruleId.take(8)}")
+            return TriggerStatus.FAILED
+        }
+        AppLogger.i("Engine", "execute rule=${ruleId.take(8)} wf=${rule.workflowName} repo=${rule.repoFullName} makeup=$isMakeup")
         val token = tokenStore.getToken()
         if (token == null) {
+            AppLogger.e("Engine", "token missing -> abort")
             addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "未登录，token 缺失", isMakeup = isMakeup)
             return TriggerStatus.FAILED
         }
 
         val waitMinutes = repository.getNetworkWaitMinutesOnce()
+        AppLogger.d("Engine", "network check start (timeout=${waitMinutes}min)")
         val networkOk = waitForNetwork(waitMinutes)
+        AppLogger.i("Engine", "network ready=$networkOk")
         if (!networkOk) {
             addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "等待网络超时（${waitMinutes}分钟）", isMakeup = isMakeup)
             advanceRule(rule)
@@ -56,6 +65,7 @@ class DispatchEngine(private val context: Context) {
         // parse owner/repo from "owner/repo"
         val parts = rule.repoFullName.split("/")
         if (parts.size != 2) {
+            AppLogger.e("Engine", "invalid repo name: ${rule.repoFullName}")
             addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "仓库名无效：${rule.repoFullName}", isMakeup = isMakeup)
             return TriggerStatus.FAILED
         }
@@ -65,15 +75,18 @@ class DispatchEngine(private val context: Context) {
         var success = false
         val delays = longArrayOf(1_000, 4_000, 16_000)
         for (attempt in 0..2) {
+            AppLogger.d("Engine", "dispatch attempt ${attempt + 1}/3 -> ${parts[0]}/${parts[1]} wfId=${rule.workflowId}")
             when (val result = api.dispatchWorkflow(token, parts[0], parts[1], rule.workflowId, "main")) {
                 is ApiResult.Success -> {
                     httpCode = result.data
                     success = true
+                    AppLogger.i("Engine", "dispatch SUCCESS http=${result.data} on attempt ${attempt + 1}")
                     break
                 }
                 is ApiResult.Error -> {
                     lastError = result.message
                     httpCode = result.code
+                    AppLogger.w("Engine", "dispatch attempt ${attempt + 1} FAILED http=${result.code} err=${result.message}")
                     if (attempt < 2) delay(delays[attempt])
                 }
             }
@@ -100,6 +113,7 @@ class DispatchEngine(private val context: Context) {
     private suspend fun advanceRule(rule: Rule) {
         val next = RuleEngine.computeNextFire(rule, LocalDateTime.now())
         if (next == null) {
+            AppLogger.i("Engine", "rule=${rule.id.take(8)} COMPLETED (no next fire)")
             // ONCE rule completed
             repository.updateRule(
                 rule.copy(
@@ -111,6 +125,7 @@ class DispatchEngine(private val context: Context) {
             alarmScheduler.cancel(rule.id)
             return
         }
+        AppLogger.i("Engine", "rule=${rule.id.take(8)} next fire -> $next")
         val updated = repository.updateRule(
             rule.copy(
                 nextFireAt = RuleEngine.toEpochMillis(next),

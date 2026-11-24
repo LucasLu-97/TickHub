@@ -72,7 +72,7 @@ private fun TickHubApp() {
     Scaffold(
         bottomBar = {
             NavigationBar {
-                val items = listOf("仓库" to "▤", "规则" to "◷", "历史" to "≡", "设置" to "⚙")
+                val items = listOf("仓库" to "▤", "规则" to "◷", "历史" to "≡", "日志" to "▧", "设置" to "⚙")
                 items.forEachIndexed { index, (label, icon) ->
                     NavigationBarItem(
                         selected = tab == index,
@@ -89,7 +89,8 @@ private fun TickHubApp() {
                 0 -> ReposScreen(vm)
                 1 -> RulesScreen(vm)
                 2 -> HistoryScreen(vm)
-                3 -> SettingsScreen(vm)
+                3 -> LogScreen()
+                4 -> SettingsScreen(vm)
             }
         }
     }

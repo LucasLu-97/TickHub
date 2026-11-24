@@ -7,6 +7,10 @@ import android.content.Intent
 import android.os.Build
 import com.lucaslu.tickhub.data.Rule
 import com.lucaslu.tickhub.data.RuleStatus
+import com.lucaslu.tickhub.util.AppLogger
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Registers precise alarms via AlarmManager.setExactAndAllowWhileIdle.
@@ -22,17 +26,20 @@ class AlarmScheduler(private val context: Context) {
         if (triggerAt <= System.currentTimeMillis()) return
 
         val pi = pendingIntentFor(rule.id, triggerAt)
-        runCatching {
+        val timeStr = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(triggerAt))
+        val ok = runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
             } else {
                 alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pi)
             }
-        }
+        }.isSuccess
+        AppLogger.i("Alarm", "schedule rule=${rule.id.take(8)} wf=${rule.workflowName} at=$timeStr exact=$ok canExact=${canScheduleExactAlarms()}")
     }
 
     fun cancel(ruleId: String) {
         runCatching { alarmManager.cancel(pendingIntentFor(ruleId, 0L)) }
+        AppLogger.i("Alarm", "cancel rule=${ruleId.take(8)}")
     }
 
     fun cancelAll(ruleIds: List<String>) = ruleIds.forEach { cancel(it) }
