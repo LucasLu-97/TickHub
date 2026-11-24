@@ -7,6 +7,8 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+val githubClientId = (project.findProperty("githubClientId") as? String).orEmpty()
+
 android {
     namespace = "com.lucaslu.tickhub"
     compileSdk = libs.versions.compileSdk.get().toInt()
@@ -20,6 +22,10 @@ android {
         versionName = (project.findProperty("versionName") as? String) ?: "0.0.1-local"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // GitHub OAuth App client ID is public by design (no secret).
+        // Inject via -PgithubClientId=... at build time; empty = not configured.
+        buildConfigField("String", "GITHUB_CLIENT_ID", "\"$githubClientId\"")
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -63,7 +69,9 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
+
 }
 
 dependencies {
@@ -85,6 +93,7 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofit.kotlin.serialization)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
