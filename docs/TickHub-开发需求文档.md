@@ -9,7 +9,7 @@
 | 决策记录 | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release |
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
-| 最新测试版 | v0.3.0-beta6（M3 + 内置调试日志导出），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.3.0-beta6 |
+| 最新测试版 | v0.3.0-beta7（修复 Device Flow 切后台轮询中断 + 设备码泄露），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.3.0-beta7 |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
 | 计划仓库 | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1） |
@@ -350,6 +350,8 @@
 - KSP 插件最新仅到 `2.3.14`（对应 Kotlin 2.3.x），**没有匹配 Kotlin 2.4.20 的 KSP 版本** → 骨架阶段先移除 KSP 与 Room compiler；M2 引入 Room 实体时需重新评估：要么把 Kotlin 降到 2.3.x 配 KSP 2.3.14，要么用 Room 的 KAPT 或其他注解处理器方案。这是一个**待解决的版本冲突**，已记录在风险表。
 - **AGP 9.x 内置 Kotlin**：`org.jetbrains.kotlin.android` 插件与 AGP 9 的新 DSL 不兼容，必须移除；Compose 编译器插件 `org.jetbrains.kotlin.plugin.compose` 保留。AGP 9 运行时自带 KGP 2.2.10。官方迁移说明：https://developer.android.com/build/migrate-to-built-in-kotlin 。
 - Gradle 脚本中 `buildDir` 在 AGP 9 下已弃用并视为编译错误，改用 `layout.buildDirectory.file(...).get().asFile`；`java.util.Base64` 需要顶部显式 import。
+- **Device Flow 切后台网络不可达**（beta6 真机实测发现）：用户点「打开授权页」跳浏览器完成授权后切回 APP，Android 有时在 APP 后台期间收紧网络，轮询一次失败即报「网络不可达」并终止，导致登录失败；小窗化保持前台则成功。修复：`TokenPoll` 加 `NetworkError` 状态，轮询遇网络错误**不终止**、显示「正在重试…请切回 APP」并继续轮询直到 deadline；用户切回前台网络恢复后下一次轮询即成功。
+- **Kotlin 字符串插值陷阱**：`"$device.verificationUri"` 会被解析为 `device.toString() + ".verificationUri"`（把整个 data class 打印出来，含机密的 deviceCode）。必须用 `"${device.verificationUri}"`。此 bug 曾把 deviceCode 显示在 UI 上，已修。
 
 **关键风险——纯 Android 项目引用 KMP 库**：Miuix 是 Compose Multiplatform 库，其 POM 依赖 `org.jetbrains.compose.foundation:foundation:1.12.0` 等 JetBrains 坐标，而纯 Android 项目通常用 `androidx.compose.*`。两者在 Android 上最终映射到同一套 AndroidX 库，但 **存在 BOM 冲突与依赖解析歧义的可能**。
 
