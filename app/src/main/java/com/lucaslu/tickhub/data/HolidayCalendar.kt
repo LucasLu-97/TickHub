@@ -16,6 +16,7 @@ import java.time.LocalDate
 private val Context.holidayDataStore by preferencesDataStore(name = "tickhub_holidays")
 private val KEY_HOLIDAY_JSON = stringPreferencesKey("holiday_json")
 private val KEY_HOLIDAY_YEAR = intPreferencesKey("holiday_year")
+private val KEY_HOLIDAY_FETCHED_FOR = intPreferencesKey("holiday_fetched_for")
 
 @Serializable
 data class HolidayDay(
@@ -117,14 +118,27 @@ object HolidayCalendar {
         return data
     }
 
-    /** Refresh from GitHub. Returns true if succeeded. */
-    suspend fun refresh(context: Context, year: Int): Boolean {
+    /**
+     * Fetch holiday data for a year. To save data/battery, only fetches once per
+     * year: if this year was already fetched successfully, skip (unless force).
+     * Returns true when data is available (already cached or freshly fetched).
+     */
+    suspend fun refresh(context: Context, year: Int, force: Boolean = false): Boolean {
+        val prefs = context.holidayDataStore.data.first()
+        val fetchedFor = prefs[KEY_HOLIDAY_FETCHED_FOR] ?: 0
+        val savedJson = prefs[KEY_HOLIDAY_JSON]
+        val savedYear = prefs[KEY_HOLIDAY_YEAR] ?: 0
+        // already fetched this year and have data -> no network
+        if (!force && fetchedFor == year && savedYear == year && !savedJson.isNullOrBlank()) {
+            return true
+        }
         val result = GitHubApi().fetchHolidayYear(year)
         if (result is ApiResult.Success) {
             val data = result.data
-            context.holidayDataStore.edit { prefs ->
-                prefs[KEY_HOLIDAY_JSON] = json.encodeToString(data)
-                prefs[KEY_HOLIDAY_YEAR] = year
+            context.holidayDataStore.edit { p ->
+                p[KEY_HOLIDAY_JSON] = json.encodeToString(data)
+                p[KEY_HOLIDAY_YEAR] = year
+                p[KEY_HOLIDAY_FETCHED_FOR] = year
             }
             cache = data; cacheYear = year
             return true

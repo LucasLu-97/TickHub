@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -77,14 +78,19 @@ private fun TickHubApp() {
         Scaffold(
             bottomBar = {
                 NavigationBar {
-                    val items = listOf(
-                        "仓库" to "📁", "规则" to "⏰", "历史" to "📜", "日志" to "📋", "设置" to "⚙"
-                    )
-                    items.forEachIndexed { index, (label, icon) ->
+                    val items = listOf("仓库", "规则", "历史", "日志", "设置")
+                    items.forEachIndexed { index, label ->
                         NavigationBarItem(
                             selected = tab == index,
                             onClick = { tab = index },
-                            icon = { Text(icon) },
+                            icon = {
+                                TabIcon(
+                                    index = index,
+                                    color = if (tab == index) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            },
                             label = { Text(label, style = MaterialTheme.typography.labelSmall) }
                         )
                     }

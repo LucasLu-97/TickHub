@@ -117,6 +117,7 @@ fun RulesScreen(vm: AppViewModel) {
                                 multiSelect = true
                                 selectedIds = selectedIds + rule.id
                             },
+                            selected = selectedIds.contains(rule.id),
                             content = {
                                 RuleCardContent(
                                     rule = rule,

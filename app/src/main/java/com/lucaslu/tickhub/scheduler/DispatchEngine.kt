@@ -169,6 +169,7 @@ class DispatchEngine(private val context: Context) {
                 id = UUID.randomUUID().toString(),
                 ruleId = rule.id,
                 workflowName = rule.workflowName,
+                workflowNames = rule.workflowNames.ifEmpty { listOfNotNull(rule.workflowName.takeIf { it.isNotBlank() }) },
                 repoFullName = rule.repoFullName,
                 plannedAt = plannedAt,
                 firedAt = System.currentTimeMillis(),

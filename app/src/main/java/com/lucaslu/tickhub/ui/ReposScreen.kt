@@ -69,6 +69,18 @@ fun ReposScreen(vm: AppViewModel) {
                         Spacer(Modifier.padding(8.dp))
                         Text(user ?: "未登录", style = MaterialTheme.typography.titleMedium)
                     }
+                },
+                actions = {
+                    if (multiSelect) {
+                        TextButton(onClick = {
+                            selectedRepoIds = if (selectedRepoIds.size == snapshot.repos.size) emptySet() else snapshot.repos.map { it.id }.toSet()
+                        }) { Text("全选") }
+                        TextButton(onClick = {
+                            selectedRepoIds.forEach { vm.removeRepo(it) }
+                            selectedRepoIds = emptySet(); multiSelect = false
+                        }) { Text("删除") }
+                        TextButton(onClick = { multiSelect = false; selectedRepoIds = emptySet() }) { Text("取消") }
+                    }
                 }
             )
         }
@@ -89,23 +101,11 @@ fun ReposScreen(vm: AppViewModel) {
             state.message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             state.error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
 
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 6.dp)) {
-                Text(
-                    "已纳管 ${snapshot.workflows.count { it.selected }} 个工作流 / ${snapshot.repos.size} 个仓库",
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.weight(1f)
-                )
-                if (multiSelect) {
-                    TextButton(onClick = {
-                        selectedRepoIds = if (selectedRepoIds.size == snapshot.repos.size) emptySet() else snapshot.repos.map { it.id }.toSet()
-                    }) { Text("全选") }
-                    TextButton(onClick = {
-                        selectedRepoIds.forEach { vm.removeRepo(it) }
-                        selectedRepoIds = emptySet(); multiSelect = false
-                    }) { Text("删除") }
-                    TextButton(onClick = { multiSelect = false; selectedRepoIds = emptySet() }) { Text("取消") }
-                }
-            }
+            Text(
+                "已纳管 ${snapshot.workflows.count { it.selected }} 个工作流 / ${snapshot.repos.size} 个仓库",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(vertical = 6.dp)
+            )
 
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(snapshot.repos, key = { it.id }) { repo ->
@@ -125,6 +125,7 @@ fun ReposScreen(vm: AppViewModel) {
                                 multiSelect = true
                                 selectedRepoIds = selectedRepoIds + repo.id
                             },
+                            selected = selectedRepoIds.contains(repo.id),
                             content = {
                                 RepoCardContent(
                                     repoName = repo.name,
@@ -157,8 +158,7 @@ private fun RepoCardContent(
     onTriggerWorkflow: (WorkflowItem) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Column(modifier = Modifier.padding(12.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f).clickable { expanded = !expanded }) {
                     Text(repoName, style = MaterialTheme.typography.titleSmall)
@@ -186,6 +186,5 @@ private fun RepoCardContent(
                     }
                 }
             }
-        }
     }
 }

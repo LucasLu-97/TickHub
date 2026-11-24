@@ -81,7 +81,7 @@ fun SettingsScreen(vm: AppViewModel) {
                         OutlinedButton(
                             onClick = { openAppDetails(context) },
                             modifier = Modifier.weight(1f).padding(start = 4.dp)
-                        ) { Text("自启动（应用详情页）") }
+                        ) { Text("自启动设置") }
                     }
                 }
             }
@@ -121,7 +121,7 @@ fun SettingsScreen(vm: AppViewModel) {
             }
             Spacer(Modifier.height(24.dp))
 
-            TextButton(
+            OutlinedButton(
                 onClick = { vm.logout() },
                 modifier = Modifier.fillMaxWidth()
             ) { Text("退出登录", color = MaterialTheme.colorScheme.primary) }

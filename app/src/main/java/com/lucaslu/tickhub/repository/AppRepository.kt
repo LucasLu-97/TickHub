@@ -122,6 +122,13 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         }
     }
 
+    suspend fun deleteLog(id: String) {
+        context.dataStore.edit { prefs ->
+            val kept = readLogs(prefs).filterNot { it.id == id }
+            prefs[logsKey] = json.encodeToString(kept)
+        }
+    }
+
     suspend fun clearLogs() {
         context.dataStore.edit { it.remove(logsKey) }
     }

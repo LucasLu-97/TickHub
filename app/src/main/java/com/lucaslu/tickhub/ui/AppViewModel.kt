@@ -259,6 +259,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repository.removeRepo(repoId) }
     }
 
+    fun deleteLog(id: String) {
+        viewModelScope.launch { repository.deleteLog(id) }
+    }
+
     /** Manually trigger a single workflow directly (not via a rule). */
     fun triggerWorkflowNow(repoFullName: String, workflowId: Long, workflowName: String) {
         viewModelScope.launch {
@@ -273,6 +277,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             id = java.util.UUID.randomUUID().toString(),
                             ruleId = "manual",
                             workflowName = workflowName,
+                            workflowNames = listOf(workflowName),
                             repoFullName = repoFullName,
                             plannedAt = System.currentTimeMillis(),
                             firedAt = System.currentTimeMillis(),

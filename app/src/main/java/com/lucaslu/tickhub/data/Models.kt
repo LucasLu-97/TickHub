@@ -81,6 +81,7 @@ data class TriggerLog(
     val id: String,
     val ruleId: String,
     val workflowName: String = "",
+    val workflowNames: List<String> = emptyList(), // all workflows fired by this rule
     val repoFullName: String = "",
     val plannedAt: Long = 0L,
     val firedAt: Long? = null,
