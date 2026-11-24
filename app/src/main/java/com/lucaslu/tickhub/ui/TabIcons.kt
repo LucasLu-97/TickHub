@@ -55,9 +55,9 @@ private fun DrawScope.drawClock(c: Color, w: Float) {
     val cx = size.width / 2
     val cy = size.height / 2
     val r = minOf(size.width, size.height) * 0.36f
-    drawCircle(cx, cy, r, color = c, style = Stroke(w))
-    drawLine(c, Offset(cx, cy), Offset(cx, cy - r * 0.6f), w)
-    drawLine(c, Offset(cx, cy), Offset(cx + r * 0.5f, cy), w)
+    drawCircle(Offset(cx, cy), r, color = c, style = Stroke(w))
+    drawLine(color = c, start = Offset(cx, cy), end = Offset(cx, cy - r * 0.6f), strokeWidth = w)
+    drawLine(color = c, start = Offset(cx, cy), end = Offset(cx + r * 0.5f, cy), strokeWidth = w)
 }
 
 private fun DrawScope.drawHistory(c: Color, w: Float) {
@@ -68,8 +68,8 @@ private fun DrawScope.drawHistory(c: Color, w: Float) {
         color = c, startAngle = 30f, sweepAngle = 300f, useCenter = false,
         topLeft = Offset(cx - r, cy - r), size = Size(r * 2, r * 2), style = Stroke(w)
     )
-    drawLine(c, Offset(cx, cy), Offset(cx, cy - r * 0.55f), w)
-    drawLine(c, Offset(cx, cy), Offset(cx + r * 0.45f, cy + r * 0.2f), w)
+    drawLine(color = c, start = Offset(cx, cy), end = Offset(cx, cy - r * 0.55f), strokeWidth = w)
+    drawLine(color = c, start = Offset(cx, cy), end = Offset(cx + r * 0.45f, cy + r * 0.2f), strokeWidth = w)
 }
 
 private fun DrawScope.drawLog(c: Color, w: Float) {
@@ -77,11 +77,11 @@ private fun DrawScope.drawLog(c: Color, w: Float) {
     val top = size.height * 0.18f
     val right = size.width * 0.75f
     val bottom = size.height * 0.82f
-    drawRect(Offset(left, top), Size(right - left, bottom - top), color = c, style = Stroke(w))
+    drawRect(color = c, topLeft = Offset(left, top), size = Size(right - left, bottom - top), style = Stroke(w))
     val lineX = left + (right - left) * 0.28f
     for (i in 0..2) {
         val y = top + (bottom - top) * (0.3f + i * 0.2f)
-        drawLine(c, Offset(lineX, y), Offset(right - (right - left) * 0.15f, y), w)
+        drawLine(color = c, start = Offset(lineX, y), end = Offset(right - (right - left) * 0.15f, y), strokeWidth = w)
     }
 }
 
@@ -89,13 +89,13 @@ private fun DrawScope.drawSettings(c: Color, w: Float) {
     val cx = size.width / 2
     val cy = size.height / 2
     val r = minOf(size.width, size.height) * 0.36f
-    drawCircle(cx, cy, r * 0.32f, color = c, style = Stroke(w))
+    drawCircle(Offset(cx, cy), r * 0.32f, color = c, style = Stroke(w))
     for (i in 0..7) {
         val angle = i * 45f * kotlin.math.PI.toFloat() / 180f
         val sx = cx + cos(angle) * r * 0.55f
         val sy = cy + sin(angle) * r * 0.55f
         val ex = cx + cos(angle) * r * 0.82f
         val ey = cy + sin(angle) * r * 0.82f
-        drawLine(c, Offset(sx, sy), Offset(ex, ey), w)
+        drawLine(color = c, start = Offset(sx, sy), end = Offset(ex, ey), strokeWidth = w)
     }
 }
