@@ -3,10 +3,12 @@
 | 项目 | 内容 |
 | --- | --- |
 | 项目名称 | TickHub（Android 端 GitHub Actions 调度中心） |
-| 文档版本 | v1.1 |
+| 文档版本 | v1.2 |
 | 编写日期 | 2026-11-24 |
-| 文档状态 | 已评审 —— 关键决策已拍板，进入建仓与开发阶段 |
+| 文档状态 | 开发中 —— 仓库、签名、CI 已落地，测试版 APK 已发布 |
 | 决策记录 | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release |
+| 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
+| 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
 | 目标读者 | 后续接手的开发者 / AI Agent |
 | 计划仓库 | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1） |
 
