@@ -9,8 +9,8 @@
 | 决策记录 | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release |
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
-| 最新测试版 | v0.3.0-beta5（M3：调度引擎 + 等网络 + 触发历史 + 权限引导 + 补触发），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.3.0-beta5 |
-| 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §17） |
+| 最新测试版 | v0.3.0-beta6（M3 + 内置调试日志导出），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.3.0-beta6 |
+| 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
 | 计划仓库 | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1） |
 
@@ -851,7 +851,15 @@ local.properties
 
 ---
 
-## 17. 登录方式：开箱即用的 Device Flow（无需用户预配置）
+## 17. 调试日志（真机排障用）
+
+M3.5 起 APP 内置滚动调试日志（`util/AppLogger.kt`），写到应用私有目录 `filesDir/tickhub-debug.log`，保留最近 800 行。记录：闹钟注册/取消（含设定时间与 `canScheduleExactAlarms` 状态）、闹钟触发（含相对计划时间的延迟秒数）、Worker 启动/结束/异常、网络等待开始与结果、dispatch 每次尝试的 HTTP 码与错误、补触发扫描结果、登录各阶段。
+
+**绝不记录** access token、device code、设备码本身（只记非敏感元数据如过期时间、用户名）。
+
+导出入口在「日志」页：刷新 / 复制全部（剪贴板）/ 分享日志文件（FileProvider，`${applicationId}.fileprovider`）/ 清空。真机测试出问题时，用户点「复制全部」把日志发回即可分析，无需连 adb。
+
+## 16. 登录方式：开箱即用的 Device Flow（无需用户预配置）
 
 ### 17.1 设计原则
 
