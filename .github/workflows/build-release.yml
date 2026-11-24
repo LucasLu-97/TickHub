@@ -44,7 +44,7 @@ jobs:
       - name: Run unit tests
         run: |
           chmod +x ./gradlew
-          ./gradlew testReleaseUnitTest
+          ./gradlew test
 
       - name: Assemble release
         working-directory: .
