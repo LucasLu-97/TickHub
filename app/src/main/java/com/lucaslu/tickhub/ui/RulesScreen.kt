@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -27,15 +27,17 @@ import androidx.compose.ui.unit.dp
 import com.lucaslu.tickhub.data.Rule
 import com.lucaslu.tickhub.data.RuleStatus
 import com.lucaslu.tickhub.data.RuleType
-import com.lucaslu.tickhub.data.WorkflowItem
 import com.lucaslu.tickhub.domain.RuleEngine
 
+@Suppress("DEPRECATION")
 private val TYPE_LABELS = mapOf(
-    RuleType.ONCE to "一次",
+    RuleType.ONCE to "单次",
     RuleType.DAILY to "每天",
-    RuleType.WEEKDAYS to "每工作日",
     RuleType.WEEKLY to "每周",
-    RuleType.EVERY_N_DAYS to "每N天"
+    RuleType.LEGAL_WORKDAY to "法定工作日",
+    RuleType.LEGAL_HOLIDAY to "法定节假日",
+    RuleType.EVERY_N_DAYS to "每隔X天",
+    RuleType.WEEKDAYS to "法定工作日"
 )
 
 @Composable
@@ -45,6 +47,8 @@ fun RulesScreen(vm: AppViewModel) {
 
     var editing by remember { mutableStateOf<Rule?>(null) }
     var creating by remember { mutableStateOf(false) }
+    var multiSelect by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf(setOf<String>()) }
 
     val selectedWorkflows = snapshot.workflows.filter { it.selected }
     val repoNames = snapshot.repos.associateBy { it.id }
@@ -56,8 +60,7 @@ fun RulesScreen(vm: AppViewModel) {
             existing = editing,
             onSave = { rule ->
                 vm.saveRule(rule)
-                creating = false
-                editing = null
+                creating = false; editing = null
             },
             onCancel = { creating = false; editing = null }
         )
@@ -67,7 +70,18 @@ fun RulesScreen(vm: AppViewModel) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("触发规则", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            Button(onClick = { creating = true }, enabled = selectedWorkflows.isNotEmpty()) { Text("新建") }
+            if (multiSelect) {
+                TextButton(onClick = {
+                    selectedIds = if (selectedIds.size == rules.size) emptySet() else rules.map { it.id }.toSet()
+                }) { Text("全选") }
+                TextButton(onClick = {
+                    selectedIds.forEach { vm.deleteRule(it) }
+                    selectedIds = emptySet(); multiSelect = false
+                }) { Text("删除") }
+                TextButton(onClick = { multiSelect = false; selectedIds = emptySet() }) { Text("取消") }
+            } else {
+                Button(onClick = { creating = true }, enabled = selectedWorkflows.isNotEmpty()) { Text("新建") }
+            }
         }
         if (selectedWorkflows.isEmpty()) {
             Spacer(Modifier.height(16.dp))
@@ -75,57 +89,87 @@ fun RulesScreen(vm: AppViewModel) {
         }
         Spacer(Modifier.height(12.dp))
 
+        // group by repo
+        val grouped = rules.groupBy { it.repoFullName.ifBlank { "未分类" } }
         LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(rules, key = { it.id }) { rule ->
-                RuleCard(
-                    rule = rule,
-                    onToggle = { vm.setRuleEnabled(rule.id, it) },
-                    onEdit = { editing = rule },
-                    onDelete = { vm.deleteRule(rule.id) },
-                    onTriggerNow = { vm.triggerNow(rule) }
-                )
+            grouped.forEach { (repoName, repoRules) ->
+                item(key = "header-$repoName") {
+                    Text(
+                        repoName,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+                    )
+                }
+                items(repoRules, key = { it.id }) { rule ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (multiSelect) {
+                            Checkbox(
+                                checked = selectedIds.contains(rule.id),
+                                onCheckedChange = {
+                                    selectedIds = if (it) selectedIds + rule.id else selectedIds - rule.id
+                                }
+                            )
+                        }
+                        SwipeableCard(
+                            onDelete = { vm.deleteRule(rule.id) },
+                            onLongClick = {
+                                multiSelect = true
+                                selectedIds = selectedIds + rule.id
+                            },
+                            content = {
+                                RuleCardContent(
+                                    rule = rule,
+                                    onToggle = { vm.setRuleEnabled(rule.id, it) },
+                                    onEdit = { editing = rule },
+                                    onTriggerNow = { vm.triggerNow(rule) }
+                                )
+                            }
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun RuleCard(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () -> Unit, onDelete: () -> Unit, onTriggerNow: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(rule.workflowName.ifBlank { "工作流 #${rule.workflowId}" }, style = MaterialTheme.typography.titleSmall)
-            Text(rule.repoFullName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(6.dp))
-            val timeText = String.format("%02d:%02d", rule.hour, rule.minute)
-            val cycleText = when (rule.type) {
-                RuleType.ONCE -> "一次 · ${rule.onceDate ?: "-"}"
-                RuleType.DAILY -> "每天"
-                RuleType.WEEKDAYS -> "每工作日"
-                RuleType.WEEKLY -> "每周 ${rule.weekdays.joinToString(",")}"
-                RuleType.EVERY_N_DAYS -> "每 ${rule.intervalDays} 天"
-            }
-            Text("$cycleText · $timeText", style = MaterialTheme.typography.bodyMedium)
-            rule.nextFireAt?.let {
-                val next = RuleEngine.fromEpochMillis(it)
-                Text(
-                    "下次：${RuleEngine.formatDate(next.toLocalDate())} ${String.format("%02d:%02d", next.hour, next.minute)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Switch(
-                    checked = rule.status == RuleStatus.ENABLED,
-                    onCheckedChange = onToggle,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                Text("启用", style = MaterialTheme.typography.labelMedium)
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = onTriggerNow) { Text("立即触发") }
-                TextButton(onClick = onEdit) { Text("编辑") }
-                TextButton(onClick = onDelete) { Text("删除") }
-            }
+private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () -> Unit, onTriggerNow: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+        val names = rule.workflowNames.ifEmpty { listOf(rule.workflowName.ifBlank { "工作流 #${rule.workflowId}" }) }
+        Text(names.joinToString("、"), style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(6.dp))
+        val timeText = String.format("%02d:%02d", rule.hour, rule.minute)
+        val cycleText = TYPE_LABELS[rule.type] ?: rule.type.name
+        Text("$cycleText · $timeText", style = MaterialTheme.typography.bodyMedium)
+        rule.effectiveFireAt?.let {
+            val next = RuleEngine.fromEpochMillis(it)
+            val drift = rule.driftMinutes
+            val driftText = if (drift > 0) "（随机漂移 ≤${drift} 分钟）" else ""
+            Text(
+                "下次：${RuleEngine.formatDate(next.toLocalDate())} ${String.format("%02d:%02d", next.hour, next.minute)}$driftText",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+        } ?: rule.nextFireAt?.let {
+            val next = RuleEngine.fromEpochMillis(it)
+            Text(
+                "下次：${RuleEngine.formatDate(next.toLocalDate())} ${String.format("%02d:%02d", next.hour, next.minute)}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Switch(
+                checked = rule.status == RuleStatus.ENABLED,
+                onCheckedChange = onToggle,
+                modifier = Modifier.padding(end = 8.dp)
+            )
+            Text("启用", style = MaterialTheme.typography.labelMedium)
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = onTriggerNow) { Text("立即触发") }
+            TextButton(onClick = onEdit) { Text("编辑") }
         }
     }
 }

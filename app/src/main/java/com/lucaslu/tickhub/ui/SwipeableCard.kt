@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -28,7 +29,7 @@ import androidx.compose.ui.unit.dp
  * A card that reveals a delete action when swiped left, and supports long-click
  * to enter multi-select mode (handled by parent via onLongClick).
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun SwipeableCard(
     onDelete: () -> Unit,
@@ -67,7 +68,7 @@ fun SwipeableCard(
     ) {
         Card(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .then(
                     if (onLongClick != null) Modifier.combinedClickable(
                         onClick = {},

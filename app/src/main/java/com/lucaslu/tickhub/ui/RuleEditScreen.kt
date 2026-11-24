@@ -31,12 +31,15 @@ import java.time.LocalDateTime
 import java.time.YearMonth
 import java.util.UUID
 
+@Suppress("DEPRECATION")
 private val TYPE_LABELS = mapOf(
-    RuleType.ONCE to "一次",
+    RuleType.ONCE to "单次",
     RuleType.DAILY to "每天",
-    RuleType.WEEKDAYS to "每工作日",
     RuleType.WEEKLY to "每周",
-    RuleType.EVERY_N_DAYS to "每N天"
+    RuleType.LEGAL_WORKDAY to "法定工作日",
+    RuleType.LEGAL_HOLIDAY to "法定节假日",
+    RuleType.EVERY_N_DAYS to "每隔X天",
+    RuleType.WEEKDAYS to "法定工作日"
 )
 
 private val WEEKDAY_LABELS = mapOf(1 to "一", 2 to "二", 3 to "三", 4 to "四", 5 to "五", 6 to "六", 7 to "日")
