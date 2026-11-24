@@ -35,7 +35,9 @@ data class ScanSnapshot(
 )
 
 enum class RuleType {
-    ONCE, DAILY, WEEKDAYS, WEEKLY, EVERY_N_DAYS
+    ONCE, DAILY, WEEKLY, LEGAL_WORKDAY, LEGAL_HOLIDAY, EVERY_N_DAYS,
+    @Deprecated("legacy alias kept so old persisted rules still deserialize")
+    WEEKDAYS
 }
 
 enum class RuleStatus {
@@ -45,9 +47,12 @@ enum class RuleStatus {
 @Serializable
 data class Rule(
     val id: String,
-    val workflowId: Long,
+    val workflowId: Long = 0L,          // legacy single (kept for old saved data)
+    val workflowIds: List<Long> = emptyList(), // multiple workflows in one rule
     val workflowName: String = "",
+    val workflowNames: List<String> = emptyList(),
     val repoFullName: String = "",
+    val repoId: Long = 0L,              // owner repo for grouping
     val type: RuleType = RuleType.DAILY,
     val hour: Int = 8,
     val minute: Int = 0,
@@ -55,11 +60,17 @@ data class Rule(
     val weekdays: List<Int> = emptyList(), // 1=Mon..7=Sun, for WEEKLY
     val intervalDays: Int = 7,          // for EVERY_N_DAYS
     val startDate: String? = null,      // yyyy-MM-dd, anchor for EVERY_N_DAYS
+    val driftMinutes: Int = 0,          // 0/10/30/60: random delay within window
     val status: RuleStatus = RuleStatus.ENABLED,
-    val nextFireAt: Long? = null,       // epoch millis, computed by RuleEngine
+    val nextFireAt: Long? = null,       // base time (before drift), epoch millis
+    val effectiveFireAt: Long? = null,  // actual scheduled time with drift applied
     val lastFiredAt: Long? = null,
     val createdAt: Long = 0L
-)
+) {
+    /** Resolve effective workflow ids, tolerant of legacy single-workflow rules. */
+    fun resolvedWorkflowIds(): List<Long> =
+        workflowIds.ifEmpty { if (workflowId != 0L) listOf(workflowId) else emptyList() }
+}
 
 enum class TriggerStatus {
     SUCCESS, FAILED, SKIPPED, MAKEUP

@@ -22,12 +22,26 @@ object RuleEngine {
      * Returns the first trigger time strictly after `from`, or null if no future
      * occurrence exists (e.g. expired ONCE rule, or invalid config).
      */
-    fun computeNextFire(rule: Rule, from: LocalDateTime): LocalDateTime? {
+    /**
+     * @param isWorkday optional predicate: given a date, is it a statutory workday?
+     *                  If null, Mon-Fri is used (no holiday data available).
+     * @param isHoliday optional predicate: given a date, is it a statutory holiday?
+     */
+    fun computeNextFire(
+        rule: Rule,
+        from: LocalDateTime,
+        isWorkday: ((LocalDate) -> Boolean)? = null,
+        isHoliday: ((LocalDate) -> Boolean)? = null
+    ): LocalDateTime? {
         val time = LocalTime.of(rule.hour.coerceIn(0, 23), rule.minute.coerceIn(0, 59))
         return when (rule.type) {
             RuleType.ONCE -> computeOnce(rule, time, from)
             RuleType.DAILY -> nextAtOrAfter(from, time, includeToday = true)
-            RuleType.WEEKDAYS -> computeWeekdays(time, from)
+            @Suppress("DEPRECATION")
+            RuleType.WEEKDAYS, RuleType.LEGAL_WORKDAY -> computeLegalWorkdays(time, from, isWorkday)
+            RuleType.LEGAL_HOLIDAY -> {
+                if (isHoliday == null) null else computeLegalHolidays(time, from, isHoliday)
+            }
             RuleType.WEEKLY -> computeWeekly(rule, time, from)
             RuleType.EVERY_N_DAYS -> computeEveryNDays(rule, time, from)
         }
@@ -50,15 +64,35 @@ object RuleEngine {
         return candidate
     }
 
-    /** Weekdays (Mon-Fri): walk forward skipping Sat/Sun. */
-    private fun computeWeekdays(time: LocalTime, from: LocalDateTime): LocalDateTime {
+    /** Statutory workdays: uses holiday data when available, else Mon-Fri. */
+    private fun computeLegalWorkdays(
+        time: LocalTime,
+        from: LocalDateTime,
+        isWorkday: ((LocalDate) -> Boolean)?
+    ): LocalDateTime {
         var date = from.toLocalDate()
-        repeat(8) {
+        repeat(400) { // look up to ~1 year ahead for long holidays
             val candidate = LocalDateTime.of(date, time)
-            if (candidate.isAfter(from) && date.dayOfWeek.value <= 5) return candidate
+            val workday = isWorkday?.invoke(date) ?: (date.dayOfWeek.value <= 5)
+            if (candidate.isAfter(from) && workday) return candidate
             date = date.plusDays(1)
         }
-        return LocalDateTime.of(from.toLocalDate().plusDays(8), time) // unreachable in practice
+        return LocalDateTime.of(from.toLocalDate().plusDays(400), time)
+    }
+
+    /** Statutory holidays (days off from holiday calendar, not ordinary weekends). */
+    private fun computeLegalHolidays(
+        time: LocalTime,
+        from: LocalDateTime,
+        isHoliday: (LocalDate) -> Boolean
+    ): LocalDateTime? {
+        var date = from.toLocalDate()
+        repeat(400) {
+            val candidate = LocalDateTime.of(date, time)
+            if (candidate.isAfter(from) && isHoliday(date)) return candidate
+            date = date.plusDays(1)
+        }
+        return null
     }
 
     /** Weekly: fire on selected weekdays (1=Mon..7=Sun). */
@@ -89,6 +123,18 @@ object RuleEngine {
             k++
         }
         return null
+    }
+
+    /**
+     * Deterministic drift in [0, driftMinutes) derived from ruleId + base time,
+     * so the same planned slot always gets the same offset even after app restart.
+     */
+    fun applyDrift(ruleId: String, baseEpoch: Long, driftMinutes: Int): Long {
+        if (driftMinutes <= 0) return baseEpoch
+        val seed = (ruleId.hashCode().toLong() xor baseEpoch)
+        val random = java.util.Random(seed)
+        val offsetMinutes = random.nextInt(driftMinutes) // 0 .. driftMinutes-1
+        return baseEpoch + offsetMinutes * 60_000L
     }
 
     fun parseDate(value: String?): LocalDate? = try {

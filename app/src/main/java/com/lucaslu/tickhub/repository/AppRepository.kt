@@ -7,15 +7,19 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.lucaslu.tickhub.data.HolidayCalendar
 import com.lucaslu.tickhub.data.RepoItem
 import com.lucaslu.tickhub.data.Rule
 import com.lucaslu.tickhub.data.RuleStatus
 import com.lucaslu.tickhub.data.ScanSnapshot
 import com.lucaslu.tickhub.data.TriggerLog
 import com.lucaslu.tickhub.data.WorkflowItem
+import com.lucaslu.tickhub.domain.RuleEngine
 import com.lucaslu.tickhub.network.ApiResult
 import com.lucaslu.tickhub.network.GitHubApi
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
+import java.time.LocalDateTime
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
@@ -83,6 +87,22 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
 
     suspend fun getLogsOnce(): List<TriggerLog> = logs.first()
 
+    /** Compute next fire time with holiday calendar + deterministic drift. */
+    suspend fun computeNextFire(rule: Rule, from: LocalDateTime): Pair<LocalDateTime?, Long?> {
+        val year = from.year
+        val holidays = HolidayCalendar.load(context, year)
+        val isWorkday: (LocalDate) -> Boolean = { d ->
+            HolidayCalendar.isLegalWorkday(holidays, d)
+        }
+        val isHoliday: (LocalDate) -> Boolean = { d ->
+            HolidayCalendar.isLegalHoliday(holidays, d)
+        }
+        val next = RuleEngine.computeNextFire(rule, from, isWorkday, isHoliday)
+        val base = next?.let { RuleEngine.toEpochMillis(it) }
+        val effective = base?.let { RuleEngine.applyDrift(rule.id, it, rule.driftMinutes) }
+        return next to effective
+    }
+
     suspend fun getRuleOnce(id: String): Rule? = getRulesOnce().firstOrNull { it.id == id }
 
     /** Atomically update a rule. Returns the updated rule. */
@@ -134,6 +154,15 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
                 repo.copy(managed = wfs.isNotEmpty() && wfs.all { it.selected })
             }
             prefs[snapshotKey] = json.encodeToString(current.copy(workflows = workflows, repos = repos))
+
+            // when unchecking a workflow, drop rules that would have no workflow left
+            if (!selected) {
+                val selectedIds = workflows.filter { it.selected }.map { it.id }.toSet()
+                val kept = readRules(prefs).filter { rule ->
+                    rule.resolvedWorkflowIds().any { selectedIds.contains(it) }
+                }
+                prefs[rulesKey] = json.encodeToString(kept)
+            }
         }
     }
 
@@ -149,6 +178,13 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
                 }
             )
             prefs[snapshotKey] = json.encodeToString(updated)
+            if (!managed) {
+                val selectedIds = updated.workflows.filter { it.selected }.map { it.id }.toSet()
+                val kept = readRules(prefs).filter { rule ->
+                    rule.resolvedWorkflowIds().any { selectedIds.contains(it) }
+                }
+                prefs[rulesKey] = json.encodeToString(kept)
+            }
         }
     }
 

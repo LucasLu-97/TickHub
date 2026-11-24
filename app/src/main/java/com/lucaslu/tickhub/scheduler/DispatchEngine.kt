@@ -16,6 +16,8 @@ import com.lucaslu.tickhub.network.ApiResult
 import com.lucaslu.tickhub.network.GitHubApi
 import com.lucaslu.tickhub.repository.AppRepository
 import com.lucaslu.tickhub.util.AppLogger
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.time.LocalDateTime
@@ -41,7 +43,8 @@ class DispatchEngine(private val context: Context) {
             AppLogger.e("Engine", "rule not found: ${ruleId.take(8)}")
             return TriggerStatus.FAILED
         }
-        AppLogger.i("Engine", "execute rule=${ruleId.take(8)} wf=${rule.workflowName} repo=${rule.repoFullName} makeup=$isMakeup")
+        val workflowIds = rule.resolvedWorkflowIds()
+        AppLogger.i("Engine", "execute rule=${ruleId.take(8)} wfs=${workflowIds.size} repo=${rule.repoFullName} makeup=$isMakeup")
         val token = tokenStore.getToken()
         if (token == null) {
             AppLogger.e("Engine", "token missing -> abort")
@@ -70,29 +73,39 @@ class DispatchEngine(private val context: Context) {
             return TriggerStatus.FAILED
         }
 
-        var lastError: String? = null
-        var httpCode: Int? = null
-        var success = false
-        val delays = longArrayOf(1_000, 4_000, 16_000)
-        for (attempt in 0..2) {
-            AppLogger.d("Engine", "dispatch attempt ${attempt + 1}/3 -> ${parts[0]}/${parts[1]} wfId=${rule.workflowId}")
-            when (val result = api.dispatchWorkflow(token, parts[0], parts[1], rule.workflowId, "main")) {
-                is ApiResult.Success -> {
-                    httpCode = result.data
-                    success = true
-                    AppLogger.i("Engine", "dispatch SUCCESS http=${result.data} on attempt ${attempt + 1}")
-                    break
+        // dispatch every selected workflow (concurrently via coroutines), all must succeed
+        val results = kotlinx.coroutines.coroutineScope {
+            workflowIds.map { wfId ->
+                async(kotlinx.coroutines.Dispatchers.IO) {
+                    var lastError: String? = null
+                    var httpCode: Int? = null
+                    var success = false
+                    val delays = longArrayOf(1_000, 4_000, 16_000)
+                    for (attempt in 0..2) {
+                        when (val result = api.dispatchWorkflow(token, parts[0], parts[1], wfId, "main")) {
+                            is ApiResult.Success -> {
+                                httpCode = result.data
+                                success = true
+                                AppLogger.i("Engine", "dispatch wfId=$wfId SUCCESS http=${result.data} attempt=${attempt + 1}")
+                                break
+                            }
+                            is ApiResult.Error -> {
+                                lastError = result.message
+                                httpCode = result.code
+                                AppLogger.w("Engine", "dispatch wfId=$wfId attempt ${attempt + 1} FAILED http=${result.code} err=${result.message}")
+                                if (attempt < 2) delay(delays[attempt])
+                            }
+                        }
+                    }
+                    Triple(wfId, success, if (success) httpCode?.toString() else lastError)
                 }
-                is ApiResult.Error -> {
-                    lastError = result.message
-                    httpCode = result.code
-                    AppLogger.w("Engine", "dispatch attempt ${attempt + 1} FAILED http=${result.code} err=${result.message}")
-                    if (attempt < 2) delay(delays[attempt])
-                }
-            }
+            }.map { it.await() }
         }
 
-        val status = if (success) {
+        val allSuccess = results.isNotEmpty() && results.all { it.second }
+        val lastError = results.firstOrNull { !it.second }?.third
+        val httpCode = results.firstOrNull()?.third?.toIntOrNull()
+        val status = if (allSuccess) {
             if (isMakeup) TriggerStatus.MAKEUP else TriggerStatus.SUCCESS
         } else TriggerStatus.FAILED
 
@@ -100,8 +113,8 @@ class DispatchEngine(private val context: Context) {
             rule = rule,
             plannedAt = plannedAt,
             status = status,
-            httpCode = httpCode,
-            errorMessage = if (success) null else lastError,
+            httpCode = if (allSuccess) 204 else httpCode,
+            errorMessage = if (allSuccess) null else "工作流 ${results.filter { !it.second }.map { it.first }} 触发失败：$lastError",
             isMakeup = isMakeup
         )
 
@@ -111,28 +124,36 @@ class DispatchEngine(private val context: Context) {
 
     /** Compute next fire time, persist, and re-register the alarm. */
     private suspend fun advanceRule(rule: Rule) {
-        val next = RuleEngine.computeNextFire(rule, LocalDateTime.now())
-        if (next == null) {
+        val (next, effective) = repository.computeNextFire(rule, LocalDateTime.now())
+        if (next == null || effective == null) {
             AppLogger.i("Engine", "rule=${rule.id.take(8)} COMPLETED (no next fire)")
-            // ONCE rule completed
             repository.updateRule(
                 rule.copy(
                     status = RuleStatus.COMPLETED,
                     nextFireAt = null,
+                    effectiveFireAt = null,
                     lastFiredAt = System.currentTimeMillis()
                 )
             )
             alarmScheduler.cancel(rule.id)
             return
         }
-        AppLogger.i("Engine", "rule=${rule.id.take(8)} next fire -> $next")
+        val drift = (effective - RuleEngine.toEpochMillis(next)) / 60_000
+        AppLogger.i("Engine", "rule=${rule.id.take(8)} next base=$next drift=${drift}min")
         val updated = repository.updateRule(
             rule.copy(
                 nextFireAt = RuleEngine.toEpochMillis(next),
+                effectiveFireAt = effective,
                 lastFiredAt = System.currentTimeMillis()
             )
         )
-        alarmScheduler.schedule(updated)
+        scheduleAt(updated, effective)
+    }
+
+    /** Schedule at the effective (drifted) time. */
+    private fun scheduleAt(rule: Rule, effectiveAt: Long) {
+        // temporarily swap nextFireAt so AlarmScheduler uses effective time
+        alarmScheduler.schedule(rule.copy(nextFireAt = effectiveAt))
     }
 
     private suspend fun addLog(

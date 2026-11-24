@@ -175,6 +175,14 @@ class GitHubApi {
         }
     }
 
+    /** Fetch a year's Chinese holiday data from holiday-cn (State Council notices). */
+    suspend fun fetchHolidayYear(year: Int): ApiResult<com.lucaslu.tickhub.data.HolidayYearData> =
+        withContext(Dispatchers.IO) {
+            val url = "https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/$year.json"
+            val req = Request.Builder().url(url).header("User-Agent", "TickHub-Android").build()
+            executeJson<com.lucaslu.tickhub.data.HolidayYearData>(req)
+        }
+
     // ---- Helpers ----
 
     private fun authorized(token: String, url: String): Request.Builder =
