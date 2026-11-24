@@ -61,6 +61,23 @@ data class Rule(
     val createdAt: Long = 0L
 )
 
+enum class TriggerStatus {
+    SUCCESS, FAILED, SKIPPED, MAKEUP
+}
+
+@Serializable
+data class TriggerLog(
+    val id: String,
+    val ruleId: String,
+    val workflowName: String = "",
+    val plannedAt: Long = 0L,
+    val firedAt: Long? = null,
+    val status: TriggerStatus = TriggerStatus.SUCCESS,
+    val httpCode: Int? = null,
+    val errorMessage: String? = null,
+    val isMakeup: Boolean = false
+)
+
 // ---- GitHub REST DTOs ----
 
 @Serializable

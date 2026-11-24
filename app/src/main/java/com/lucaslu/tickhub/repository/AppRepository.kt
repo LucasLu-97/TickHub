@@ -9,7 +9,9 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.lucaslu.tickhub.data.RepoItem
 import com.lucaslu.tickhub.data.Rule
+import com.lucaslu.tickhub.data.RuleStatus
 import com.lucaslu.tickhub.data.ScanSnapshot
+import com.lucaslu.tickhub.data.TriggerLog
 import com.lucaslu.tickhub.data.WorkflowItem
 import com.lucaslu.tickhub.network.ApiResult
 import com.lucaslu.tickhub.network.GitHubApi
@@ -31,8 +33,11 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     private val json = Json { ignoreUnknownKeys = true }
     private val snapshotKey = stringPreferencesKey("scan_snapshot_json")
     private val rulesKey = stringPreferencesKey("rules_json")
+    private val logsKey = stringPreferencesKey("trigger_logs_json")
     private val tokenUserKey = stringPreferencesKey("logged_in_user")
     private val lastScanKey = longPreferencesKey("last_scan_at")
+    private val networkWaitKey = androidx.datastore.preferences.core.intPreferencesKey("network_wait_minutes")
+    private val lastCatchUpKey = longPreferencesKey("last_catchup_at")
 
     val snapshot: Flow<ScanSnapshot> = context.dataStore.data.map { prefs ->
         val raw = prefs[snapshotKey]
@@ -54,6 +59,57 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         } catch (e: Exception) {
             emptyList()
         }
+    }
+
+    val logs: Flow<List<TriggerLog>> = context.dataStore.data.map { prefs ->
+        val raw = prefs[logsKey]
+        if (raw.isNullOrBlank()) emptyList()
+        else try {
+            json.decodeFromString<List<TriggerLog>>(raw)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    val networkWaitMinutes: Flow<Int> = context.dataStore.data.map { it[networkWaitKey] ?: 5 }
+
+    suspend fun setNetworkWaitMinutes(minutes: Int) {
+        context.dataStore.edit { it[networkWaitKey] = minutes.coerceIn(1, 15) }
+    }
+
+    suspend fun getNetworkWaitMinutesOnce(): Int = context.dataStore.data.first()[networkWaitKey] ?: 5
+
+    suspend fun getRulesOnce(): List<Rule> = rules.first()
+
+    suspend fun getRuleOnce(id: String): Rule? = getRulesOnce().firstOrNull { it.id == id }
+
+    /** Atomically update a rule. Returns the updated rule. */
+    suspend fun updateRule(rule: Rule): Rule {
+        context.dataStore.edit { prefs ->
+            val current = readRules(prefs).toMutableList()
+            val idx = current.indexOfFirst { it.id == rule.id }
+            if (idx >= 0) current[idx] = rule else current.add(rule)
+            prefs[rulesKey] = json.encodeToString(current)
+        }
+        return rule
+    }
+
+    suspend fun addLog(log: TriggerLog) {
+        context.dataStore.edit { prefs ->
+            val current = readLogs(prefs).toMutableList()
+            current.add(0, log) // newest first
+            val trimmed = current.take(200) // keep last 200
+            prefs[logsKey] = json.encodeToString(trimmed)
+        }
+    }
+
+    suspend fun clearLogs() {
+        context.dataStore.edit { it.remove(logsKey) }
+    }
+
+    suspend fun getLastCatchUpAt(): Long = context.dataStore.data.first()[lastCatchUpKey] ?: 0L
+    suspend fun setLastCatchUpAt(ts: Long) {
+        context.dataStore.edit { it[lastCatchUpKey] = ts }
     }
 
     suspend fun saveUser(login: String) {
@@ -179,6 +235,15 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
 
     private fun readRules(prefs: Preferences): List<Rule> {
         val raw = prefs[rulesKey] ?: return emptyList()
+        return try {
+            json.decodeFromString(raw)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun readLogs(prefs: Preferences): List<TriggerLog> {
+        val raw = prefs[logsKey] ?: return emptyList()
         return try {
             json.decodeFromString(raw)
         } catch (e: Exception) {

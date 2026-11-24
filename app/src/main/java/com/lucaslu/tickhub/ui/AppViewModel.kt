@@ -4,12 +4,17 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.lucaslu.tickhub.data.Rule
+import com.lucaslu.tickhub.data.RuleStatus
 import com.lucaslu.tickhub.data.TokenStore
 import com.lucaslu.tickhub.domain.RuleEngine
 import com.lucaslu.tickhub.network.ApiResult
 import com.lucaslu.tickhub.network.GitHubApi
 import com.lucaslu.tickhub.network.TokenPoll
 import com.lucaslu.tickhub.repository.AppRepository
+import com.lucaslu.tickhub.scheduler.AlarmScheduler
+import com.lucaslu.tickhub.scheduler.DispatchEngine
+import com.lucaslu.tickhub.scheduler.DispatchWorker
+import java.time.LocalDateTime
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,9 +41,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val api = GitHubApi()
     private val tokenStore = TokenStore(app)
     private val repository = AppRepository(app, api)
+    private val alarmScheduler = AlarmScheduler(app)
+    private val dispatchEngine = DispatchEngine(app)
 
     val snapshot = repository.snapshot
     val rules = repository.rules
+    val logs = repository.logs
+    val networkWaitMinutes = repository.networkWaitMinutes
     val loggedInUser = repository.loggedInUser
 
     private val _login = MutableStateFlow(LoginUiState(isLoggedIn = tokenStore.getToken() != null))
@@ -142,21 +151,78 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun saveRule(rule: Rule) {
         viewModelScope.launch {
-            // Compute next fire time and persist together
-            val next = RuleEngine.computeNextFire(rule, java.time.LocalDateTime.now())
+            val next = RuleEngine.computeNextFire(rule, LocalDateTime.now())
             val finalRule = rule.copy(
                 nextFireAt = next?.let { RuleEngine.toEpochMillis(it) },
                 createdAt = if (rule.createdAt == 0L) System.currentTimeMillis() else rule.createdAt
             )
             repository.saveRule(finalRule)
+            alarmScheduler.cancel(rule.id)
+            if (finalRule.status == RuleStatus.ENABLED) alarmScheduler.schedule(finalRule)
         }
     }
 
     fun deleteRule(id: String) {
-        viewModelScope.launch { repository.deleteRule(id) }
+        viewModelScope.launch {
+            alarmScheduler.cancel(id)
+            repository.deleteRule(id)
+        }
     }
 
     fun setRuleEnabled(id: String, enabled: Boolean) {
-        viewModelScope.launch { repository.setRuleEnabled(id, enabled) }
+        viewModelScope.launch {
+            repository.setRuleEnabled(id, enabled)
+            val rule = repository.getRuleOnce(id)
+            if (rule == null) return@launch
+            if (enabled) alarmScheduler.schedule(rule) else alarmScheduler.cancel(id)
+        }
+    }
+
+    /** Register alarms for all enabled rules (called on app start). */
+    fun syncAlarms() {
+        viewModelScope.launch {
+            repository.getRulesOnce()
+                .filter { it.status == RuleStatus.ENABLED }
+                .forEach { alarmScheduler.schedule(it) }
+        }
+    }
+
+    /** Catch up any rules whose scheduled time has passed but were not fired. */
+    fun catchUpMissedRules() {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val rules = repository.getRulesOnce().filter { it.status == RuleStatus.ENABLED }
+            val logs = repository.logs.firstOrNullSafe().orEmpty()
+            for (rule in rules) {
+                val planned = rule.nextFireAt ?: continue
+                if (planned > now) continue // not due yet
+                // already fired for this planned slot?
+                val alreadyFired = logs.any {
+                    it.ruleId == rule.id && it.plannedAt == planned &&
+                        it.status != com.lucaslu.tickhub.data.TriggerStatus.FAILED
+                }
+                if (alreadyFired) continue
+                // enqueue as makeup dispatch
+                DispatchWorker.enqueue(getApplication(), rule.id, planned, isMakeup = true)
+            }
+            repository.setLastCatchUpAt(now)
+        }
+    }
+
+    /** Manually trigger a rule now. DispatchEngine handles logging and advancing next fire. */
+    fun triggerNow(rule: Rule) {
+        DispatchWorker.enqueue(getApplication(), rule.id, System.currentTimeMillis(), isMakeup = false)
+    }
+
+    fun setNetworkWait(minutes: Int) {
+        viewModelScope.launch { repository.setNetworkWaitMinutes(minutes) }
+    }
+
+    private suspend fun kotlinx.coroutines.flow.Flow<com.lucaslu.tickhub.data.TriggerLog>.firstOrNullSafe(): List<com.lucaslu.tickhub.data.TriggerLog>? {
+        return try {
+            kotlinx.coroutines.flow.first()
+        } catch (e: Exception) {
+            null
+        }
     }
 }

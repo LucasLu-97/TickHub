@@ -147,6 +147,34 @@ class GitHubApi {
         }
     }
 
+    /** Trigger a workflow via workflow_dispatch. Uses numeric workflow id to avoid URL-encoding
+     * issues with non-ASCII file names (e.g. 签到.yml). */
+    suspend fun dispatchWorkflow(
+        token: String,
+        owner: String,
+        repo: String,
+        workflowId: Long,
+        ref: String = "main"
+    ): ApiResult<Int> = withContext(Dispatchers.IO) {
+        val url = "$apiBase/repos/$owner/$repo/actions/workflows/$workflowId/dispatches"
+        val body = buildJsonObject { put("ref", ref) }.toString()
+            .toRequestBody("application/json".toMediaType())
+        val req = authorized(token, url).post(body).build()
+        try {
+            client.newCall(req).execute().use { response ->
+                val raw = response.body?.string().orEmpty()
+                if (response.isSuccessful) {
+                    // GitHub returns 204 (older) or 200 with run info (newer)
+                    ApiResult.Success(response.code)
+                } else {
+                    ApiResult.Error(parseMessage(raw) ?: "HTTP ${response.code}", response.code)
+                }
+            }
+        } catch (e: IOException) {
+            ApiResult.Error("网络错误：${e.message}")
+        }
+    }
+
     // ---- Helpers ----
 
     private fun authorized(token: String, url: String): Request.Builder =

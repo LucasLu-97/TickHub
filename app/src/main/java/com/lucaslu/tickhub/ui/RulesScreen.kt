@@ -81,7 +81,8 @@ fun RulesScreen(vm: AppViewModel) {
                     rule = rule,
                     onToggle = { vm.setRuleEnabled(rule.id, it) },
                     onEdit = { editing = rule },
-                    onDelete = { vm.deleteRule(rule.id) }
+                    onDelete = { vm.deleteRule(rule.id) },
+                    onTriggerNow = { vm.triggerNow(rule) }
                 )
             }
         }
@@ -89,7 +90,7 @@ fun RulesScreen(vm: AppViewModel) {
 }
 
 @Composable
-private fun RuleCard(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun RuleCard(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () -> Unit, onDelete: () -> Unit, onTriggerNow: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(rule.workflowName.ifBlank { "工作流 #${rule.workflowId}" }, style = MaterialTheme.typography.titleSmall)
@@ -121,6 +122,7 @@ private fun RuleCard(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () -> Unit
                 )
                 Text("启用", style = MaterialTheme.typography.labelMedium)
                 Spacer(Modifier.weight(1f))
+                TextButton(onClick = onTriggerNow) { Text("立即触发") }
                 TextButton(onClick = onEdit) { Text("编辑") }
                 TextButton(onClick = onDelete) { Text("删除") }
             }
