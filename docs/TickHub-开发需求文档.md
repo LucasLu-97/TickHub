@@ -9,7 +9,7 @@
 | 决策记录 | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release |
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
-| 最新测试版 | v0.5.0-beta9（M5：多工作流规则 + 随机漂移 + 法定节假日 + 左滑删除/长按多选 + 主题切换），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.5.0-beta9 |
+| 最新测试版 | v0.5.1-beta10（历史卡片可操作 + 卡片重叠修复 + 线条图标 + 节假日缓存优化），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.5.1-beta10 |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
 | 计划仓库 | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1） |
@@ -860,6 +860,7 @@ local.properties
 - **数据格式**：`days[]` 中 `isOffDay=true` 为放假日，`isOffDay=false` 为调休补班日（周末但要上班）。
 - **计算规则**：法定工作日＝周一至周五、排除放假日、加上调休补班日；法定节假日＝`isOffDay=true` 的日子（不含普通周末）。
 - **离线可用**：APP 内置 2026 年完整数据；启动时联网尝试拉取当前年份最新数据并缓存，2027 年国务院发布后无需发版。
+- **省流量**：每年只联网拉取一次（`KEY_HOLIDAY_FETCHED_FOR` 记录已成功拉取的年份），当年已有数据时启动不再重复请求；新年份首次启动才拉取。Android 系统无公开的"中国法定节假日"标准 API，各厂商日历数据格式不统一、不可靠，故不采用。
 - **无数据时降级**：法定节假日周期在无数据时不计算（返回 null），避免日期出错；法定工作日降级为周一至周五。
 - 2026 数据已核对来源为国务院通知（gov.cn）。
 
