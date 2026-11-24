@@ -57,6 +57,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _repo = MutableStateFlow(RepoUiState())
     val repo: StateFlow<RepoUiState> = _repo.asStateFlow()
 
+    // 0=light, 1=dark, 2=system
+    private val _themeMode = MutableStateFlow(2)
+    val themeMode: StateFlow<Int> = _themeMode.asStateFlow()
+
+    fun cycleTheme() { _themeMode.value = (_themeMode.value + 1) % 3 }
+
     fun clientConfigured(): Boolean = api.isClientConfigured()
 
     fun startDeviceFlow() {
@@ -243,7 +249,43 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         DispatchWorker.enqueue(getApplication(), rule.id, System.currentTimeMillis(), isMakeup = false)
     }
 
-    fun setNetworkWait(minutes: Int) {
-        viewModelScope.launch { repository.setNetworkWaitMinutes(minutes) }
+    fun removeRepo(repoId: Long) {
+        viewModelScope.launch { repository.removeRepo(repoId) }
+    }
+
+    /** Manually trigger a single workflow directly (not via a rule). */
+    fun triggerWorkflowNow(repoFullName: String, workflowId: Long, workflowName: String) {
+        viewModelScope.launch {
+            val token = tokenStore.getToken() ?: return@launch
+            val parts = repoFullName.split("/")
+            if (parts.size != 2) return@launch
+            when (val result = api.dispatchWorkflow(token, parts[0], parts[1], workflowId, "main")) {
+                is ApiResult.Success -> {
+                    AppLogger.i("Manual", "trigger OK wf=$workflowName repo=$repoFullName")
+                    repository.addLog(
+                        com.lucaslu.tickhub.data.TriggerLog(
+                            id = java.util.UUID.randomUUID().toString(),
+                            ruleId = "manual",
+                            workflowName = workflowName,
+                            repoFullName = repoFullName,
+                            plannedAt = System.currentTimeMillis(),
+                            firedAt = System.currentTimeMillis(),
+                            status = com.lucaslu.tickhub.data.TriggerStatus.SUCCESS,
+                            httpCode = result.data
+                        )
+                    )
+                }
+                is ApiResult.Error -> AppLogger.e("Manual", "trigger FAILED wf=$workflowName: ${result.message}")
+            }
+        }
+    }
+
+    /** Refresh holiday data from GitHub (best effort). */
+    fun refreshHolidays() {
+        viewModelScope.launch {
+            val year = java.time.LocalDate.now().year
+            val ok = com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication(), year)
+            AppLogger.i("Holiday", "refresh $year result=$ok")
+        }
     }
 }

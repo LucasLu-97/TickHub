@@ -43,11 +43,7 @@ class MainActivity : ComponentActivity() {
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
-        setContent {
-            TickHubTheme {
-                TickHubApp()
-            }
-        }
+        setContent { TickHubApp() }
     }
 }
 
@@ -55,42 +51,54 @@ class MainActivity : ComponentActivity() {
 private fun TickHubApp() {
     val vm: AppViewModel = viewModel()
     val loginState by vm.login.collectAsState()
+    val themeMode by vm.themeMode.collectAsState()
     var tab by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(loginState.isLoggedIn) {
-        if (loginState.isLoggedIn) {
-            vm.syncAlarms()
-            vm.catchUpMissedRules()
-        }
+    val darkTheme = when (themeMode) {
+        0 -> false
+        1 -> true
+        else -> androidx.compose.foundation.isSystemInDarkTheme()
     }
 
-    if (!loginState.isLoggedIn) {
-        LoginScreen(state = loginState, vm = vm, configured = vm.clientConfigured())
-        return
-    }
-
-    Scaffold(
-        bottomBar = {
-            NavigationBar {
-                val items = listOf("仓库" to "▤", "规则" to "◷", "历史" to "≡", "日志" to "▧", "设置" to "⚙")
-                items.forEachIndexed { index, (label, icon) ->
-                    NavigationBarItem(
-                        selected = tab == index,
-                        onClick = { tab = index },
-                        icon = { Text(icon) },
-                        label = { Text(label, style = MaterialTheme.typography.labelSmall) }
-                    )
-                }
+    TickHubTheme(darkTheme = darkTheme) {
+        LaunchedEffect(loginState.isLoggedIn) {
+            if (loginState.isLoggedIn) {
+                vm.syncAlarms()
+                vm.catchUpMissedRules()
+                vm.refreshHolidays()
             }
         }
-    ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when (tab) {
-                0 -> ReposScreen(vm)
-                1 -> RulesScreen(vm)
-                2 -> HistoryScreen(vm)
-                3 -> LogScreen()
-                4 -> SettingsScreen(vm)
+
+        if (!loginState.isLoggedIn) {
+            LoginScreen(state = loginState, vm = vm, configured = vm.clientConfigured())
+            return@TickHubTheme
+        }
+
+        Scaffold(
+            bottomBar = {
+                NavigationBar {
+                    val items = listOf(
+                        "仓库" to "📁", "规则" to "⏰", "历史" to "📜", "日志" to "📋", "设置" to "⚙"
+                    )
+                    items.forEachIndexed { index, (label, icon) ->
+                        NavigationBarItem(
+                            selected = tab == index,
+                            onClick = { tab = index },
+                            icon = { Text(icon) },
+                            label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                        )
+                    }
+                }
+            }
+        ) { padding ->
+            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+                when (tab) {
+                    0 -> ReposScreen(vm)
+                    1 -> RulesScreen(vm)
+                    2 -> HistoryScreen(vm)
+                    3 -> LogScreen()
+                    4 -> SettingsScreen(vm)
+                }
             }
         }
     }

@@ -75,13 +75,10 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         }
     }
 
-    val networkWaitMinutes: Flow<Int> = context.dataStore.data.map { it[networkWaitKey] ?: 5 }
+    val networkWaitMinutes: Flow<Int> = context.dataStore.data.map { it[networkWaitKey] ?: 3 }
 
-    suspend fun setNetworkWaitMinutes(minutes: Int) {
-        context.dataStore.edit { it[networkWaitKey] = minutes.coerceIn(1, 15) }
-    }
-
-    suspend fun getNetworkWaitMinutesOnce(): Int = context.dataStore.data.first()[networkWaitKey] ?: 5
+    // fixed 3-minute cap per product decision; kept as a setting key for compatibility
+    suspend fun getNetworkWaitMinutesOnce(): Int = context.dataStore.data.first()[networkWaitKey] ?: 3
 
     suspend fun getRulesOnce(): List<Rule> = rules.first()
 
@@ -263,6 +260,23 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
                 else it
             }
             prefs[rulesKey] = json.encodeToString(current)
+        }
+    }
+
+    suspend fun removeRepo(repoId: Long) {
+        context.dataStore.edit { prefs ->
+            val current = readSnapshot(prefs)
+            val wfIds = current.workflows.filter { it.repoId == repoId }.map { it.id }
+            val updated = current.copy(
+                repos = current.repos.filterNot { it.id == repoId },
+                workflows = current.workflows.filterNot { it.repoId == repoId }
+            )
+            prefs[snapshotKey] = json.encodeToString(updated)
+            // drop rules whose workflows belonged to this repo
+            val kept = readRules(prefs).filter { rule ->
+                rule.resolvedWorkflowIds().none { wfIds.contains(it) }
+            }
+            prefs[rulesKey] = json.encodeToString(kept)
         }
     }
 
