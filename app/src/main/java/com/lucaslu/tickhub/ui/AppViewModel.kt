@@ -192,7 +192,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             val rules = repository.getRulesOnce().filter { it.status == RuleStatus.ENABLED }
-            val logs = repository.logs.firstOrNullSafe().orEmpty()
+            val logs = repository.getLogsOnce()
             for (rule in rules) {
                 val planned = rule.nextFireAt ?: continue
                 if (planned > now) continue // not due yet
@@ -216,13 +216,5 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setNetworkWait(minutes: Int) {
         viewModelScope.launch { repository.setNetworkWaitMinutes(minutes) }
-    }
-
-    private suspend fun kotlinx.coroutines.flow.Flow<com.lucaslu.tickhub.data.TriggerLog>.firstOrNullSafe(): List<com.lucaslu.tickhub.data.TriggerLog>? {
-        return try {
-            kotlinx.coroutines.flow.first()
-        } catch (e: Exception) {
-            null
-        }
     }
 }

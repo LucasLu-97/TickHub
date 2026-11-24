@@ -81,6 +81,8 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
 
     suspend fun getRulesOnce(): List<Rule> = rules.first()
 
+    suspend fun getLogsOnce(): List<TriggerLog> = logs.first()
+
     suspend fun getRuleOnce(id: String): Rule? = getRulesOnce().firstOrNull { it.id == id }
 
     /** Atomically update a rule. Returns the updated rule. */

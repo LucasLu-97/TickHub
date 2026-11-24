@@ -21,7 +21,7 @@ class AlarmScheduler(private val context: Context) {
         val triggerAt = rule.nextFireAt ?: return
         if (triggerAt <= System.currentTimeMillis()) return
 
-        val pi = pendingIntentFor(rule.id)
+        val pi = pendingIntentFor(rule.id, triggerAt)
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
@@ -32,7 +32,7 @@ class AlarmScheduler(private val context: Context) {
     }
 
     fun cancel(ruleId: String) {
-        runCatching { alarmManager.cancel(pendingIntentFor(ruleId)) }
+        runCatching { alarmManager.cancel(pendingIntentFor(ruleId, 0L)) }
     }
 
     fun cancelAll(ruleIds: List<String>) = ruleIds.forEach { cancel(it) }
@@ -43,11 +43,11 @@ class AlarmScheduler(private val context: Context) {
         } else true
     }
 
-    private fun pendingIntentFor(ruleId: String): PendingIntent {
+    private fun pendingIntentFor(ruleId: String, plannedAt: Long): PendingIntent {
         val intent = Intent(context, DispatchReceiver::class.java).apply {
             action = ACTION_DISPATCH
             putExtra(EXTRA_RULE_ID, ruleId)
-            putExtra(DispatchReceiver.KEY_PLANNED_AT, rule.nextFireAt ?: System.currentTimeMillis())
+            putExtra(DispatchReceiver.KEY_PLANNED_AT, plannedAt)
         }
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0

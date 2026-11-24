@@ -149,18 +149,19 @@ class DispatchEngine(private val context: Context) {
         if (hasNetwork(cm)) return true
 
         val timeoutMs = timeoutMinutes * 60_000L
-        return suspendCancellableCoroutine { cont ->
-            var finished = false
+        return suspendCancellableCoroutine<Boolean> { cont ->
             val handler = android.os.Handler(android.os.Looper.getMainLooper())
-            lateinit var timeoutRunnable: Runnable
+            var callback: ConnectivityManager.NetworkCallback? = null
+            var timeoutRunnable: Runnable? = null
+            var finished = false
             fun finish(result: Boolean) {
                 if (finished) return
                 finished = true
-                handler.removeCallbacks(timeoutRunnable)
-                runCatching { cm.unregisterNetworkCallback(callback) }
+                timeoutRunnable?.let { handler.removeCallbacks(it) }
+                callback?.let { cb -> runCatching { cm.unregisterNetworkCallback(cb) } }
                 if (cont.isActive) cont.resume(result)
             }
-            val callback = object : ConnectivityManager.NetworkCallback() {
+            callback = object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) = finish(true)
             }
             timeoutRunnable = Runnable { finish(false) }
@@ -168,12 +169,12 @@ class DispatchEngine(private val context: Context) {
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                 .build()
             try {
-                cm.registerNetworkCallback(request, callback)
+                cm.registerNetworkCallback(request, callback!!)
             } catch (e: Exception) {
                 finish(false)
                 return@suspendCancellableCoroutine
             }
-            handler.postDelayed(timeoutRunnable, timeoutMs)
+            handler.postDelayed(timeoutRunnable!!, timeoutMs)
             cont.invokeOnCancellation { finish(false) }
         }
     }
