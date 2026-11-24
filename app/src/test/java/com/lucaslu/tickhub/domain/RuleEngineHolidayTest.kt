@@ -1,0 +1,82 @@
+package com.lucaslu.tickhub.domain
+
+import com.lucaslu.tickhub.data.Rule
+import com.lucaslu.tickhub.data.RuleType
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.time.LocalDate
+import java.time.LocalDateTime
+
+class RuleEngineHolidayTest {
+
+    /** Simplified 2026 holiday data: Oct 1-7 off, Oct 10 (Sat) makeup workday. */
+    private val isWorkday: (LocalDate) -> Boolean = { d ->
+        when (d.toString()) {
+            in listOf("2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07") -> false
+            "2026-10-10" -> true // makeup work Saturday
+            else -> d.dayOfWeek.value <= 5
+        }
+    }
+    private val isHoliday: (LocalDate) -> Boolean = { d ->
+        d.toString() in listOf("2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07")
+    }
+
+    private fun rule(type: RuleType) = Rule(id = "r1", workflowIds = listOf(1, 2), type = type, hour = 9, minute = 0)
+
+    @Test
+    fun legalWorkday_skipsHolidayWeek() {
+        // Sep 30 (Wed) after 9:00 -> next legal workday is Oct 8 (Thu)
+        val from = LocalDateTime.of(2026, 9, 30, 10, 0)
+        val next = RuleEngine.computeNextFire(rule(RuleType.LEGAL_WORKDAY), from, isWorkday, isHoliday)
+        assertEquals(LocalDateTime.of(2026, 10, 8, 9, 0), next)
+    }
+
+    @Test
+    fun legalWorkday_includesMakeupSaturday() {
+        // Oct 9 (Fri) after 9:00 -> Oct 10 (Sat, makeup workday) at 9:00
+        val from = LocalDateTime.of(2026, 10, 9, 10, 0)
+        val next = RuleEngine.computeNextFire(rule(RuleType.LEGAL_WORKDAY), from, isWorkday, isHoliday)
+        assertEquals(LocalDateTime.of(2026, 10, 10, 9, 0), next)
+    }
+
+    @Test
+    fun legalHoliday_findsNextHoliday() {
+        val from = LocalDateTime.of(2026, 9, 30, 10, 0)
+        val next = RuleEngine.computeNextFire(rule(RuleType.LEGAL_HOLIDAY), from, isWorkday, isHoliday)
+        assertEquals(LocalDateTime.of(2026, 10, 1, 9, 0), next)
+    }
+
+    @Test
+    fun legalHoliday_noData_returnsNull() {
+        val from = LocalDateTime.of(2026, 9, 30, 10, 0)
+        val next = RuleEngine.computeNextFire(rule(RuleType.LEGAL_HOLIDAY), from, null, null)
+        assertEquals(null, next)
+    }
+
+    @Test
+    fun drift_isDeterministicAndWithinWindow() {
+        val base = LocalDateTime.of(2026, 11, 25, 8, 0)
+        val baseEpoch = RuleEngine.toEpochMillis(base)
+        val a = RuleEngine.applyDrift("rule-abc", baseEpoch, 30)
+        val b = RuleEngine.applyDrift("rule-abc", baseEpoch, 30)
+        assertEquals(a, b) // deterministic across restarts
+        assertTrue(a >= baseEpoch)
+        assertTrue(a < baseEpoch + 30 * 60_000L)
+    }
+
+    @Test
+    fun drift_zeroMeansNoDelay() {
+        val baseEpoch = RuleEngine.toEpochMillis(LocalDateTime.of(2026, 11, 25, 8, 0))
+        assertEquals(baseEpoch, RuleEngine.applyDrift("r", baseEpoch, 0))
+    }
+
+    @Test
+    fun multiWorkflowRule_resolvesIds() {
+        val r = rule(RuleType.DAILY)
+        assertEquals(listOf(1L, 2L), r.resolvedWorkflowIds())
+        // legacy fallback
+        val legacy = Rule(id = "old", workflowId = 99L)
+        assertEquals(listOf(99L), legacy.resolvedWorkflowIds())
+    }
+}
