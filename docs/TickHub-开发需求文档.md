@@ -9,6 +9,8 @@
 | 决策记录 | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release |
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
+| 最新测试版 | v0.1.0-beta2（M1：Device Flow 登录 + 仓库/工作流扫描 + 勾选纳管），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta2 |
+| 待用户操作 | **注册 GitHub OAuth App 并把 Client ID 注入构建**（见 §17），否则登录页会提示未配置 |
 | 目标读者 | 后续接手的开发者 / AI Agent |
 | 计划仓库 | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1） |
 
@@ -143,7 +145,7 @@
 
 - 能列出账号下全部自建仓库（含私有），数量与 GitHub 网页端一致。
 - 点开任一仓库能列出其工作流名称与路径。
-- 扫描结果缓存在本地 Room，离线时可浏览上次结果。
+- 扫描结果缓存在本地（M1 实现用 DataStore + JSON，非 Room——规避 KSP 版本冲突），离线时可浏览上次结果。
 
 ### FR-03 勾选纳管对象 — P0
 
@@ -846,6 +848,35 @@ local.properties
 - Miuix 组件库：https://github.com/compose-miuix-ui/miuix
 - Android WorkManager 深入解析（Doze / 国产 ROM）：https://engineering.zooz.com/@mayank1807.singh/workmanager-deep-dive-system-architecture-doze-mode-and-production-challenges-06bf2267a032
 - GitHub Actions schedule 可靠性讨论：https://github.com/orgs/community/discussions/213425
+
+---
+
+## 17. OAuth App 注册与 Client ID 注入（M1 上线前置条件）
+
+Device Flow 需要一个 GitHub OAuth App 的 **Client ID**（公开值，不是密钥，可入库）。当前构建未注入，登录页会显示「未配置」。完成以下步骤后 APP 才能登录：
+
+### 17.1 注册 OAuth App
+
+1. 打开 https://github.com/settings/developers → **OAuth Apps** → **New OAuth App**。
+2. 填写：
+   - Application name：`TickHub`
+   - Homepage URL：`https://github.com/LucasLu-97/TickHub`
+   - Authorization callback URL：`http://localhost`（Device Flow 不用回调，但 GitHub 要求必填）
+3. 注册后复制 **Client ID**（形如 `Iv1.xxxxxxxxxxxxxxxx`）。**不需要 Client Secret**——Device Flow 不用它，也不要把它写进 APP。
+4. 授权 scope：APP 代码里已写死申请 `repo`（触发私有仓库 dispatch 所需），首次授权时 GitHub 会展示权限确认页。
+
+### 17.2 注入 Client ID
+
+Client ID 通过构建参数 `-PgithubClientId=XXX` 注入，写进 BuildConfig。两种方式：
+
+- **CI 注入（推荐）**：把 Client ID 存为仓库 Actions Variable（非 Secret 也行，它本就公开），名 `GITHUB_CLIENT_ID`，然后在 `build-release.yml` 的 assemble 步骤加 `-PgithubClientId="${{ vars.GITHUB_CLIENT_ID }}"`。
+- **本地调试**：Android Studio 里在 Gradle 参数加 `-PgithubClientId=XXX`，或在 `gradle.properties` 里加一行 `githubClientId=XXX`（本地文件，已 gitignore 的可选做法）。
+
+> 注意：Client ID 只是公开标识，不含密钥，写进公开仓库无安全风险。真正敏感的 access token 存在 Android Keystore 加密存储里（见 §8.1）。
+
+### 17.3 验证
+
+注入后重新打 tag 构建，安装后打开 APP：登录页应显示「用 GitHub 登录」按钮（不再是"未配置"红框），点击后出现设备码，在 https://github.com/login/device 输入即可完成授权，随后自动进入仓库列表。
 
 ---
 
