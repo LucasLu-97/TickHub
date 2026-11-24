@@ -13,7 +13,7 @@ Android app that turns your phone into a reliable GitHub Actions scheduler.
 | 工程骨架 | ✅ 完成（Gradle 9.7 / AGP 9.3.1 / Kotlin 2.4.20） |
 | Device Flow 登录 | 🚧 M1 |
 | 仓库/工作流扫描 | 🚧 M1 |
-| 规则配置 | 🚧 M2 |
+| 规则配置 | ✅ M2 完成（5 种周期 + 12 项单测） |
 | 调度引擎 | 🚧 M3 |
 | 真机验收 | 🚧 M5 |
 | 正式版 | 🚧 M6 |

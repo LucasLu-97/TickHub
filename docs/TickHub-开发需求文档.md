@@ -9,7 +9,7 @@
 | 决策记录 | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release |
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
-| 最新测试版 | v0.1.0-beta2（M1：Device Flow 登录 + 仓库/工作流扫描 + 勾选纳管），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta2 |
+| 最新测试版 | v0.2.0-beta4（M2：规则引擎 + 5 种周期 + 规则 CRUD UI + 12 项单测），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.2.0-beta4 |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §17） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
 | 计划仓库 | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1） |
