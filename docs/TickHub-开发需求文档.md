@@ -9,7 +9,7 @@
 | 决策记录 | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release |
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
-| 最新测试版 | v0.7.3-beta17（追踪期持续转圈计时 + 底栏融合手势区 + 分隔线 + 震动开关），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.7.3-beta17 |
+| 最新测试版 | v1.0.0-beta18（右滑选择 + 长按拖拽排序 + 统一EFFECT_TICK震感 + 文案精简 + 底部灰带修复），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.0-beta18 |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
 | 计划仓库 | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1） |
@@ -861,6 +861,15 @@ local.properties
 - **计算规则**：法定工作日＝周一至周五、排除放假日、加上调休补班日；法定节假日＝`isOffDay=true` 的日子（不含普通周末）。
 - **离线可用**：APP 内置 2026 年完整数据；启动时联网尝试拉取当前年份最新数据并缓存，2027 年国务院发布后无需发版。
 - **省流量**：每年只联网拉取一次（`KEY_HOLIDAY_FETCHED_FOR` 记录已成功拉取的年份），当年已有数据时启动不再重复请求。启动时同时尝试拉「当年 + 次年」两个年份（次年通知通常 12 月上半月发布，未发布则失败后下次再试），多年数据按年份 key 合并存储、互不冲突。Android 系统无公开的"中国法定节假日"标准 API，各厂商日历数据格式不统一、不可靠，故不采用。
+
+## 22. 卡片交互与统一震感（M14）
+
+**卡片交互**（仓库/规则/历史三页统一）：
+- **右滑**：卡片右移露出左侧选择框并选中（卡片本身不变色），进入多选模式；右上角出现「全选/删除/取消」。
+- **长按拖拽排序**：长按（震动）后卡片抬起加阴影，随手指移动；跨过相邻项即交换位置，松手提交并持久化顺序。规则页仓库分组顺序同步仓库页顺序，同仓库多卡可组内排序。
+- 顺序存于 DataStore（`order_repos`/`order_rules`/`order_logs`）。
+
+**统一震感**：全 app 所有按钮/开关/滑动/删除/拨轮/长按统一走 `Haptics.tick`，用系统 `VibrationEffect.EFFECT_TICK`（MIUI 式清脆"哒"），低版本回退短 oneShot；设置页「触感反馈」总开关。
 
 ## 21. 真实执行时长与完成通知（M9）
 
