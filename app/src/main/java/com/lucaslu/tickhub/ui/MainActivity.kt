@@ -28,7 +28,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -95,14 +94,13 @@ private fun TickHubApp() {
             if (showLogs) {
                 LogScreen(onBack = { showLogs = false })
             } else {
-                // floating translucent NavigationBar: content scrolls underneath, like MIUI
+                // bottom bar: solid surface so content is cleanly covered when scrolling under it
                 NavigationBar(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .graphicsLayer(alpha = 0.86f),
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.82f),
+                        .navigationBarsPadding(),
+                    containerColor = MaterialTheme.colorScheme.surface,
                     tonalElevation = 0.dp
                 ) {
                     val items = listOf("仓库", "规则", "历史", "设置")

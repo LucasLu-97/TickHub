@@ -3,22 +3,20 @@ package com.lucaslu.tickhub.ui
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -64,15 +62,19 @@ fun SwipeableCard(
     )
 
     Box(modifier = modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(12.dp))) {
-        // delete icon revealed behind the card (no colored strip), centered in the revealed area
+        // delete icon revealed behind the card; its center is aligned to the card's vertical center
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
             Box(
-                modifier = Modifier.width(deleteWidth).fillMaxHeight(),
+                modifier = Modifier
+                    .width(deleteWidth)
+                    .fillMaxHeight()
+                    .clickable { onDelete() },
                 contentAlignment = Alignment.Center
             ) {
-                IconButton(onClick = { onDelete() }) {
-                    DeleteLineIcon(tint = MaterialTheme.colorScheme.error)
-                }
+                DeleteLineIcon(
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(28.dp)
+                )
             }
         }
         // foreground card

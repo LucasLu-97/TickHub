@@ -42,7 +42,6 @@ fun LogScreen(onBack: (() -> Unit)? = null) {
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             androidx.compose.material3.TopAppBar(
-                modifier = Modifier.height(48.dp),
                 colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                     scrolledContainerColor = MaterialTheme.colorScheme.background
