@@ -140,10 +140,7 @@ fun RulesScreen(vm: AppViewModel) {
                         TextButton(onClick = { multiSelect = false; selectedIds = emptySet() }) { Text("取消") }
                     } else {
                         androidx.compose.material3.IconButton(onClick = { creating = true }, enabled = selectedWorkflows.isNotEmpty()) {
-                            androidx.compose.material3.Icon(
-                                imageVector = androidx.compose.material.icons.filled.Add,
-                                contentDescription = "新建规则"
-                            )
+                            Text("＋", style = MaterialTheme.typography.titleLarge)
                         }
                     }
                 }
