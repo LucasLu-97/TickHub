@@ -60,11 +60,13 @@ fun RulesScreen(vm: AppViewModel) {
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var confirmTrigger by remember { mutableStateOf<Rule?>(null) }
     var orderLoaded by remember { mutableStateOf(false) }
-    var repoOrder by remember { mutableStateOf<List<String>>(emptyList()) }
+    var repoOrder by remember { mutableStateOf<List<String>>(emptyList()) } // repo ids, from repo page
+    var repoNameOrder by remember { mutableStateOf<List<String>>(emptyList()) } // display names in that order
 
     val reorder = rememberReorderController<com.lucaslu.tickhub.data.Rule>(
         keyOf = { it.id },
         itemHeightDp = 112.dp,
+        groupOf = { it.repoFullName.split("/").lastOrNull().takeUnless { it.isNullOrBlank() } ?: "未分类" },
         onCommit = { vm.saveOrder("rules", it.map { r -> r.id }) }
     )
     LaunchedEffect(Unit) {
@@ -72,6 +74,11 @@ fun RulesScreen(vm: AppViewModel) {
         val saved = vm.readOrder("rules")
         reorder.syncFrom(vm.applyOrder(rules, saved) { it.id })
         orderLoaded = true
+    }
+    LaunchedEffect(snapshot.repos, repoOrder) {
+        // derive repo display-name order from the repo page's saved id order
+        repoNameOrder = vm.applyOrder(snapshot.repos, repoOrder) { it.id.toString() }
+            .map { it.fullName.split("/").lastOrNull() ?: it.fullName }
     }
     LaunchedEffect(rules) {
         if (orderLoaded && reorder.draggingKey == null) reorder.syncFrom(rules)
@@ -154,8 +161,15 @@ fun RulesScreen(vm: AppViewModel) {
         }
         Spacer(Modifier.height(12.dp))
 
-        // group by repo, order follows the saved rule order (which follows repo order initially)
-        val grouped = reorder.items.groupBy { it.repoFullName.split("/").lastOrNull().takeUnless { it.isNullOrBlank() } ?: "未分类" }
+        // group by repo; group ORDER follows the repo page's saved order (not user-sortable here);
+        // within a group, cards can be drag-reordered (handled by controller groupOf below)
+        val groupedRaw = reorder.items.groupBy { it.repoFullName.split("/").lastOrNull().takeUnless { it.isNullOrBlank() } ?: "未分类" }
+        val grouped = linkedMapOf<String, List<com.lucaslu.tickhub.data.Rule>>().apply {
+            repoNameOrder.forEach { display ->
+                groupedRaw[display]?.let { put(display, it) }
+            }
+            groupedRaw.forEach { (k, v) -> if (!containsKey(k)) put(k, v) }
+        }
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)

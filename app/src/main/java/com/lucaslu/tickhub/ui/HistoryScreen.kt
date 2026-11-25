@@ -103,11 +103,7 @@ fun HistoryScreen(vm: AppViewModel) {
                             selectedIds = if (sel) selectedIds + log.id else selectedIds - log.id
                         },
                         selected = selectedIds.contains(log.id),
-                        dragY = reorder.offsetFor(log.id),
-                        dragging = reorder.isDragging(log.id),
-                        onDragStart = { reorder.startDrag(log.id) },
-                        onDragDelta = { reorder.drag(it) },
-                        onDragEnd = { reorder.endDrag() },
+                        // history is timeline-ordered: no drag reorder; long-press only dims the card
                         content = { LogCardContent(log) }
                     )
                 }

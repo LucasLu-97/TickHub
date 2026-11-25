@@ -18,7 +18,8 @@ import androidx.compose.ui.unit.dp
 class ReorderController<T>(
     private val keyOf: (T) -> String,
     private val itemHeightPx: Float,
-    private val onCommit: (List<T>) -> Unit
+    private val onCommit: (List<T>) -> Unit,
+    private val groupOf: ((T) -> String)? = null // if set, reorder only within the same group
 ) {
     val items = mutableStateListOf<T>()
     var draggingKey by mutableStateOf<String?>(null)
@@ -56,11 +57,19 @@ class ReorderController<T>(
         if (idx < 0) return
         val steps = (accumulated / itemHeightPx).toInt()
         if (steps != 0) {
-            val target = (idx + steps).coerceIn(0, items.lastIndex)
+            val group = groupOf?.invoke(items[idx])
+            // clamp target to group boundaries so cards never leave their group
+            var lo = 0
+            var hi = items.lastIndex
+            if (group != null) {
+                while (lo < items.lastIndex && groupOf?.invoke(items[lo]) != group) lo++
+                while (hi > 0 && groupOf?.invoke(items[hi]) != group) hi--
+            }
+            val target = (idx + steps).coerceIn(lo, hi)
             if (target != idx) {
                 val moved = items.removeAt(idx)
                 items.add(target, moved)
-                accumulated -= steps * itemHeightPx
+                accumulated -= (target - idx) * itemHeightPx
                 dragOffset = accumulated
             }
         }
@@ -83,8 +92,9 @@ class ReorderController<T>(
 fun <T> rememberReorderController(
     keyOf: (T) -> String,
     itemHeightDp: androidx.compose.ui.unit.Dp = 120.dp,
+    groupOf: ((T) -> String)? = null,
     onCommit: (List<T>) -> Unit
 ): ReorderController<T> {
     val px = with(LocalDensity.current) { itemHeightDp.toPx() }
-    return remember { ReorderController(keyOf, px, onCommit) }
+    return remember { ReorderController(keyOf, px, onCommit, groupOf) }
 }
