@@ -1,6 +1,7 @@
 package com.lucaslu.tickhub.ui
 
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -37,7 +38,7 @@ fun ElapsedText(startAt: Long, modifier: Modifier = Modifier) {
 fun RunningIndicator(startAt: Long, modifier: Modifier = Modifier) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.foundation.layout.padding(start = 8.dp))
+        androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(start = 8.dp))
         ElapsedText(startAt)
     }
 }
