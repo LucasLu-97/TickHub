@@ -44,6 +44,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
     val themeMode by vm.themeMode.collectAsState()
     val showExec by vm.showExecutionStatus.collectAsState(initial = true)
     val runTrack by vm.runTrackingEnabled.collectAsState(initial = true)
+    val haptics by vm.hapticsEnabled.collectAsState(initial = true)
     val pm = context.getSystemService(PowerManager::class.java)
     val batteryOptimized = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
         pm?.isIgnoringBatteryOptimizations(context.packageName) != true
@@ -73,7 +74,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp).padding(top = 4.dp, bottom = 72.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp).padding(top = 4.dp, bottom = 96.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
             fun setHaptic(enabled: Boolean) { vm.setShowExecutionStatus(enabled); com.lucaslu.tickhub.util.Haptics.tick(context) }
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -143,6 +144,19 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                             Text("触发后查询 GitHub 真实执行时长，完成后通知成功/失败；每5秒查询一次，不持续占用后台", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         MiuixSwitch(checked = runTrack, onCheckedChange = { vm.setRunTrackingEnabled(it) })
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("触感反馈", style = MaterialTheme.typography.titleMedium)
+                            Text("开关、滑动、拨轮、页面切换的短震动反馈", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        MiuixSwitch(checked = haptics, onCheckedChange = { vm.setHapticsEnabled(it) })
                     }
                 }
             }

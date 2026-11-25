@@ -127,7 +127,7 @@ fun RulesScreen(vm: AppViewModel) {
             )
         }
     ) { pad ->
-        Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(bottom = 72.dp)) {
+        Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(bottom = 96.dp)) {
         if (selectedWorkflows.isEmpty()) {
             Spacer(Modifier.height(16.dp))
             Text("请先在「仓库」页勾选要纳管的工作流，再来创建规则。", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -185,7 +185,7 @@ fun RulesScreen(vm: AppViewModel) {
 @Composable
 private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () -> Unit, onTriggerNow: () -> Unit, runningStart: Long? = null) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
         val names = rule.workflowNames.ifEmpty { listOf(rule.workflowName.ifBlank { "工作流 #${rule.workflowId}" }) }
         Text(names.joinToString("、"), style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(6.dp))
@@ -209,7 +209,7 @@ private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () 
                 color = MaterialTheme.colorScheme.primary
             )
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             MiuixSwitch(
                 checked = rule.status == RuleStatus.ENABLED,

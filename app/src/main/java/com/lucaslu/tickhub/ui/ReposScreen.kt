@@ -77,7 +77,7 @@ fun ReposScreen(vm: AppViewModel) {
                     scrolledContainerColor = MaterialTheme.colorScheme.background
                 ),
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 14.dp)) {
                         AvatarImage(url = avatar, name = user ?: "?")
                         Spacer(Modifier.padding(8.dp))
                         Text(user ?: "未登录", style = MaterialTheme.typography.titleMedium)
@@ -98,7 +98,7 @@ fun ReposScreen(vm: AppViewModel) {
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp).padding(bottom = 72.dp)) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp).padding(bottom = 96.dp)) {
             PullToRefreshBox(isRefreshing = refreshing, onRefresh = { vm.refreshProfile() }) {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     item {
@@ -185,7 +185,7 @@ private fun RepoCardContent(
 ) {
     val ctx = LocalContext.current
     fun cardHaptic() = Haptics.tick(ctx)
-    Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 18.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(repoName, style = MaterialTheme.typography.titleSmall)

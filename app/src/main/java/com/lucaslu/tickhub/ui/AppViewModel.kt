@@ -54,6 +54,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val runningExecutions = repository.runningExecutions
     val showExecutionStatus = repository.showExecutionStatus
     val runTrackingEnabled = repository.runTrackingEnabled
+    val hapticsEnabled = repository.hapticsEnabled
+
+    init {
+        viewModelScope.launch {
+            repository.hapticsEnabled.collect { com.lucaslu.tickhub.util.Haptics.enabled = it }
+        }
+    }
 
     private val _login = MutableStateFlow(LoginUiState(isLoggedIn = tokenStore.getToken() != null))
     val login: StateFlow<LoginUiState> = _login.asStateFlow()
@@ -289,6 +296,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setRunTrackingEnabled(enabled: Boolean) {
         viewModelScope.launch { repository.setRunTrackingEnabled(enabled) }
+    }
+
+    fun setHapticsEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setHapticsEnabled(enabled) }
     }
 
     /** Manually trigger a single workflow directly (not via a rule). */

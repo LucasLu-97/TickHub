@@ -94,33 +94,45 @@ private fun TickHubApp() {
             if (showLogs) {
                 LogScreen(onBack = { showLogs = false })
             } else {
-                // bottom bar: solid surface so content is cleanly covered when scrolling under it
-                NavigationBar(
+                // Bottom bar: white surface extends all the way down over the gesture strip,
+                // with a hairline divider so white cards don't merge into the bar.
+                androidx.compose.foundation.layout.Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .navigationBarsPadding(),
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 0.dp
+                        .background(MaterialTheme.colorScheme.surface)
+                        .navigationBarsPadding()
                 ) {
-                    val items = listOf("仓库", "规则", "历史", "设置")
-                    items.forEachIndexed { index, label ->
-                        NavigationBarItem(
-                            selected = tab == index,
-                            onClick = {
-                                tab = index
-                                com.lucaslu.tickhub.util.Haptics.tick(context)
-                            },
-                            icon = {
-                                TabIcon(
-                                    index = index,
-                                    color = if (tab == index) MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            },
-                            label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                    androidx.compose.foundation.layout.Column {
+                        androidx.compose.material3.HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                            thickness = 1.dp
                         )
+                        NavigationBar(
+                            windowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 0.dp
+                        ) {
+                            val items = listOf("仓库", "规则", "历史", "设置")
+                            items.forEachIndexed { index, label ->
+                                NavigationBarItem(
+                                    selected = tab == index,
+                                    onClick = {
+                                        tab = index
+                                        com.lucaslu.tickhub.util.Haptics.tick(context)
+                                    },
+                                    icon = {
+                                        TabIcon(
+                                            index = index,
+                                            color = if (tab == index) MaterialTheme.colorScheme.primary
+                                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    },
+                                    label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                                )
+                            }
+                        }
                     }
                 }
             }

@@ -63,7 +63,7 @@ fun HistoryScreen(vm: AppViewModel) {
             )
         }
     ) { pad ->
-        Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(bottom = 72.dp)) {
+        Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(bottom = 96.dp)) {
         Text("最近 ${logs.size} 条记录", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
 
@@ -127,7 +127,10 @@ private fun LogCardContent(log: TriggerLog) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             log.firedAt?.let { Text("实际：${fmt.format(Date(it))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f)) }
                 ?: Spacer(Modifier.weight(1f))
-            if (log.durationMs > 0) {
+            if (log.tracking) {
+                Text("耗时 ", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                ElapsedText(startAt = log.firedAt)
+            } else if (log.durationMs > 0) {
                 val s = log.durationMs / 1000
                 Text(
                     "耗时 ${(s / 60).toString().padStart(2, '0')}m${(s % 60).toString().padStart(2, '0')}s",

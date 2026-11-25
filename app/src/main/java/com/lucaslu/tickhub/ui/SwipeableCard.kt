@@ -52,6 +52,7 @@ fun SwipeableCard(
 ) {
     val deleteWidth = 76.dp
     val deleteWidthPx = with(LocalDensity.current) { deleteWidth.toPx() }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val offsetX = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     var revealed by remember { mutableStateOf(false) }
@@ -68,7 +69,10 @@ fun SwipeableCard(
                 modifier = Modifier
                     .width(deleteWidth)
                     .fillMaxHeight()
-                    .clickable { onDelete() },
+                    .clickable {
+                        com.lucaslu.tickhub.util.Haptics.tick(ctx)
+                        onDelete()
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 DeleteLineIcon(
@@ -87,6 +91,7 @@ fun SwipeableCard(
                         onDragEnd = {
                             val shouldReveal = offsetX.value < -deleteWidthPx * 0.4f
                             revealed = shouldReveal
+                            com.lucaslu.tickhub.util.Haptics.tick(ctx)
                             scope.launch {
                                 offsetX.animateTo(if (shouldReveal) -deleteWidthPx else 0f, spring(dampingRatio = 0.75f, stiffness = 400f))
                             }

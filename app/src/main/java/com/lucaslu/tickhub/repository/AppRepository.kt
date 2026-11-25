@@ -46,6 +46,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     private val runningKey = stringPreferencesKey("running_executions_json") // ruleId -> startTime
     private val showExecutionKey = androidx.datastore.preferences.core.booleanPreferencesKey("show_execution_status")
     private val runTrackingKey = androidx.datastore.preferences.core.booleanPreferencesKey("run_tracking_enabled")
+    private val hapticsKey = androidx.datastore.preferences.core.booleanPreferencesKey("haptics_enabled")
 
     val snapshot: Flow<ScanSnapshot> = context.dataStore.data.map { prefs ->
         val raw = prefs[snapshotKey]
@@ -173,12 +174,21 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     }
 
     // ---- execution status (running tasks) ----
+    // Includes BOTH the short-lived dispatch Worker window AND logs still being
+    // tracked against GitHub. So the spinner keeps running for the whole real
+    // execution (minutes), not just the few seconds of the HTTP dispatch.
     val runningExecutions: Flow<Map<String, Long>> = context.dataStore.data.map { prefs ->
         val raw = prefs[runningKey]
-        if (raw.isNullOrBlank()) emptyMap()
-        else try {
-            json.decodeFromString<Map<String, Long>>(raw)
-        } catch (e: Exception) { emptyMap() }
+        val result = (if (raw.isNullOrBlank()) emptyMap<String, Long>()
+        else try { json.decodeFromString<Map<String, Long>>(raw) } catch (e: Exception) { emptyMap() }).toMutableMap()
+
+        // merge in every log whose GitHub run is still executing
+        readLogs(prefs).filter { it.tracking }.forEach { log ->
+            val existing = result[log.ruleId]
+            val start = log.firedAt
+            if (existing == null || start < existing) result[log.ruleId] = start
+        }
+        result
     }
 
     val showExecutionStatus: Flow<Boolean> = context.dataStore.data.map { it[showExecutionKey] ?: true }
@@ -194,6 +204,12 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     }
 
     suspend fun isRunTrackingEnabledOnce(): Boolean = context.dataStore.data.first()[runTrackingKey] ?: true
+
+    val hapticsEnabled: Flow<Boolean> = context.dataStore.data.map { it[hapticsKey] ?: true }
+
+    suspend fun setHapticsEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[hapticsKey] = enabled }
+    }
 
     suspend fun markRunning(ruleId: String, startAt: Long) {
         context.dataStore.edit { prefs ->
