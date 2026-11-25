@@ -3,8 +3,9 @@ package com.lucaslu.tickhub.ui
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -26,21 +27,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * Card with MIUI-style interactions, all gestures handled in ONE pointerInput
- * so horizontal swipes don't consume events needed by drag-to-reorder:
+ * Card with MIUI-style interactions:
  *  - swipe LEFT -> reveal red delete icon (vertically centered)
- *  - swipe RIGHT -> reveal a checkbox, mark selected (card color unchanged)
- *  - long press + drag -> lift & follow finger (via callbacks); press alone -> "pressed" dim
+ *  - swipe RIGHT -> reveal checkbox, select (card color unchanged); states are exclusive
+ *  - long press + drag -> lift & follow finger (reorder), background icons hidden while dragging
+ *  - long press without drag -> dim only (history page)
  */
 @Composable
 fun SwipeableCard(
@@ -68,10 +67,9 @@ fun SwipeableCard(
     var pressed by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(12.dp)
     val canReorder = onDragStart != null
-    val slopPx = with(LocalDensity.current) { 10.dp.toPx() }
 
     Box(modifier = modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        // hide reveal layers while dragging so they don't stay behind the moved card
+        // reveal layers hidden while dragging so they never stay behind the moved card
         if (!dragging) {
             if (onSelect != null) {
                 Box(
@@ -123,103 +121,62 @@ fun SwipeableCard(
                     scaleY = if (dragging) 1.02f else 1f
                 }
                 .then(if (dragging) Modifier.shadow(14.dp, shape, clip = true) else Modifier)
+                // horizontal swipe: exclusive states (selected -> only reset; delete -> only reset)
                 .pointerInput(Unit) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        down.consume()
-                        var startX = down.position.x
-                        var startY = down.position.y
-                        var mode = 0 // 0 undecided, 1 horizontal swipe, 2 drag-reorder, 3 long-press-tap
-
-                        // long-press timer via a separate scope (avoids restricted-suspension limits)
-                        val timerScope = kotlinx.coroutines.CoroutineScope(kotlin.coroutines.coroutineContext)
-                        val longPressJob = timerScope.launch {
-                            kotlinx.coroutines.delay(260)
-                            if (mode == 0) {
-                                com.lucaslu.tickhub.util.Haptics.tick(ctx)
-                                pressed = true
-                                if (canReorder) {
-                                    mode = 2
-                                    onDragStart?.invoke()
-                                } else {
-                                    mode = 3
-                                }
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            val wasSelected = selectRevealed
+                            val target = when {
+                                offsetX.value < -deleteWidthPx * 0.4f && !selectRevealed -> -deleteWidthPx
+                                offsetX.value > selectWidthPx * 0.4f && !revealed && onSelect != null -> selectWidthPx
+                                else -> 0f
                             }
+                            com.lucaslu.tickhub.util.Haptics.tick(ctx)
+                            revealed = target < 0
+                            selectRevealed = target > 0
+                            if (target > 0) onSelect?.invoke(true)
+                            if (target == 0f && wasSelected) onSelect?.invoke(false)
+                            scope.launch { offsetX.animateTo(target, spring(dampingRatio = 0.78f, stiffness = 420f)) }
                         }
-
-                        while (true) {
-                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                            if (!change.pressed) break
-                            val dx = change.position.x - startX
-                            val dy = change.position.y - startY
-
-                            if (mode == 0 && (abs(dx) > slopPx || abs(dy) > slopPx)) {
-                                longPressJob.cancel()
-                                pressed = false
-                                mode = if (abs(dx) > abs(dy)) 1 else 2
-                                if (mode == 2 && canReorder) onDragStart?.invoke()
-                                startX = change.position.x
-                                startY = change.position.y
-                                continue
+                    ) { change, dragAmount ->
+                        val minX = if (selectRevealed) 0f else -deleteWidthPx
+                        val maxX = if (revealed) 0f else selectWidthPx
+                        val next = (offsetX.value + dragAmount).coerceIn(minX, maxX)
+                        scope.launch { offsetX.snapTo(next) }
+                        change.consume()
+                    }
+                }
+                // tap / long-press dim
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = {
+                            if (revealed || selectRevealed) {
+                                revealed = false
+                                selectRevealed = false
+                                onSelect?.invoke(false)
+                                scope.launch { offsetX.animateTo(0f, spring(dampingRatio = 0.78f, stiffness = 420f)) }
+                            } else {
+                                onClick?.invoke()
                             }
-
-                            when (mode) {
-                                1 -> {
-                                    change.consume()
-                                    // state is exclusive: once selected, left-swipe can only reset;
-                                    // once delete is revealed, right-swipe can only reset
-                                    val minX = if (selectRevealed) 0f else -deleteWidthPx
-                                    val maxX = if (revealed) 0f else selectWidthPx
-                                    val next = (offsetX.value + dx).coerceIn(minX, maxX)
-                                    scope.launch { offsetX.snapTo(next) }
-                                    startX = change.position.x
-                                }
-                                2 -> {
-                                    if (canReorder) {
-                                        change.consume() // let list scroll on non-reorderable pages
-                                        onDragDelta?.invoke(dy)
-                                        startY = change.position.y
-                                    }
-                                }
-                            }
+                        },
+                        onLongPress = {
+                            com.lucaslu.tickhub.util.Haptics.tick(ctx)
+                            pressed = true
                         }
-
-                        longPressJob.cancel()
-                        pressed = false
-                        when (mode) {
-                            1 -> {
-                                // snap: right-swipe selects, left-swipe reveals delete; opposite swipe only resets
-                                val wasSelected = selectRevealed
-                                val target = when {
-                                    offsetX.value < -deleteWidthPx * 0.4f && !selectRevealed -> -deleteWidthPx
-                                    offsetX.value > selectWidthPx * 0.4f && !revealed && onSelect != null -> selectWidthPx
-                                    else -> 0f
-                                }
-                                com.lucaslu.tickhub.util.Haptics.tick(ctx)
-                                revealed = target < 0
-                                selectRevealed = target > 0
-                                if (target > 0) onSelect?.invoke(true)
-                                // reset to normal also clears selection (and thus multi-select actions)
-                                if (target == 0f && wasSelected) onSelect?.invoke(false)
-                                scope.launch { offsetX.animateTo(target, spring(dampingRatio = 0.78f, stiffness = 420f)) }
-                            }
-                            2 -> {
-                                if (canReorder) onDragEnd?.invoke()
-                            }
-                            0 -> {
-                                // tap
-                                if (revealed || selectRevealed) {
-                                    revealed = false
-                                    selectRevealed = false
-                                    onSelect?.invoke(false)
-                                    scope.launch { offsetX.animateTo(0f, spring(dampingRatio = 0.78f, stiffness = 420f)) }
-                                } else {
-                                    onClick?.invoke()
-                                }
-                            }
-                            3 -> { /* long-press without reorder: no action (dimmed only) */ }
-                        }
+                    )
+                }
+                // long press + vertical drag reorder (only on reorderable pages)
+                .pointerInput(Unit) {
+                    if (canReorder) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { onDragStart?.invoke() },
+                            onDrag = { change, delta ->
+                                onDragDelta?.invoke(delta.y)
+                                change.consume()
+                            },
+                            onDragEnd = { onDragEnd?.invoke() },
+                            onDragCancel = { onDragEnd?.invoke() }
+                        )
                     }
                 },
             shape = shape,
