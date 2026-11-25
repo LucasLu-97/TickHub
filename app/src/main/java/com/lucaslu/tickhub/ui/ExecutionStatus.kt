@@ -37,7 +37,7 @@ fun ElapsedText(startAt: Long, modifier: Modifier = Modifier) {
 fun RunningIndicator(startAt: Long, modifier: Modifier = Modifier) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-        androidx.compose.foundation.layout.Spacer(androidx.compose.foundation.layout.padding(8.dp))
+        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.foundation.layout.padding(start = 8.dp))
         ElapsedText(startAt)
     }
 }

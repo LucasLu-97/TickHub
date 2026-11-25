@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.lucaslu.tickhub.util.AppLogger
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun LogScreen() {
     val context = LocalContext.current
