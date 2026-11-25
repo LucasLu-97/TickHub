@@ -24,6 +24,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -45,6 +47,7 @@ fun SwipeableCard(
     content: @Composable () -> Unit
 ) {
     var deleteArmed by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             when (value) {
@@ -83,7 +86,7 @@ fun SwipeableCard(
                 .padding(vertical = 3.dp)
                 .then(
                     if (onLongClick != null) Modifier.combinedClickable(
-                        onClick = { if (deleteArmed) { deleteArmed = false; dismissState.reset() } },
+                        onClick = { if (deleteArmed) { deleteArmed = false; scope.launch { dismissState.reset() } } },
                         onLongClick = onLongClick
                     ) else Modifier
                 ),
