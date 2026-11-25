@@ -31,7 +31,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -126,19 +125,25 @@ fun SwipeableCard(
                 .then(if (dragging) Modifier.shadow(14.dp, shape, clip = true) else Modifier)
                 .pointerInput(Unit) {
                     awaitEachGesture {
-                        val inputScope = this
                         val down = awaitFirstDown(requireUnconsumed = false)
                         down.consume()
+                        val downTime = System.currentTimeMillis()
                         var startX = down.position.x
                         var startY = down.position.y
                         var mode = 0 // 0 undecided, 1 horizontal swipe, 2 drag-reorder, 3 long-press-tap
-                        var longPressFired = false
+                        val longPressMs = 260L
 
-                        // long press: fire feedback + pressed state / start reorder candidate
-                        val longPressJob = inputScope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
-                            delay(260)
-                            if (mode == 0) {
-                                longPressFired = true
+                        while (true) {
+                            // wait for next pointer event, but no longer than the long-press window
+                            val remaining = longPressMs - (System.currentTimeMillis() - downTime)
+                            val event = if (mode == 0 && remaining > 0) {
+                                kotlinx.coroutines.withTimeoutOrNull(remaining) { awaitPointerEvent(PointerEventPass.Initial) }
+                            } else {
+                                awaitPointerEvent(PointerEventPass.Initial)
+                            }
+
+                            if (event == null) {
+                                // long press fired while finger held still
                                 com.lucaslu.tickhub.util.Haptics.tick(ctx)
                                 pressed = true
                                 if (canReorder) {
@@ -147,18 +152,15 @@ fun SwipeableCard(
                                 } else {
                                     mode = 3
                                 }
+                                continue
                             }
-                        }
 
-                        while (true) {
-                            val event = awaitPointerEvent(PointerEventPass.Initial)
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
                             if (!change.pressed) break
                             val dx = change.position.x - startX
                             val dy = change.position.y - startY
 
                             if (mode == 0 && (abs(dx) > slopPx || abs(dy) > slopPx)) {
-                                longPressJob.cancel()
                                 pressed = false
                                 mode = if (abs(dx) > abs(dy)) 1 else 2
                                 if (mode == 2 && canReorder) onDragStart?.invoke()
@@ -188,7 +190,6 @@ fun SwipeableCard(
                             }
                         }
 
-                        longPressJob.cancel()
                         pressed = false
                         when (mode) {
                             1 -> {
