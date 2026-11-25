@@ -6,14 +6,10 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 
-/** Short, crisp haptic tick for deterministic interactions (toggles, checks, wheel snaps). */
+/** Single shared haptic feedback: MIUI-style short crisp "tick" everywhere. */
 object Haptics {
     @Volatile
     var enabled: Boolean = true
-
-    // sharp click: very short, strong onset then instant release
-    private val TICK = longArrayOf(0, 9)
-    private val AMP = intArrayOf(0, 200)
 
     fun tick(context: Context) {
         if (!enabled) return
@@ -24,11 +20,13 @@ object Haptics {
                 @Suppress("DEPRECATION")
                 context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createWaveform(TICK, AMP, -1))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator.vibrate(TICK[1])
+            when {
+                // system-defined EFFECT_TICK is the short, crisp "da" click used by MIUI toggles
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ->
+                    vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ->
+                    vibrator.vibrate(VibrationEffect.createOneShot(10, 180))
+                else -> @Suppress("DEPRECATION") vibrator.vibrate(10)
             }
         }
     }

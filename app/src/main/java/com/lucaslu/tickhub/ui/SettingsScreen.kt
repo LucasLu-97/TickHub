@@ -74,7 +74,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp).padding(top = 4.dp, bottom = 96.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp).padding(top = 4.dp, bottom = 16.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
             fun setHaptic(enabled: Boolean) { vm.setShowExecutionStatus(enabled); com.lucaslu.tickhub.util.Haptics.tick(context) }
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -128,7 +128,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("执行状态监测", style = MaterialTheme.typography.titleMedium)
-                            Text("触发时显示转圈与已用时长；仅前台刷新，不额外耗电", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("触发时显示进度与用时，仅前台刷新", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         MiuixSwitch(checked = showExec, onCheckedChange = { setHaptic(it) })
                     }
@@ -141,7 +141,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("执行结果通知", style = MaterialTheme.typography.titleMedium)
-                            Text("触发后查询 GitHub 真实执行时长，完成后通知成功/失败；每5秒查询一次，不持续占用后台", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("任务完成后通知成功或失败，并显示真实用时", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         MiuixSwitch(checked = runTrack, onCheckedChange = { vm.setRunTrackingEnabled(it) })
                     }
@@ -167,7 +167,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                     Text("网络恢复机制", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "到达触发时间后，APP 会唤醒手机。若当前已有网络则立即执行；若无网络则进入等待，最多等待 3 分钟，期间持续监测，网络一旦恢复即刻触发。这样即使夜间睡眠断网，也能在恢复后完成签到。",
+                        "到点唤醒手机，无网络时最多等待 3 分钟，联网后立即触发，避免夜间断网漏签。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -179,7 +179,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("调试日志", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
-                    Text("查看闹钟/触发/网络/调度过程，可导出分析故障（仅写本地文件，资源消耗极低）", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("记录运行过程，可导出排查问题", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             Spacer(Modifier.height(24.dp))

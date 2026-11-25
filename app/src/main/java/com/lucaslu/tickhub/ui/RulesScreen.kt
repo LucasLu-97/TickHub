@@ -1,5 +1,6 @@
 package com.lucaslu.tickhub.ui
 
+import androidx.compose.foundation.animateItem
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +20,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,6 +60,23 @@ fun RulesScreen(vm: AppViewModel) {
     var multiSelect by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var confirmTrigger by remember { mutableStateOf<Rule?>(null) }
+    var orderLoaded by remember { mutableStateOf(false) }
+    var repoOrder by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    val reorder = rememberReorderController<com.lucaslu.tickhub.data.Rule>(
+        keyOf = { it.id },
+        itemHeightDp = 112.dp,
+        onCommit = { vm.saveOrder("rules", it.map { r -> r.id }) }
+    )
+    LaunchedEffect(Unit) {
+        repoOrder = vm.readOrder("repos")
+        val saved = vm.readOrder("rules")
+        reorder.syncFrom(vm.applyOrder(rules, saved) { it.id })
+        orderLoaded = true
+    }
+    LaunchedEffect(rules) {
+        if (orderLoaded && reorder.draggingKey == null) reorder.syncFrom(rules)
+    }
 
     val selectedWorkflows = snapshot.workflows.filter { it.selected }
     val repoNames = snapshot.repos.associateBy { it.id }
@@ -121,22 +140,30 @@ fun RulesScreen(vm: AppViewModel) {
                         }) { Text("删除") }
                         TextButton(onClick = { multiSelect = false; selectedIds = emptySet() }) { Text("取消") }
                     } else {
-                        TextButton(onClick = { creating = true }, enabled = selectedWorkflows.isNotEmpty()) { Text("新建") }
+                        androidx.compose.material3.IconButton(onClick = { creating = true }, enabled = selectedWorkflows.isNotEmpty()) {
+                            androidx.compose.material3.Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.Add,
+                                contentDescription = "新建规则"
+                            )
+                        }
                     }
                 }
             )
         }
     ) { pad ->
-        Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(bottom = 96.dp)) {
+        Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp)) {
         if (selectedWorkflows.isEmpty()) {
             Spacer(Modifier.height(16.dp))
             Text("请先在「仓库」页勾选要纳管的工作流，再来创建规则。", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.height(12.dp))
 
-        // group by repo
-        val grouped = rules.groupBy { it.repoFullName.split("/").lastOrNull().takeUnless { it.isNullOrBlank() } ?: "未分类" }
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
+        // group by repo, order follows the saved rule order (which follows repo order initially)
+        val grouped = reorder.items.groupBy { it.repoFullName.split("/").lastOrNull().takeUnless { it.isNullOrBlank() } ?: "未分类" }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)
+        ) {
             grouped.forEach { (repoName, repoRules) ->
                 item(key = "header-$repoName") {
                     Text(
@@ -147,34 +174,34 @@ fun RulesScreen(vm: AppViewModel) {
                     )
                 }
                 items(repoRules, key = { it.id }) { rule ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (multiSelect) {
-                            Checkbox(
-                                checked = selectedIds.contains(rule.id),
-                                onCheckedChange = {
-                                    selectedIds = if (it) selectedIds + rule.id else selectedIds - rule.id
-                                }
+                    SwipeableCard(
+                        modifier = Modifier.fillMaxWidth().animateItem(),
+                        onDelete = { vm.deleteRule(rule.id) },
+                        onClick = {
+                            if (multiSelect) {
+                                selectedIds = if (selectedIds.contains(rule.id)) selectedIds - rule.id else selectedIds + rule.id
+                            }
+                        },
+                        onSelect = { sel ->
+                            multiSelect = true
+                            selectedIds = if (sel) selectedIds + rule.id else selectedIds - rule.id
+                        },
+                        selected = selectedIds.contains(rule.id),
+                        dragY = reorder.offsetFor(rule.id),
+                        dragging = reorder.isDragging(rule.id),
+                        onDragStart = { reorder.startDrag(rule.id) },
+                        onDragDelta = { reorder.drag(it) },
+                        onDragEnd = { reorder.endDrag() },
+                        content = {
+                            RuleCardContent(
+                                rule = rule,
+                                onToggle = { vm.setRuleEnabled(rule.id, it) },
+                                onEdit = { editing = rule },
+                                onTriggerNow = { confirmTrigger = rule },
+                                runningStart = if (showExec) running[rule.id] else null
                             )
                         }
-                        SwipeableCard(
-                            modifier = Modifier.weight(1f),
-                            onDelete = { vm.deleteRule(rule.id) },
-                            onLongClick = {
-                                multiSelect = true
-                                selectedIds = selectedIds + rule.id
-                            },
-                            selected = selectedIds.contains(rule.id),
-                            content = {
-                                RuleCardContent(
-                                    rule = rule,
-                                    onToggle = { vm.setRuleEnabled(rule.id, it) },
-                                    onEdit = { editing = rule },
-                                    onTriggerNow = { confirmTrigger = rule },
-                                    runningStart = if (showExec) running[rule.id] else null
-                                )
-                            }
-                        )
-                    }
+                    )
                 }
             }
         }
@@ -194,10 +221,8 @@ private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () 
         Text("$cycleText · $timeText", style = MaterialTheme.typography.bodyMedium)
         rule.effectiveFireAt?.let {
             val next = RuleEngine.fromEpochMillis(it)
-            val drift = rule.driftMinutes
-            val driftText = if (drift > 0) "（随机漂移 ≤${drift} 分钟）" else ""
             Text(
-                "下次：${RuleEngine.formatDate(next.toLocalDate())} ${String.format("%02d:%02d", next.hour, next.minute)}$driftText",
+                "下次：${RuleEngine.formatDate(next.toLocalDate())} ${String.format("%02d:%02d", next.hour, next.minute)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary
             )

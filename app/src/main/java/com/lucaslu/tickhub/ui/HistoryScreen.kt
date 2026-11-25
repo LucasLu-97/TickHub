@@ -1,7 +1,6 @@
 package com.lucaslu.tickhub.ui
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -9,26 +8,26 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.lucaslu.tickhub.data.TriggerLog
 import com.lucaslu.tickhub.data.TriggerStatus
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.foundation.animateItem
 
 private val fmt = SimpleDateFormat("MM-dd HH:mm:ss", Locale.getDefault())
 
@@ -38,6 +37,22 @@ fun HistoryScreen(vm: AppViewModel) {
     val logs by vm.logs.collectAsState(initial = emptyList())
     var multiSelect by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
+    var orderLoaded by remember { mutableStateOf(false) }
+
+    val reorder = rememberReorderController<String>(
+        keyOf = { it },
+        itemHeightDp = 132.dp,
+        onCommit = { ids -> vm.saveOrder("logs", ids) }
+    )
+
+    LaunchedEffect(Unit) {
+        val saved = vm.readOrder("logs")
+        reorder.syncFrom(vm.applyOrder(logs, saved) { it.id })
+        orderLoaded = true
+    }
+    LaunchedEffect(logs) {
+        if (orderLoaded && reorder.draggingKey == null) reorder.syncFrom(logs)
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -51,7 +66,7 @@ fun HistoryScreen(vm: AppViewModel) {
                 actions = {
                     if (multiSelect) {
                         TextButton(onClick = {
-                            selectedIds = if (selectedIds.size == logs.size) emptySet() else logs.map { it.id }.toSet()
+                            selectedIds = if (selectedIds.size == reorder.items.size) emptySet() else reorder.items.map { it.id }.toSet()
                         }) { Text("全选") }
                         TextButton(onClick = {
                             selectedIds.forEach { vm.deleteLog(it) }
@@ -63,38 +78,43 @@ fun HistoryScreen(vm: AppViewModel) {
             )
         }
     ) { pad ->
-        Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(bottom = 96.dp)) {
-        Text("最近 ${logs.size} 条记录", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(12.dp))
+        Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp)) {
+            Text("最近 ${logs.size} 条记录", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(12.dp))
 
-        if (logs.isEmpty()) {
-            Text("还没有触发记录。创建规则并到点后，记录会显示在这里。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+            if (logs.isEmpty()) {
+                Text("还没有触发记录。创建规则并到点后，记录会显示在这里。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
 
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(logs, key = { it.id }) { log ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (multiSelect) {
-                        Checkbox(
-                            checked = selectedIds.contains(log.id),
-                            onCheckedChange = {
-                                selectedIds = if (it) selectedIds + log.id else selectedIds - log.id
-                            }
-                        )
-                    }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)
+            ) {
+                items(reorder.items, key = { it.id }) { log ->
                     SwipeableCard(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateItem(),
                         onDelete = { vm.deleteLog(log.id) },
-                        onLongClick = {
+                        onClick = {
+                            if (multiSelect) {
+                                selectedIds = if (selectedIds.contains(log.id)) selectedIds - log.id else selectedIds + log.id
+                            }
+                        },
+                        onSelect = { sel ->
                             multiSelect = true
-                            selectedIds = selectedIds + log.id
+                            selectedIds = if (sel) selectedIds + log.id else selectedIds - log.id
                         },
                         selected = selectedIds.contains(log.id),
+                        dragY = reorder.offsetFor(log.id),
+                        dragging = reorder.isDragging(log.id),
+                        onDragStart = { reorder.startDrag(log.id) },
+                        onDragDelta = { reorder.drag(it) },
+                        onDragEnd = { reorder.endDrag() },
                         content = { LogCardContent(log) }
                     )
                 }
             }
-        }
         }
     }
 }
@@ -110,7 +130,7 @@ private fun LogCardContent(log: TriggerLog) {
         TriggerStatus.SKIPPED -> "跳过" to MaterialTheme.colorScheme.onSurfaceVariant
     }
     Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-        Row {
+        androidx.compose.foundation.layout.Row {
             val names = log.workflowNames.ifEmpty { listOfNotNull(log.workflowName.takeIf { it.isNotBlank() }) }
             Text(
                 if (names.isEmpty()) "工作流" else names.joinToString("、"),
@@ -124,7 +144,7 @@ private fun LogCardContent(log: TriggerLog) {
         }
         Spacer(Modifier.height(4.dp))
         Text("计划：${fmt.format(Date(log.plannedAt))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             log.firedAt?.let { Text("实际：${fmt.format(Date(it))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f)) }
                 ?: Spacer(Modifier.weight(1f))
             if (log.tracking) {

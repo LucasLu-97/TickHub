@@ -302,6 +302,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repository.setHapticsEnabled(enabled) }
     }
 
+    fun saveOrder(kind: String, ids: List<String>) {
+        viewModelScope.launch { repository.saveOrder(kind, ids) }
+    }
+
+    suspend fun readOrder(kind: String): List<String> = repository.readOrder(kind)
+
+    fun <T> applyOrder(list: List<T>, order: List<String>, idOf: (T) -> String): List<T> =
+        repository.applyOrder(list, order, idOf)
+
     /** Manually trigger a single workflow directly (not via a rule). */
     fun triggerWorkflowNow(repoFullName: String, workflowId: Long, workflowName: String) {
         viewModelScope.launch {

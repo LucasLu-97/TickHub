@@ -211,6 +211,27 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         context.dataStore.edit { it[hapticsKey] = enabled }
     }
 
+    // ---- card ordering (reorder by long-press drag) ----
+    private fun orderKey(kind: String) = androidx.datastore.preferences.core.stringPreferencesKey("order_$kind")
+
+    suspend fun saveOrder(kind: String, ids: List<String>) {
+        context.dataStore.edit { it[orderKey(kind)] = json.encodeToString(ids) }
+    }
+
+    suspend fun readOrder(kind: String): List<String> {
+        val raw = context.dataStore.data.first()[orderKey(kind)] ?: return emptyList()
+        return try { json.decodeFromString(raw) } catch (e: Exception) { emptyList() }
+    }
+
+    /** Apply a saved id order to a list, keeping any new items at the end. */
+    fun <T> applyOrder(list: List<T>, order: List<String>, idOf: (T) -> String): List<T> {
+        if (order.isEmpty()) return list
+        val byId = list.associateBy(idOf)
+        val head = order.mapNotNull { byId[it] }
+        val tail = list.filter { idOf(it) !in order.toSet() }
+        return head + tail
+    }
+
     suspend fun markRunning(ruleId: String, startAt: Long) {
         context.dataStore.edit { prefs ->
             val current = runningOnce(prefs).toMutableMap()
