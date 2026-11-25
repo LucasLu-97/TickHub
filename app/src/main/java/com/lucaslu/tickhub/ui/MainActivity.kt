@@ -54,6 +54,7 @@ private fun TickHubApp() {
     val vm: AppViewModel = viewModel()
     val loginState by vm.login.collectAsState()
     val themeMode by vm.themeMode.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
     var tab by remember { mutableIntStateOf(0) }
 
     val darkTheme = when (themeMode) {
@@ -83,7 +84,10 @@ private fun TickHubApp() {
                     items.forEachIndexed { index, label ->
                         NavigationBarItem(
                             selected = tab == index,
-                            onClick = { tab = index },
+                            onClick = {
+                                tab = index
+                                com.lucaslu.tickhub.util.Haptics.tick(context)
+                            },
                             icon = {
                                 TabIcon(
                                     index = index,

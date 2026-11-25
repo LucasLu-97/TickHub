@@ -36,23 +36,27 @@ fun HistoryScreen(vm: AppViewModel) {
     var multiSelect by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("触发历史", style = MaterialTheme.typography.titleLarge)
-                Text("最近 ${logs.size} 条记录", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (multiSelect) {
-                TextButton(onClick = {
-                    selectedIds = if (selectedIds.size == logs.size) emptySet() else logs.map { it.id }.toSet()
-                }) { Text("全选") }
-                TextButton(onClick = {
-                    selectedIds.forEach { vm.deleteLog(it) }
-                    selectedIds = emptySet(); multiSelect = false
-                }) { Text("删除") }
-                TextButton(onClick = { multiSelect = false; selectedIds = emptySet() }) { Text("取消") }
-            }
+    Scaffold(
+        topBar = {
+            androidx.compose.material3.TopAppBar(
+                title = { Text("触发历史") },
+                actions = {
+                    if (multiSelect) {
+                        TextButton(onClick = {
+                            selectedIds = if (selectedIds.size == logs.size) emptySet() else logs.map { it.id }.toSet()
+                        }) { Text("全选") }
+                        TextButton(onClick = {
+                            selectedIds.forEach { vm.deleteLog(it) }
+                            selectedIds = emptySet(); multiSelect = false
+                        }) { Text("删除") }
+                        TextButton(onClick = { multiSelect = false; selectedIds = emptySet() }) { Text("取消") }
+                    }
+                }
+            )
         }
+    ) { pad ->
+        Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp)) {
+        Text("最近 ${logs.size} 条记录", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
 
         if (logs.isEmpty()) {
@@ -82,6 +86,7 @@ fun HistoryScreen(vm: AppViewModel) {
                     )
                 }
             }
+        }
         }
     }
 }

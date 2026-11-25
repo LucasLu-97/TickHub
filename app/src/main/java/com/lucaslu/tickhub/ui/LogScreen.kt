@@ -37,8 +37,12 @@ fun LogScreen() {
     var logText by remember { mutableStateOf(AppLogger.readAll()) }
     val scroll = rememberScrollState()
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("调试日志", style = MaterialTheme.typography.titleLarge)
+    androidx.compose.material3.Scaffold(
+        topBar = {
+            androidx.compose.material3.TopAppBar(title = { Text("调试日志") })
+        }
+    ) { pad ->
+    Column(modifier = Modifier.fillMaxSize().padding(pad).padding(16.dp)) {
         Text("记录闹钟注册/触发、网络等待、dispatch 全过程，可导出分析故障", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
 
@@ -69,6 +73,7 @@ fun LogScreen() {
                 .verticalScroll(scroll)
                 .horizontalScroll(rememberScrollState())
         )
+    }
     }
 }
 

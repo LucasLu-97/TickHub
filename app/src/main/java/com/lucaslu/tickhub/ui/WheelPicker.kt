@@ -43,10 +43,16 @@ fun WheelPicker(
     val viewportHeight = rowHeight * visibleRows
     val verticalPadding = (viewportHeight - rowHeight) / 2
 
+    val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(listState) {
+        var first = true
         snapshotFlow { listState.firstVisibleItemIndex }
             .distinctUntilChanged()
-            .collect { idx -> onSelectedChange(idx.coerceIn(items.indices)) }
+            .collect { idx ->
+                onSelectedChange(idx.coerceIn(items.indices))
+                if (!first) com.lucaslu.tickhub.util.Haptics.tick(context)
+                first = false
+            }
     }
 
     Box(modifier = modifier.height(viewportHeight)) {

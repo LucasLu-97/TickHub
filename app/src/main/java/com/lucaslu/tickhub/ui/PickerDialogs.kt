@@ -84,9 +84,9 @@ fun DatePickerDialog(initial: String, onConfirm: (String) -> Unit, onDismiss: ()
         title = { Text("选择日期") },
         text = {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                WheelPicker(years, yi, { yi = it }, Modifier.weight(1.2f))
-                WheelPicker(months, mi, { mi = it }, Modifier.weight(0.8f))
-                WheelPicker(days, di, { di = it }, Modifier.weight(0.8f))
+                WheelPicker(years, yi, { yi = it }, Modifier.weight(1f))
+                WheelPicker(months, mi, { mi = it }, Modifier.weight(1f))
+                WheelPicker(days, di, { di = it }, Modifier.weight(1f))
             }
         },
         confirmButton = {

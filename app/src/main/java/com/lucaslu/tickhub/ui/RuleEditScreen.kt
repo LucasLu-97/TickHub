@@ -72,8 +72,14 @@ fun RuleEditScreen(
     var showDate by remember { mutableStateOf(false) }
     var dateTarget by remember { mutableStateOf("once") }
 
-    val grouped = workflows.groupBy { it.repoId }
-    var expandedRepo by remember { mutableStateOf<Long?>(grouped.keys.firstOrNull()) }
+    // editing shows only the repo this rule belongs to; creating shows all
+    val editRepoId = existing?.repoId ?: 0L
+    val visibleWorkflows = if (existing != null) workflows.filter { it.repoId == editRepoId } else workflows
+    val grouped = visibleWorkflows.groupBy { it.repoId }
+    var expandedRepo by remember {
+        mutableStateOf<Long?>(if (existing != null) editRepoId else null)
+    }
+    fun repoLabel(id: Long) = (repoNames[id] ?: "仓库 $id").split("/").lastOrNull() ?: "仓库 $id"
 
     Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Text(if (existing == null) "新建触发规则" else "编辑触发规则", style = MaterialTheme.typography.titleLarge)
@@ -89,7 +95,7 @@ fun RuleEditScreen(
                 expandedRepo = if (expandedRepo == repoId) null else repoId
                 Haptics.tick(context)
             }) {
-                Text("${repoNames[repoId] ?: "仓库 $repoId"}  (${wfs.size})  ${if (expandedRepo == repoId) "▾" else "▸"}")
+                Text("${repoLabel(repoId)}  (${wfs.size})  ${if (expandedRepo == repoId) "▾" else "▸"}")
             }
             if (expandedRepo == repoId) {
                 wfs.chunked(3).forEach { row ->
@@ -176,17 +182,13 @@ fun RuleEditScreen(
         Text("④ 随机漂移（规避签到规律检测）", style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth()) {
-            listOf(0, 10, 30, 60).chunked(2).forEach { col ->
-                Column(modifier = Modifier.weight(1f)) {
-                    col.forEach { d ->
-                        FilterChip(
-                            selected = driftMinutes == d,
-                            onClick = { driftMinutes = d; Haptics.tick(context) },
-                            label = { Text(if (d == 0) "不漂移" else "${d}分钟内") },
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
-                        )
-                    }
-                }
+            listOf(0, 10, 30, 60).forEach { d ->
+                FilterChip(
+                    selected = driftMinutes == d,
+                    onClick = { driftMinutes = d; Haptics.tick(context) },
+                    label = { Text(if (d == 0) "不漂移" else "${d}分") },
+                    modifier = Modifier.weight(1f).padding(end = 4.dp)
+                )
             }
         }
         Spacer(Modifier.height(24.dp))

@@ -9,8 +9,9 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.matchParentSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -63,7 +64,7 @@ fun SwipeableCard(
     Box(modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))) {
         // red reveal strip behind the card, strictly clipped to rounded shape
         Row(
-            modifier = Modifier.matchParentSize().background(MaterialTheme.colorScheme.errorContainer),
+            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.End
         ) {

@@ -77,25 +77,36 @@ fun RulesScreen(vm: AppViewModel) {
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("触发规则", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            if (showExec && running.isNotEmpty()) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp).padding(end = 8.dp), strokeWidth = 2.dp)
-            }
-            if (multiSelect) {
-                TextButton(onClick = {
-                    selectedIds = if (selectedIds.size == rules.size) emptySet() else rules.map { it.id }.toSet()
-                }) { Text("全选") }
-                TextButton(onClick = {
-                    selectedIds.forEach { vm.deleteRule(it) }
-                    selectedIds = emptySet(); multiSelect = false
-                }) { Text("删除") }
-                TextButton(onClick = { multiSelect = false; selectedIds = emptySet() }) { Text("取消") }
-            } else {
-                Button(onClick = { creating = true }, enabled = selectedWorkflows.isNotEmpty()) { Text("新建") }
-            }
+    Scaffold(
+        topBar = {
+            androidx.compose.material3.TopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("触发规则")
+                        if (showExec && running.isNotEmpty()) {
+                            Spacer(Modifier.padding(6.dp))
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        }
+                    }
+                },
+                actions = {
+                    if (multiSelect) {
+                        TextButton(onClick = {
+                            selectedIds = if (selectedIds.size == rules.size) emptySet() else rules.map { it.id }.toSet()
+                        }) { Text("全选") }
+                        TextButton(onClick = {
+                            selectedIds.forEach { vm.deleteRule(it) }
+                            selectedIds = emptySet(); multiSelect = false
+                        }) { Text("删除") }
+                        TextButton(onClick = { multiSelect = false; selectedIds = emptySet() }) { Text("取消") }
+                    } else {
+                        TextButton(onClick = { creating = true }, enabled = selectedWorkflows.isNotEmpty()) { Text("新建") }
+                    }
+                }
+            )
         }
+    ) { pad ->
+        Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp)) {
         if (selectedWorkflows.isEmpty()) {
             Spacer(Modifier.height(16.dp))
             Text("请先在「仓库」页勾选要纳管的工作流，再来创建规则。", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -146,6 +157,7 @@ fun RulesScreen(vm: AppViewModel) {
                 }
             }
         }
+        }
     }
 }
 
@@ -156,7 +168,7 @@ private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () 
         val names = rule.workflowNames.ifEmpty { listOf(rule.workflowName.ifBlank { "工作流 #${rule.workflowId}" }) }
         Text(names.joinToString("、"), style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(6.dp))
-        val timeText = String.format("%02d:%02d", rule.hour, rule.minute)
+        val timeText = rule.timeSlots.ifEmpty { listOf(String.format("%02d:%02d", rule.hour, rule.minute)) }.joinToString("、")
         val cycleText = TYPE_LABELS[rule.type] ?: rule.type.name
         Text("$cycleText · $timeText", style = MaterialTheme.typography.bodyMedium)
         rule.effectiveFireAt?.let {
