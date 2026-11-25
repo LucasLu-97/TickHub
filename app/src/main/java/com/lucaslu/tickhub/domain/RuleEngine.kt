@@ -33,18 +33,30 @@ object RuleEngine {
         isWorkday: ((LocalDate) -> Boolean)? = null,
         isHoliday: ((LocalDate) -> Boolean)? = null
     ): LocalDateTime? {
-        val time = LocalTime.of(rule.hour.coerceIn(0, 23), rule.minute.coerceIn(0, 59))
-        return when (rule.type) {
-            RuleType.ONCE -> computeOnce(rule, time, from)
-            RuleType.DAILY -> nextAtOrAfter(from, time, includeToday = true)
-            @Suppress("DEPRECATION")
-            RuleType.WEEKDAYS, RuleType.LEGAL_WORKDAY -> computeLegalWorkdays(time, from, isWorkday)
-            RuleType.LEGAL_HOLIDAY -> {
-                if (isHoliday == null) null else computeLegalHolidays(time, from, isHoliday)
-            }
-            RuleType.WEEKLY -> computeWeekly(rule, time, from)
-            RuleType.EVERY_N_DAYS -> computeEveryNDays(rule, time, from)
-        }
+        val slots = rule.timeSlots.mapNotNull { parseTime(it) }
+            .ifEmpty { listOf(LocalTime.of(rule.hour.coerceIn(0, 23), rule.minute.coerceIn(0, 59))) }
+        return slots.mapNotNull { computeNextForTime(rule, it, from, isWorkday, isHoliday) }
+            .minOrNull()
+    }
+
+    fun parseTime(value: String): LocalTime? = try {
+        if (value.isBlank()) null else LocalTime.parse(value)
+    } catch (e: Exception) { null }
+
+    private fun computeNextForTime(
+        rule: Rule,
+        time: LocalTime,
+        from: LocalDateTime,
+        isWorkday: ((LocalDate) -> Boolean)?,
+        isHoliday: ((LocalDate) -> Boolean)?
+    ): LocalDateTime? = when (rule.type) {
+        RuleType.ONCE -> computeOnce(rule, time, from)
+        RuleType.DAILY -> nextAtOrAfter(from, time, includeToday = true)
+        @Suppress("DEPRECATION")
+        RuleType.WEEKDAYS, RuleType.LEGAL_WORKDAY -> computeLegalWorkdays(time, from, isWorkday)
+        RuleType.LEGAL_HOLIDAY -> if (isHoliday == null) null else computeLegalHolidays(time, from, isHoliday)
+        RuleType.WEEKLY -> computeWeekly(rule, time, from)
+        RuleType.EVERY_N_DAYS -> computeEveryNDays(rule, time, from)
     }
 
     private fun computeOnce(rule: Rule, time: LocalTime, from: LocalDateTime): LocalDateTime? {

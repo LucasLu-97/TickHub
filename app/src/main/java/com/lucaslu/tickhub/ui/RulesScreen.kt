@@ -59,8 +59,13 @@ fun RulesScreen(vm: AppViewModel) {
             workflows = selectedWorkflows,
             repoNames = repoNames.mapValues { it.value.fullName },
             existing = editing,
-            onSave = { rule ->
-                vm.saveRule(rule)
+            onSave = { rules ->
+                // editing a single-repo rule keeps its id; multi-repo splits get fresh ids
+                val finalRules = if (editing != null && rules.size == 1) {
+                    listOf(rules.first().copy(id = editing!!.id))
+                } else rules
+                finalRules.forEach { vm.saveRule(it) }
+                if (editing != null && rules.size > 1) vm.deleteRule(editing!!.id)
                 creating = false; editing = null
             },
             onCancel = { creating = false; editing = null }

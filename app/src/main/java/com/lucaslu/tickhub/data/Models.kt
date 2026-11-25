@@ -56,6 +56,7 @@ data class Rule(
     val type: RuleType = RuleType.DAILY,
     val hour: Int = 8,
     val minute: Int = 0,
+    val timeSlots: List<String> = emptyList(), // multiple "HH:mm" slots; empty => use hour/minute
     val onceDate: String? = null,      // yyyy-MM-dd, for ONCE
     val weekdays: List<Int> = emptyList(), // 1=Mon..7=Sun, for WEEKLY
     val intervalDays: Int = 7,          // for EVERY_N_DAYS
