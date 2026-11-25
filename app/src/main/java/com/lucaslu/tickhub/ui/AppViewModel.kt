@@ -51,6 +51,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val networkWaitMinutes = repository.networkWaitMinutes
     val loggedInUser = repository.loggedInUser
     val avatarUrl = repository.avatarUrl
+    val runningExecutions = repository.runningExecutions
+    val showExecutionStatus = repository.showExecutionStatus
 
     private val _login = MutableStateFlow(LoginUiState(isLoggedIn = tokenStore.getToken() != null))
     val login: StateFlow<LoginUiState> = _login.asStateFlow()
@@ -263,6 +265,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteLog(id: String) {
         viewModelScope.launch { repository.deleteLog(id) }
+    }
+
+    fun setShowExecutionStatus(enabled: Boolean) {
+        viewModelScope.launch { repository.setShowExecutionStatus(enabled) }
     }
 
     /** Manually trigger a single workflow directly (not via a rule). */

@@ -109,6 +109,10 @@ private fun LogCardContent(log: TriggerLog) {
         Spacer(Modifier.height(4.dp))
         Text("计划：${fmt.format(Date(log.plannedAt))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         log.firedAt?.let { Text("实际：${fmt.format(Date(it))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        if (log.durationMs > 0) {
+            val s = log.durationMs / 1000
+            Text("耗时：${(s / 60).toString().padStart(2, '0')}m${(s % 60).toString().padStart(2, '0')}s", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        }
         log.errorMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
     }
 }

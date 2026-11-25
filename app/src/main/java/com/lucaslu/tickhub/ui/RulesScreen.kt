@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -25,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.size
 import com.lucaslu.tickhub.data.Rule
 import com.lucaslu.tickhub.data.RuleStatus
 import com.lucaslu.tickhub.data.RuleType
@@ -45,6 +47,8 @@ private val TYPE_LABELS = mapOf(
 fun RulesScreen(vm: AppViewModel) {
     val rules by vm.rules.collectAsState(initial = emptyList())
     val snapshot by vm.snapshot.collectAsState(initial = com.lucaslu.tickhub.data.ScanSnapshot())
+    val running by vm.runningExecutions.collectAsState(initial = emptyMap())
+    val showExec by vm.showExecutionStatus.collectAsState(initial = true)
 
     var editing by remember { mutableStateOf<Rule?>(null) }
     var creating by remember { mutableStateOf(false) }
@@ -76,6 +80,9 @@ fun RulesScreen(vm: AppViewModel) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("触发规则", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            if (showExec && running.isNotEmpty()) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp).padding(end = 8.dp), strokeWidth = 2.dp)
+            }
             if (multiSelect) {
                 TextButton(onClick = {
                     selectedIds = if (selectedIds.size == rules.size) emptySet() else rules.map { it.id }.toSet()
@@ -129,7 +136,8 @@ fun RulesScreen(vm: AppViewModel) {
                                     rule = rule,
                                     onToggle = { vm.setRuleEnabled(rule.id, it) },
                                     onEdit = { editing = rule },
-                                    onTriggerNow = { vm.triggerNow(rule) }
+                                    onTriggerNow = { vm.triggerNow(rule) },
+                                    runningStart = if (showExec) running[rule.id] else null
                                 )
                             }
                         )
@@ -141,7 +149,7 @@ fun RulesScreen(vm: AppViewModel) {
 }
 
 @Composable
-private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () -> Unit, onTriggerNow: () -> Unit) {
+private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () -> Unit, onTriggerNow: () -> Unit, runningStart: Long? = null) {
     val context = androidx.compose.ui.platform.LocalContext.current
     Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
         val names = rule.workflowNames.ifEmpty { listOf(rule.workflowName.ifBlank { "工作流 #${rule.workflowId}" }) }
@@ -175,6 +183,10 @@ private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () 
                 modifier = Modifier.padding(end = 8.dp).scale(0.82f)
             )
             Text("启用", style = MaterialTheme.typography.labelMedium)
+            if (runningStart != null) {
+                Spacer(Modifier.padding(4.dp))
+                RunningIndicator(startAt = runningStart)
+            }
             Spacer(Modifier.weight(1f))
             TextButton(onClick = onTriggerNow) { Text("立即触发") }
             TextButton(onClick = onEdit) { Text("编辑") }

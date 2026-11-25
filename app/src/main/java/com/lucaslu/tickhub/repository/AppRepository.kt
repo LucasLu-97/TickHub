@@ -43,6 +43,8 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     private val lastScanKey = longPreferencesKey("last_scan_at")
     private val networkWaitKey = androidx.datastore.preferences.core.intPreferencesKey("network_wait_minutes")
     private val lastCatchUpKey = longPreferencesKey("last_catchup_at")
+    private val runningKey = stringPreferencesKey("running_executions_json") // ruleId -> startTime
+    private val showExecutionKey = androidx.datastore.preferences.core.booleanPreferencesKey("show_execution_status")
 
     val snapshot: Flow<ScanSnapshot> = context.dataStore.data.map { prefs ->
         val raw = prefs[snapshotKey]
@@ -132,6 +134,47 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
 
     suspend fun clearLogs() {
         context.dataStore.edit { it.remove(logsKey) }
+    }
+
+    // ---- execution status (running tasks) ----
+    val runningExecutions: Flow<Map<String, Long>> = context.dataStore.data.map { prefs ->
+        val raw = prefs[runningKey]
+        if (raw.isNullOrBlank()) emptyMap()
+        else try {
+            json.decodeFromString<Map<String, Long>>(raw)
+        } catch (e: Exception) { emptyMap() }
+    }
+
+    val showExecutionStatus: Flow<Boolean> = context.dataStore.data.map { it[showExecutionKey] ?: true }
+
+    suspend fun setShowExecutionStatus(enabled: Boolean) {
+        context.dataStore.edit { it[showExecutionKey] = enabled }
+    }
+
+    suspend fun markRunning(ruleId: String, startAt: Long) {
+        context.dataStore.edit { prefs ->
+            val current = runningOnce(prefs).toMutableMap()
+            current[ruleId] = startAt
+            prefs[runningKey] = json.encodeToString(current)
+        }
+    }
+
+    suspend fun markDone(ruleId: String) {
+        context.dataStore.edit { prefs ->
+            val current = runningOnce(prefs).toMutableMap()
+            current.remove(ruleId)
+            prefs[runningKey] = json.encodeToString(current)
+        }
+    }
+
+    suspend fun runningStartOnce(ruleId: String): Long? =
+        context.dataStore.data.first()[runningKey]?.let { raw ->
+            try { json.decodeFromString<Map<String, Long>>(raw)[ruleId] } catch (e: Exception) { null }
+        }
+
+    private fun runningOnce(prefs: Preferences): Map<String, Long> {
+        val raw = prefs[runningKey] ?: return emptyMap()
+        return try { json.decodeFromString(raw) } catch (e: Exception) { emptyMap() }
     }
 
     suspend fun getLastCatchUpAt(): Long = context.dataStore.data.first()[lastCatchUpKey] ?: 0L

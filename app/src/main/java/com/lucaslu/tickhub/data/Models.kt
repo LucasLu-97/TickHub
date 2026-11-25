@@ -89,7 +89,8 @@ data class TriggerLog(
     val status: TriggerStatus = TriggerStatus.SUCCESS,
     val httpCode: Int? = null,
     val errorMessage: String? = null,
-    val isMakeup: Boolean = false
+    val isMakeup: Boolean = false,
+    val durationMs: Long = 0L
 )
 
 // ---- GitHub REST DTOs ----

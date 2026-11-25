@@ -36,6 +36,9 @@ class DispatchEngine(private val context: Context) {
     private val repository = AppRepository(context, api)
     private val alarmScheduler = AlarmScheduler(context)
 
+    suspend fun markRunning(ruleId: String, startAt: Long) = repository.markRunning(ruleId, startAt)
+    suspend fun markDone(ruleId: String) = repository.markDone(ruleId)
+
     /** Execute a rule dispatch. Returns the resulting status. */
     suspend fun execute(ruleId: String, isMakeup: Boolean, plannedAt: Long): TriggerStatus {
         val rule = repository.getRuleOnce(ruleId)
@@ -176,7 +179,8 @@ class DispatchEngine(private val context: Context) {
                 status = status,
                 httpCode = httpCode,
                 errorMessage = errorMessage,
-                isMakeup = isMakeup
+                isMakeup = isMakeup,
+                durationMs = System.currentTimeMillis() - (repository.runningStartOnce(rule.id) ?: System.currentTimeMillis())
             )
         )
     }

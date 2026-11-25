@@ -21,6 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -28,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.getSystemService
@@ -37,6 +39,7 @@ import androidx.core.content.getSystemService
 fun SettingsScreen(vm: AppViewModel) {
     val context = LocalContext.current
     val themeMode by vm.themeMode.collectAsState()
+    val showExec by vm.showExecutionStatus.collectAsState(initial = true)
     val pm = context.getSystemService(PowerManager::class.java)
     val batteryOptimized = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
         pm?.isIgnoringBatteryOptimizations(context.packageName) != true
@@ -118,6 +121,23 @@ fun SettingsScreen(vm: AppViewModel) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("执行状态监测", style = MaterialTheme.typography.titleMedium)
+                            Text("触发时在规则页显示转圈与已用时长；仅在 APP 前台刷新，不额外耗电", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = showExec,
+                            onCheckedChange = { vm.setShowExecutionStatus(it) },
+                            modifier = Modifier.scale(0.82f)
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(24.dp))

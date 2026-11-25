@@ -29,6 +29,8 @@ class DispatchWorker(appContext: Context, params: WorkerParameters) : CoroutineW
 
         val engine = DispatchEngine(applicationContext)
         val wakeLock = engine.acquireWakeLock("dispatch-$ruleId")
+        val startAt = System.currentTimeMillis()
+        engine.markRunning(ruleId, startAt)
         return try {
             val status = engine.execute(ruleId, isMakeup, plannedAt)
             AppLogger.i("Worker", "DONE rule=${ruleId.take(8)} status=$status")
@@ -37,6 +39,7 @@ class DispatchWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             AppLogger.e("Worker", "EXCEPTION rule=${ruleId.take(8)}: ${e.message}", e)
             Result.failure()
         } finally {
+            engine.markDone(ruleId)
             wakeLock?.let { if (it.isHeld) it.release() }
             AppLogger.d("Worker", "wakeLock released rule=${ruleId.take(8)}")
         }
