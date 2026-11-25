@@ -134,7 +134,7 @@ fun SwipeableCard(
                         var longPressFired = false
 
                         // long press: fire feedback + pressed state / start reorder candidate
-                        val longPressJob = launch {
+                        val longPressJob = launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
                             delay(260)
                             if (mode == 0) {
                                 longPressFired = true
