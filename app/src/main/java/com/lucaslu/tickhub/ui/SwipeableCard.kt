@@ -126,6 +126,7 @@ fun SwipeableCard(
                 .then(if (dragging) Modifier.shadow(14.dp, shape, clip = true) else Modifier)
                 .pointerInput(Unit) {
                     awaitEachGesture {
+                        val inputScope = this
                         val down = awaitFirstDown(requireUnconsumed = false)
                         down.consume()
                         var startX = down.position.x
@@ -134,7 +135,7 @@ fun SwipeableCard(
                         var longPressFired = false
 
                         // long press: fire feedback + pressed state / start reorder candidate
-                        val longPressJob = launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                        val longPressJob = inputScope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
                             delay(260)
                             if (mode == 0) {
                                 longPressFired = true
