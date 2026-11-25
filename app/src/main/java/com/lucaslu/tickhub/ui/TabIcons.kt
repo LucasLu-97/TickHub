@@ -82,8 +82,8 @@ private fun DrawScope.drawClock(c: Color, w: Float) {
     drawLine(color = c, start = Offset(cx, cy), end = Offset(cx + r * 0.45f, cy), strokeWidth = w)
     // bells (two short arcs at top)
     val bellR = r * 0.32f
-    drawArc(color = c, 200f, 180f, false, Offset(cx - r * 0.72f - bellR, cy - r * 0.72f - bellR), Size(bellR * 2, bellR * 2), Stroke(w))
-    drawArc(color = c, 200f, 180f, false, Offset(cx + r * 0.72f - bellR, cy - r * 0.72f - bellR), Size(bellR * 2, bellR * 2), Stroke(w))
+    drawArc(color = c, startAngle = 200f, sweepAngle = 180f, useCenter = false, topLeft = Offset(cx - r * 0.72f - bellR, cy - r * 0.72f - bellR), size = Size(bellR * 2, bellR * 2), style = Stroke(w))
+    drawArc(color = c, startAngle = 200f, sweepAngle = 180f, useCenter = false, topLeft = Offset(cx + r * 0.72f - bellR, cy - r * 0.72f - bellR), size = Size(bellR * 2, bellR * 2), style = Stroke(w))
     // feet
     drawLine(color = c, start = Offset(cx - r * 0.6f, cy + r * 0.85f), end = Offset(cx - r * 0.35f, cy + r * 0.6f), strokeWidth = w)
     drawLine(color = c, start = Offset(cx + r * 0.6f, cy + r * 0.85f), end = Offset(cx + r * 0.35f, cy + r * 0.6f), strokeWidth = w)
@@ -94,7 +94,7 @@ private fun DrawScope.drawHistory(c: Color, w: Float) {
     val cx = size.width / 2
     val cy = size.height / 2
     val r = minOf(size.width, size.height) * 0.32f
-    drawArc(color = c, 40f, 290f, false, Offset(cx - r, cy - r), Size(r * 2, r * 2), Stroke(w))
+    drawArc(color = c, startAngle = 40f, sweepAngle = 290f, useCenter = false, topLeft = Offset(cx - r, cy - r), size = Size(r * 2, r * 2), style = Stroke(w))
     // arrow head at the arc start (upper-left)
     val a = 40f * kotlin.math.PI.toFloat() / 180f
     val ax = cx + r * cos(a)
