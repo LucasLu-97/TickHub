@@ -96,7 +96,9 @@ fun HistoryScreen(vm: AppViewModel) {
 
 @Composable
 private fun LogCardContent(log: TriggerLog) {
-    val (label, color) = when (log.status) {
+    val (label, color) = if (log.tracking) {
+        "执行中" to MaterialTheme.colorScheme.tertiary
+    } else when (log.status) {
         TriggerStatus.SUCCESS -> "成功" to MaterialTheme.colorScheme.primary
         TriggerStatus.MAKEUP -> "补触发" to MaterialTheme.colorScheme.tertiary
         TriggerStatus.FAILED -> "失败" to MaterialTheme.colorScheme.error

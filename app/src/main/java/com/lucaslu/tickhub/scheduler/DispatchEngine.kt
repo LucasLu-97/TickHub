@@ -112,7 +112,7 @@ class DispatchEngine(private val context: Context) {
             if (isMakeup) TriggerStatus.MAKEUP else TriggerStatus.SUCCESS
         } else TriggerStatus.FAILED
 
-        addLog(
+        val logId = addLog(
             rule = rule,
             plannedAt = plannedAt,
             status = status,
@@ -120,6 +120,23 @@ class DispatchEngine(private val context: Context) {
             errorMessage = if (allSuccess) null else "工作流 ${results.filter { !it.second }.map { it.first }} 触发失败：$lastError",
             isMakeup = isMakeup
         )
+
+        // Real-duration tracking: find the GitHub runs created by this dispatch,
+        // then a lightweight Worker polls until they finish and posts a notification.
+        if (allSuccess && parts.size == 2 && repository.isRunTrackingEnabledOnce()) {
+            val runIds = mutableMapOf<String, Long>()
+            for (wfId in workflowIds) {
+                when (val runs = api.listWorkflowRuns(token, parts[0], parts[1], wfId, 5)) {
+                    is ApiResult.Success -> runs.data.workflowRuns.firstOrNull()?.let { runIds[wfId.toString()] = it.id }
+                    is ApiResult.Error -> Unit
+                }
+            }
+            if (runIds.isNotEmpty()) {
+                repository.updateLogTracking(logId, runIds)
+                RunTrackerWorker.enqueue(context, logId, rule.id)
+                AppLogger.i("Engine", "tracking started log=${logId.take(8)} runs=${runIds.size}")
+            }
+        }
 
         advanceRule(rule)
         return status
@@ -166,10 +183,11 @@ class DispatchEngine(private val context: Context) {
         httpCode: Int? = null,
         errorMessage: String? = null,
         isMakeup: Boolean = false
-    ) {
+    ): String {
+        val logId = UUID.randomUUID().toString()
         repository.addLog(
             TriggerLog(
-                id = UUID.randomUUID().toString(),
+                id = logId,
                 ruleId = rule.id,
                 workflowName = rule.workflowName,
                 workflowNames = rule.workflowNames.ifEmpty { listOfNotNull(rule.workflowName.takeIf { it.isNotBlank() }) },
@@ -183,6 +201,7 @@ class DispatchEngine(private val context: Context) {
                 durationMs = System.currentTimeMillis() - (repository.runningStartOnce(rule.id) ?: System.currentTimeMillis())
             )
         )
+        return logId
     }
 
     /** Wait for an available network connection, up to timeoutMinutes. */

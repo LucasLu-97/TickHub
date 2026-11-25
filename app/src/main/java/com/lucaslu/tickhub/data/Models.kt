@@ -90,7 +90,9 @@ data class TriggerLog(
     val httpCode: Int? = null,
     val errorMessage: String? = null,
     val isMakeup: Boolean = false,
-    val durationMs: Long = 0L
+    val durationMs: Long = 0L,
+    val runIds: Map<String, Long> = emptyMap(), // workflowId -> GitHub run id, for real-duration tracking
+    val tracking: Boolean = false // true while waiting for GitHub run to finish
 )
 
 // ---- GitHub REST DTOs ----
@@ -128,6 +130,23 @@ data class GhWorkflow(
 data class GhWorkflowList(
     @SerialName("total_count") val totalCount: Int = 0,
     val workflows: List<GhWorkflow> = emptyList()
+)
+
+/** A GitHub Actions workflow run, used to track real execution duration. */
+@Serializable
+data class GhWorkflowRun(
+    val id: Long,
+    val status: String = "",            // queued | in_progress | completed
+    val conclusion: String? = null,     // success | failure | cancelled | ...
+    @SerialName("created_at") val createdAt: String = "",
+    @SerialName("run_started_at") val runStartedAt: String = "",
+    @SerialName("updated_at") val updatedAt: String = ""
+)
+
+@Serializable
+data class GhRunList(
+    @SerialName("total_count") val totalCount: Int = 0,
+    @SerialName("workflow_runs") val workflowRuns: List<GhWorkflowRun> = emptyList()
 )
 
 // ---- Device Flow DTOs ----

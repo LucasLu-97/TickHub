@@ -53,6 +53,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val avatarUrl = repository.avatarUrl
     val runningExecutions = repository.runningExecutions
     val showExecutionStatus = repository.showExecutionStatus
+    val runTrackingEnabled = repository.runTrackingEnabled
 
     private val _login = MutableStateFlow(LoginUiState(isLoggedIn = tokenStore.getToken() != null))
     val login: StateFlow<LoginUiState> = _login.asStateFlow()
@@ -284,6 +285,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setShowExecutionStatus(enabled: Boolean) {
         viewModelScope.launch { repository.setShowExecutionStatus(enabled) }
+    }
+
+    fun setRunTrackingEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setRunTrackingEnabled(enabled) }
     }
 
     /** Manually trigger a single workflow directly (not via a rule). */

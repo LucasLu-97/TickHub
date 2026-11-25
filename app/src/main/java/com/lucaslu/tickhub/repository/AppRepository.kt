@@ -45,6 +45,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     private val lastCatchUpKey = longPreferencesKey("last_catchup_at")
     private val runningKey = stringPreferencesKey("running_executions_json") // ruleId -> startTime
     private val showExecutionKey = androidx.datastore.preferences.core.booleanPreferencesKey("show_execution_status")
+    private val runTrackingKey = androidx.datastore.preferences.core.booleanPreferencesKey("run_tracking_enabled")
 
     val snapshot: Flow<ScanSnapshot> = context.dataStore.data.map { prefs ->
         val raw = prefs[snapshotKey]
@@ -125,6 +126,41 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         }
     }
 
+    /** Attach discovered GitHub run ids to a log and mark it as tracking. */
+    suspend fun updateLogTracking(logId: String, runIds: Map<String, Long>) {
+        context.dataStore.edit { prefs ->
+            val logs = readLogs(prefs).toMutableList()
+            val idx = logs.indexOfFirst { it.id == logId }
+            if (idx >= 0) {
+                logs[idx] = logs[idx].copy(runIds = runIds, tracking = runIds.isNotEmpty())
+                prefs[logsKey] = json.encodeToString(logs)
+            }
+        }
+    }
+
+    /** Finalize a tracked log with the real GitHub run duration and conclusion. */
+    suspend fun finalizeLog(logId: String, durationMs: Long, success: Boolean) {
+        context.dataStore.edit { prefs ->
+            val logs = readLogs(prefs).toMutableList()
+            val idx = logs.indexOfFirst { it.id == logId }
+            if (idx >= 0) {
+                val old = logs[idx]
+                val newStatus = if (success) {
+                    if (old.isMakeup) com.lucaslu.tickhub.data.TriggerStatus.MAKEUP
+                    else com.lucaslu.tickhub.data.TriggerStatus.SUCCESS
+                } else com.lucaslu.tickhub.data.TriggerStatus.FAILED
+                logs[idx] = old.copy(
+                    status = newStatus,
+                    httpCode = null,
+                    errorMessage = if (success) null else "工作流执行失败（GitHub 结论）",
+                    durationMs = durationMs,
+                    tracking = false
+                )
+                prefs[logsKey] = json.encodeToString(logs)
+            }
+        }
+    }
+
     suspend fun deleteLog(id: String) {
         context.dataStore.edit { prefs ->
             val kept = readLogs(prefs).filterNot { it.id == id }
@@ -150,6 +186,14 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     suspend fun setShowExecutionStatus(enabled: Boolean) {
         context.dataStore.edit { it[showExecutionKey] = enabled }
     }
+
+    val runTrackingEnabled: Flow<Boolean> = context.dataStore.data.map { it[runTrackingKey] ?: true }
+
+    suspend fun setRunTrackingEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[runTrackingKey] = enabled }
+    }
+
+    suspend fun isRunTrackingEnabledOnce(): Boolean = context.dataStore.data.first()[runTrackingKey] ?: true
 
     suspend fun markRunning(ruleId: String, startAt: Long) {
         context.dataStore.edit { prefs ->

@@ -147,6 +147,22 @@ class GitHubApi {
         }
     }
 
+    /**
+     * List recent runs of a workflow. Used to find the run created by our dispatch
+     * and read its real start/end times and conclusion.
+     */
+    suspend fun listWorkflowRuns(
+        token: String,
+        owner: String,
+        repo: String,
+        workflowId: Long,
+        perPage: Int = 10
+    ): ApiResult<com.lucaslu.tickhub.data.GhRunList> = withContext(Dispatchers.IO) {
+        val url = "$apiBase/repos/$owner/$repo/actions/workflows/$workflowId/runs?per_page=$perPage"
+        val req = authorized(token, url).build()
+        executeJson<com.lucaslu.tickhub.data.GhRunList>(req)
+    }
+
     /** Trigger a workflow via workflow_dispatch. Uses numeric workflow id to avoid URL-encoding
      * issues with non-ASCII file names (e.g. 签到.yml). */
     suspend fun dispatchWorkflow(

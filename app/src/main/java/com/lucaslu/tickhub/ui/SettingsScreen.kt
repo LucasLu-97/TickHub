@@ -42,6 +42,7 @@ fun SettingsScreen(vm: AppViewModel) {
     val context = LocalContext.current
     val themeMode by vm.themeMode.collectAsState()
     val showExec by vm.showExecutionStatus.collectAsState(initial = true)
+    val runTrack by vm.runTrackingEnabled.collectAsState(initial = true)
     val pm = context.getSystemService(PowerManager::class.java)
     val batteryOptimized = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
         pm?.isIgnoringBatteryOptimizations(context.packageName) != true
@@ -123,6 +124,19 @@ fun SettingsScreen(vm: AppViewModel) {
                             Text("触发时显示转圈与已用时长；仅前台刷新，不额外耗电", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         MiuixSwitch(checked = showExec, onCheckedChange = { setHaptic(it) })
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("执行结果与通知", style = MaterialTheme.typography.titleMedium)
+                            Text("触发后查询 GitHub 真实执行时长，完成后通知成功/失败；每30秒轻量查询一次，不持续占用后台", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        MiuixSwitch(checked = runTrack, onCheckedChange = { vm.setRunTrackingEnabled(it) })
                     }
                 }
             }
