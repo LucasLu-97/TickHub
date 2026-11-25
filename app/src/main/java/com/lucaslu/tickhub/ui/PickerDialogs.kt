@@ -56,7 +56,7 @@ fun IntervalDialog(initial: Int, onConfirm: (Int) -> Unit, onDismiss: () -> Unit
     val items = (1..30).map { it.toString() }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("每隔多少天（1 表示每天）") },
+        title = { Text("间隔天数") },
         text = {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 WheelPicker(items, n - 1, { n = it + 1 }, Modifier.fillMaxWidth())

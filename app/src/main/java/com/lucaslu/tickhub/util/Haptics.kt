@@ -8,7 +8,9 @@ import android.os.VibratorManager
 
 /** Short, crisp haptic tick for deterministic interactions (toggles, checks, wheel snaps). */
 object Haptics {
-    private const val TICK_MS = 12L
+    // sharp click: strong onset then instant release (crisp, not loose)
+    private val TICK = longArrayOf(0, 14)
+    private val AMP = intArrayOf(0, 230)
 
     fun tick(context: Context) {
         runCatching {
@@ -19,10 +21,10 @@ object Haptics {
                 context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createOneShot(TICK_MS, VibrationEffect.DEFAULT_AMPLITUDE))
+                vibrator.vibrate(VibrationEffect.createWaveform(TICK, AMP, -1))
             } else {
                 @Suppress("DEPRECATION")
-                vibrator.vibrate(TICK_MS)
+                vibrator.vibrate(TICK[1])
             }
         }
     }

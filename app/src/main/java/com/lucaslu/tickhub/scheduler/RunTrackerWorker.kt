@@ -110,8 +110,8 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         const val KEY_RULE_ID = "rule_id"
         const val KEY_POLL = "poll"
         const val UNIQUE_NAME = "tickhub_track"
-        const val POLL_DELAY_SEC = 30L
-        const val MAX_POLLS = 24 // ~12 minutes
+        const val POLL_DELAY_SEC = 5L
+        const val MAX_POLLS = 144 // ~12 minutes at 5s intervals
 
         fun enqueue(context: Context, logId: String, ruleId: String) {
             val data = workDataOf(KEY_LOG_ID to logId, KEY_RULE_ID to ruleId, KEY_POLL to 0)

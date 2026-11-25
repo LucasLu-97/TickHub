@@ -84,7 +84,7 @@ fun SwipeableCard(
                             val shouldReveal = offsetX.value < -deleteWidthPx * 0.4f
                             revealed = shouldReveal
                             scope.launch {
-                                offsetX.animateTo(if (shouldReveal) -deleteWidthPx else 0f, spring())
+                                offsetX.animateTo(if (shouldReveal) -deleteWidthPx else 0f, spring(dampingRatio = 0.75f, stiffness = 400f))
                             }
                         }
                     ) { change, dragAmount ->
@@ -99,7 +99,7 @@ fun SwipeableCard(
                             onTap = {
                                 if (revealed) {
                                     revealed = false
-                                    scope.launch { offsetX.animateTo(0f, spring()) }
+                                    scope.launch { offsetX.animateTo(0f, spring(dampingRatio = 0.75f, stiffness = 400f)) }
                                 } else {
                                     onClick?.invoke()
                                 }

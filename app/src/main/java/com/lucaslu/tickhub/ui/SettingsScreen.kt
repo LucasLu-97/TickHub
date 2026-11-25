@@ -137,7 +137,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("执行结果通知", style = MaterialTheme.typography.titleMedium)
-                            Text("触发后查询 GitHub 真实执行时长，完成后通知成功/失败；每30秒轻量查询一次，不持续占用后台", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("触发后查询 GitHub 真实执行时长，完成后通知成功/失败；每5秒查询一次，不持续占用后台", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         MiuixSwitch(checked = runTrack, onCheckedChange = { vm.setRunTrackingEnabled(it) })
                     }

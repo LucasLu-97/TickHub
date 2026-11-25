@@ -46,7 +46,8 @@ fun MiuixSwitch(
     )
     val thumbColor = Color.White // MIUI: white circular thumb in both states
     val offsetX by animateDpAsState(
-        if (checked) trackW - thumbSize - padding else padding
+        targetValue = if (checked) trackW - thumbSize - padding else padding,
+        animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 420f)
     )
 
     Box(
