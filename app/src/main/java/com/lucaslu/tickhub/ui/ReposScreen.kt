@@ -155,7 +155,7 @@ private fun RepoCardContent(
     var expanded by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f).clickable { expanded = !expanded }) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(repoName, style = MaterialTheme.typography.titleSmall)
                     Text(
                         "${if (private) "私有" else "公开"} · ${workflows.size} 个工作流",
@@ -171,6 +171,9 @@ private fun RepoCardContent(
                     onCheckedChange = { onManagedChange(it); hapticTick(context) },
                     modifier = Modifier.scale(0.82f)
                 )
+                TextButton(onClick = { expanded = !expanded; hapticTick(context) }) {
+                    Text(if (expanded) "收起" else "展开")
+                }
             }
             if (expanded) {
                 Spacer(Modifier.height(8.dp))

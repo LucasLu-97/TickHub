@@ -31,6 +31,25 @@ fun TabIcon(index: Int, color: Color, modifier: Modifier = Modifier) {
     }
 }
 
+/** Trash bin outline for the swipe-to-delete confirm action. */
+@Composable
+fun DeleteLineIcon(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.size(28.dp)) {
+        val w = 2.dp.toPx()
+        val lidY = size.height * 0.25f
+        val bodyTop = size.height * 0.3f
+        val bodyBottom = size.height * 0.85f
+        val left = size.width * 0.24f
+        val right = size.width * 0.76f
+        drawLine(color = tint, start = Offset(left, lidY), end = Offset(right, lidY), strokeWidth = w)
+        drawLine(color = tint, start = Offset(size.width * 0.4f, size.height * 0.16f), end = Offset(size.width * 0.6f, size.height * 0.16f), strokeWidth = w)
+        drawRect(color = tint, topLeft = Offset(left, bodyTop), size = Size(right - left, bodyBottom - bodyTop), style = Stroke(w))
+        val third = (right - left) / 3
+        drawLine(color = tint, start = Offset(left + third, bodyTop + 3.dp.toPx()), end = Offset(left + third, bodyBottom - 3.dp.toPx()), strokeWidth = w)
+        drawLine(color = tint, start = Offset(left + 2 * third, bodyTop + 3.dp.toPx()), end = Offset(left + 2 * third, bodyBottom - 3.dp.toPx()), strokeWidth = w)
+    }
+}
+
 private fun DrawScope.drawRepo(c: Color, w: Float) {
     val left = size.width * 0.15f
     val right = size.width * 0.85f
