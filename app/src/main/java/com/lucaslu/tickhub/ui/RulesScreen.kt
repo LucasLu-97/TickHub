@@ -24,7 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.size
 import com.lucaslu.tickhub.data.Rule
@@ -125,6 +125,7 @@ fun RulesScreen(vm: AppViewModel) {
                             )
                         }
                         SwipeableCard(
+                            modifier = Modifier.weight(1f),
                             onDelete = { vm.deleteRule(rule.id) },
                             onLongClick = {
                                 multiSelect = true
@@ -180,7 +181,7 @@ private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () 
             Switch(
                 checked = rule.status == RuleStatus.ENABLED,
                 onCheckedChange = { onToggle(it); com.lucaslu.tickhub.util.Haptics.tick(context) },
-                modifier = Modifier.padding(end = 8.dp).scale(0.82f)
+                modifier = Modifier.padding(end = 8.dp).graphicsLayer(scaleY = 0.72f)
             )
             Text("启用", style = MaterialTheme.typography.labelMedium)
             if (runningStart != null) {

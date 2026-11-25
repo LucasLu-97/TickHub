@@ -249,6 +249,40 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         setManaged(repoId, selected)
     }
 
+    /**
+     * Light refresh for pull-to-refresh: update avatar/login and refresh workflows
+     * only for already-managed repos. Does NOT enumerate all repos (that is scan()).
+     */
+    suspend fun refreshManaged(token: String): ApiResult<Int> {
+        // refresh profile
+        when (val user = api.getCurrentUser(token)) {
+            is ApiResult.Success -> saveUser(user.data.login, user.data.avatarUrl)
+            is ApiResult.Error -> { /* keep old profile */ }
+        }
+        val current = snapshot.first()
+        if (current.repos.isEmpty()) return ApiResult.Success(0)
+        val managedRepos = current.repos.filter { it.managed }
+        if (managedRepos.isEmpty()) return ApiResult.Success(0)
+
+        val prevWf = current.workflows.associateBy { it.id }
+        val refreshed = current.workflows.toMutableList()
+        var failures = 0
+        for (repo in managedRepos) {
+            when (val wfResult = api.listWorkflows(token, repo.owner, repo.name)) {
+                is ApiResult.Success -> {
+                    refreshed.removeAll { it.repoId == repo.id }
+                    wfResult.data.forEach { wf ->
+                        refreshed.add(wf.copy(repoId = repo.id, selected = prevWf[wf.id]?.selected ?: false))
+                    }
+                }
+                is ApiResult.Error -> failures++
+            }
+        }
+        val updated = current.copy(workflows = refreshed, scannedAt = System.currentTimeMillis())
+        context.dataStore.edit { it[snapshotKey] = json.encodeToString(updated) }
+        return ApiResult.Success(failures)
+    }
+
     /** Scan repos and their workflows, preserving existing selection/managed state. */
     suspend fun scan(token: String): ApiResult<Int> {
         when (val reposResult = api.listOwnRepos(token)) {

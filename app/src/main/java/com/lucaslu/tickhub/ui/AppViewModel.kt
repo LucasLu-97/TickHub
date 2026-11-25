@@ -178,6 +178,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private val _refreshing = MutableStateFlow(false)
+    val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
+
+    /** Pull-to-refresh: refresh avatar + managed repos only, no full scan. */
+    fun refreshProfile() {
+        if (_refreshing.value) return
+        val token = tokenStore.getToken() ?: return
+        _refreshing.value = true
+        viewModelScope.launch {
+            val result = repository.refreshManaged(token)
+            if (result is ApiResult.Error) _repo.value = _repo.value.copy(error = result.message)
+            _refreshing.value = false
+        }
+    }
+
     fun toggleWorkflow(id: Long, selected: Boolean) {
         viewModelScope.launch { repository.setSelected(id, selected) }
     }
