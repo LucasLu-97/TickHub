@@ -127,23 +127,15 @@ fun SwipeableCard(
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         down.consume()
-                        val downTime = System.currentTimeMillis()
                         var startX = down.position.x
                         var startY = down.position.y
                         var mode = 0 // 0 undecided, 1 horizontal swipe, 2 drag-reorder, 3 long-press-tap
-                        val longPressMs = 260L
 
-                        while (true) {
-                            // wait for next pointer event, but no longer than the long-press window
-                            val remaining = longPressMs - (System.currentTimeMillis() - downTime)
-                            val event = if (mode == 0 && remaining > 0) {
-                                kotlinx.coroutines.withTimeoutOrNull(remaining) { awaitPointerEvent(PointerEventPass.Initial) }
-                            } else {
-                                awaitPointerEvent(PointerEventPass.Initial)
-                            }
-
-                            if (event == null) {
-                                // long press fired while finger held still
+                        // long-press timer via a separate scope (avoids restricted-suspension limits)
+                        val timerScope = kotlinx.coroutines.CoroutineScope(kotlin.coroutines.coroutineContext)
+                        val longPressJob = timerScope.launch {
+                            kotlinx.coroutines.delay(260)
+                            if (mode == 0) {
                                 com.lucaslu.tickhub.util.Haptics.tick(ctx)
                                 pressed = true
                                 if (canReorder) {
@@ -152,15 +144,18 @@ fun SwipeableCard(
                                 } else {
                                     mode = 3
                                 }
-                                continue
                             }
+                        }
 
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
                             if (!change.pressed) break
                             val dx = change.position.x - startX
                             val dy = change.position.y - startY
 
                             if (mode == 0 && (abs(dx) > slopPx || abs(dy) > slopPx)) {
+                                longPressJob.cancel()
                                 pressed = false
                                 mode = if (abs(dx) > abs(dy)) 1 else 2
                                 if (mode == 2 && canReorder) onDragStart?.invoke()
@@ -190,6 +185,7 @@ fun SwipeableCard(
                             }
                         }
 
+                        longPressJob.cancel()
                         pressed = false
                         when (mode) {
                             1 -> {
