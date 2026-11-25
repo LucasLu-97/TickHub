@@ -72,6 +72,24 @@ class RuleEngineHolidayTest {
     }
 
     @Test
+    fun multipleTimeSlots_picksEarliestUpcoming() {
+        // two slots 08:00 and 20:00; at 09:00 the next should be 20:00 today
+        val r = rule(RuleType.DAILY).copy(hour = 8, minute = 0, timeSlots = listOf("08:00", "20:00"))
+        val from = LocalDateTime.of(2026, 11, 25, 9, 0)
+        val next = RuleEngine.computeNextFire(r, from)
+        assertEquals(LocalDateTime.of(2026, 11, 25, 20, 0), next)
+    }
+
+    @Test
+    fun multipleTimeSlots_wrapToNextDay() {
+        // at 21:00 both slots passed -> next is 08:00 tomorrow
+        val r = rule(RuleType.DAILY).copy(timeSlots = listOf("08:00", "20:00"))
+        val from = LocalDateTime.of(2026, 11, 25, 21, 0)
+        val next = RuleEngine.computeNextFire(r, from)
+        assertEquals(LocalDateTime.of(2026, 11, 26, 8, 0), next)
+    }
+
+    @Test
     fun multiWorkflowRule_resolvesIds() {
         val r = rule(RuleType.DAILY)
         assertEquals(listOf(1L, 2L), r.resolvedWorkflowIds())
