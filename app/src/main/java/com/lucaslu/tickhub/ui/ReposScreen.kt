@@ -144,7 +144,7 @@ fun ReposScreen(vm: AppViewModel) {
                     items(reorder.items, key = { it.id }) { repo ->
                         val wfs = snapshot.workflows.filter { it.repoId == repo.id && it.state == "active" }
                         SwipeableCard(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().animateItem(),
                             onDelete = { vm.removeRepo(repo.id) },
                             onClick = {
                                 if (!multiSelect) {
