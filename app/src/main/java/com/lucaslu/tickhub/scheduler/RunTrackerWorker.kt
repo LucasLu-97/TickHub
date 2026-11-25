@@ -31,13 +31,13 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         val ruleId = inputData.getString(KEY_RULE_ID) ?: return Result.failure()
         val poll = inputData.getInt(KEY_POLL, 0)
         val token = TokenStore(applicationContext).getToken() ?: return Result.failure()
-        val repo = AppRepository(applicationContext)
+        val api = GitHubApi()
+        val repo = AppRepository(applicationContext, api)
         val rule = repo.getRuleOnce(ruleId)
         if (rule == null) return Result.failure()
 
         val parts = rule.repoFullName.split("/")
         if (parts.size != 2) return Result.failure()
-        val api = GitHubApi()
         val workflowIds = rule.resolvedWorkflowIds()
 
         val allRuns = mutableListOf<Pair<Long, GhWorkflowRun>>()
@@ -67,8 +67,8 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         // compute real duration: from earliest run_started_at to latest updated_at
         val starts = allRuns.mapNotNull { parseInstant(it.second.runStartedAt.ifBlank { it.second.createdAt }) }
         val ends = allRuns.mapNotNull { parseInstant(it.second.updatedAt) }
-        val durationMs = if (starts.isNotEmpty() && ends.isNotEmpty()) {
-            (ends.max() - starts.min()).toMillis().coerceAtLeast(0)
+        val durationMs: Long = if (starts.isNotEmpty() && ends.isNotEmpty()) {
+            Duration.between(starts.min(), ends.max()).toMillis().coerceAtLeast(0L)
         } else 0L
         val success = allRuns.all { it.second.conclusion == "success" } && !anyError
         repo.finalizeLog(logId, durationMs, success)
@@ -85,7 +85,7 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         return Result.success()
     }
 
-    private fun giveUp(repo: AppRepository, logId: String) {
+    private suspend fun giveUp(repo: AppRepository, logId: String) {
         repo.finalizeLog(logId, 0L, false)
         NotificationHelper.notifyResult(applicationContext, logId.hashCode(), "TickHub · 执行结果未确认", "无法从 GitHub 获取执行结果，请到仓库页查看", false)
     }
