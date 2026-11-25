@@ -33,14 +33,25 @@ import com.lucaslu.tickhub.util.AppLogger
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun LogScreen() {
+fun LogScreen(onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     var logText by remember { mutableStateOf(AppLogger.readAll()) }
     val scroll = rememberScrollState()
 
     androidx.compose.material3.Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            androidx.compose.material3.TopAppBar(title = { Text("调试日志") })
+            androidx.compose.material3.TopAppBar(
+                modifier = Modifier.height(48.dp),
+                title = { Text("调试日志") },
+                navigationIcon = {
+                    if (onBack != null) {
+                        androidx.compose.material3.IconButton(onClick = onBack) {
+                            Text("←", style = MaterialTheme.typography.titleLarge)
+                        }
+                    }
+                }
+            )
         }
     ) { pad ->
     Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(top = 4.dp)) {

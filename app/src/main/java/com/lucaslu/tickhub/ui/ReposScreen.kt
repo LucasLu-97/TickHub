@@ -69,8 +69,10 @@ fun ReposScreen(vm: AppViewModel) {
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
+                modifier = Modifier.height(48.dp),
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         AvatarImage(url = avatar, name = user ?: "?")

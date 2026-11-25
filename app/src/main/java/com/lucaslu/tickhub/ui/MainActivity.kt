@@ -56,6 +56,7 @@ private fun TickHubApp() {
     val themeMode by vm.themeMode.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     var tab by remember { mutableIntStateOf(0) }
+    var showLogs by remember { mutableStateOf(false) }
 
     val darkTheme = when (themeMode) {
         0 -> false
@@ -80,7 +81,7 @@ private fun TickHubApp() {
         Scaffold(
             bottomBar = {
                 NavigationBar {
-                    val items = listOf("仓库", "规则", "历史", "日志", "设置")
+                    val items = listOf("仓库", "规则", "历史", "设置")
                     items.forEachIndexed { index, label ->
                         NavigationBarItem(
                             selected = tab == index,
@@ -107,8 +108,10 @@ private fun TickHubApp() {
                     0 -> ReposScreen(vm)
                     1 -> RulesScreen(vm)
                     2 -> HistoryScreen(vm)
-                    3 -> LogScreen()
-                    4 -> SettingsScreen(vm)
+                    3 -> SettingsScreen(vm, onOpenLogs = { showLogs = true })
+                }
+                if (showLogs) {
+                    LogScreen(onBack = { showLogs = false })
                 }
             }
         }

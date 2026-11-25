@@ -40,8 +40,10 @@ fun HistoryScreen(vm: AppViewModel) {
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             androidx.compose.material3.TopAppBar(
+                modifier = Modifier.height(48.dp),
                 title = { Text("触发历史") },
                 actions = {
                     if (multiSelect) {

@@ -20,20 +20,34 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
 
-/** Downloads the GitHub avatar once (cached in memory) and shows a letter fallback. */
+/** Process-wide memory cache: survives tab switches / recomposition, no re-download. */
+private object AvatarCache {
+    val map = ConcurrentHashMap<String, android.graphics.Bitmap>()
+}
+
+/** Avatar with letter fallback. Uses cached bitmap first, downloads only once per URL. */
 @Composable
 fun AvatarImage(url: String?, name: String, modifier: Modifier = Modifier) {
-    val bitmapState = remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    val bitmapState = remember { mutableStateOf<android.graphics.Bitmap?>(url?.let { AvatarCache.map[it] }) }
 
     LaunchedEffect(url) {
         if (url.isNullOrBlank()) return@LaunchedEffect
+        val cached = AvatarCache.map[url]
+        if (cached != null) {
+            bitmapState.value = cached
+            return@LaunchedEffect
+        }
         val bmp = withContext(Dispatchers.IO) {
             runCatching {
                 URL(url).openStream().use { android.graphics.BitmapFactory.decodeStream(it) }
             }.getOrNull()
         }
-        bitmapState.value = bmp
+        if (bmp != null) {
+            AvatarCache.map[url] = bmp
+            bitmapState.value = bmp
+        }
     }
 
     Box(

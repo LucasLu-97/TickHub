@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.verticalScroll
@@ -38,7 +39,7 @@ import androidx.core.content.getSystemService
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(vm: AppViewModel) {
+fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
     val context = LocalContext.current
     val themeMode by vm.themeMode.collectAsState()
     val showExec by vm.showExecutionStatus.collectAsState(initial = true)
@@ -49,8 +50,10 @@ fun SettingsScreen(vm: AppViewModel) {
     } else false
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
+                modifier = Modifier.height(48.dp),
                 title = { Text("设置") },
                 actions = {
                     IconButton(onClick = { vm.cycleTheme() }) {
@@ -133,7 +136,7 @@ fun SettingsScreen(vm: AppViewModel) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("执行结果与通知", style = MaterialTheme.typography.titleMedium)
+                            Text("执行结果通知", style = MaterialTheme.typography.titleMedium)
                             Text("触发后查询 GitHub 真实执行时长，完成后通知成功/失败；每30秒轻量查询一次，不持续占用后台", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         MiuixSwitch(checked = runTrack, onCheckedChange = { vm.setRunTrackingEnabled(it) })
@@ -151,6 +154,15 @@ fun SettingsScreen(vm: AppViewModel) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+
+            Card(modifier = Modifier.fillMaxWidth().clickable { onOpenLogs?.invoke() }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("调试日志", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text("查看闹钟/触发/网络/调度过程，可导出分析故障（仅写本地文件，资源消耗极低）", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             Spacer(Modifier.height(24.dp))

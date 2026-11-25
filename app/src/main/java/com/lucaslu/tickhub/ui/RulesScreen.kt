@@ -94,8 +94,10 @@ fun RulesScreen(vm: AppViewModel) {
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             androidx.compose.material3.TopAppBar(
+                modifier = Modifier.height(48.dp),
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("触发规则")

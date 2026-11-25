@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.lucaslu.tickhub.util.Haptics
@@ -43,9 +44,7 @@ fun MiuixSwitch(
     val trackColor by animateColorAsState(
         if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
     )
-    val thumbColor by animateColorAsState(
-        if (checked) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-    )
+    val thumbColor = Color.White // MIUI: white circular thumb in both states
     val offsetX by animateDpAsState(
         if (checked) trackW - thumbSize - padding else padding
     )

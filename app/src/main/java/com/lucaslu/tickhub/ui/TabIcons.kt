@@ -26,8 +26,8 @@ fun TabIcon(index: Int, color: Color, modifier: Modifier = Modifier) {
             0 -> drawRepo(color, w)
             1 -> drawClock(color, w)
             2 -> drawHistory(color, w)
-            3 -> drawLog(color, w)
-            4 -> drawSettings(color, w)
+            3 -> drawSettings(color, w)
+            else -> drawLog(color, w)
         }
     }
 }
@@ -81,15 +81,14 @@ private fun DrawScope.drawClock(c: Color, w: Float) {
 }
 
 private fun DrawScope.drawHistory(c: Color, w: Float) {
-    val cx = size.width / 2
-    val cy = size.height / 2
-    val r = minOf(size.width, size.height) * 0.36f
-    drawArc(
-        color = c, startAngle = 30f, sweepAngle = 300f, useCenter = false,
-        topLeft = Offset(cx - r, cy - r), size = Size(r * 2, r * 2), style = Stroke(w)
-    )
-    drawLine(color = c, start = Offset(cx, cy), end = Offset(cx, cy - r * 0.55f), strokeWidth = w)
-    drawLine(color = c, start = Offset(cx, cy), end = Offset(cx + r * 0.45f, cy + r * 0.2f), strokeWidth = w)
+    // stacked list lines (history records), distinct from the clock
+    val left = size.width * 0.22f
+    val right = size.width * 0.78f
+    for (i in 0..2) {
+        val y = size.height * (0.28f + i * 0.22f)
+        drawCircle(color = c, radius = w * 1.3f, center = Offset(left, y))
+        drawLine(color = c, start = Offset(left + w * 3f, y), end = Offset(right, y), strokeWidth = w)
+    }
 }
 
 private fun DrawScope.drawLog(c: Color, w: Float) {
@@ -106,17 +105,21 @@ private fun DrawScope.drawLog(c: Color, w: Float) {
 }
 
 private fun DrawScope.drawSettings(c: Color, w: Float) {
-    // gear outline (settings cog)
+    // open-end wrench diagonal: handle line + open C head at upper-left
+    val s = minOf(size.width, size.height)
     val cx = size.width / 2
     val cy = size.height / 2
-    val r = minOf(size.width, size.height) * 0.34f
-    drawCircle(color = c, radius = r * 0.42f, center = Offset(cx, cy), style = Stroke(w))
-    for (i in 0..7) {
-        val angle = i * 45f * kotlin.math.PI.toFloat() / 180f
-        val sx = cx + cos(angle) * r * 0.62f
-        val sy = cy + sin(angle) * r * 0.62f
-        val ex = cx + cos(angle) * r * 0.92f
-        val ey = cy + sin(angle) * r * 0.92f
-        drawLine(color = c, start = Offset(sx, sy), end = Offset(ex, ey), strokeWidth = w * 1.4f)
-    }
+    // handle from center to bottom-right
+    drawLine(
+        color = c,
+        start = Offset(cx - s * 0.06f, cy - s * 0.06f),
+        end = Offset(cx + s * 0.34f, cy + s * 0.34f),
+        strokeWidth = w * 1.6f
+    )
+    // open C head at upper-left
+    drawArc(
+        color = c, startAngle = 135f, sweepAngle = 270f, useCenter = false,
+        topLeft = Offset(cx - s * 0.40f, cy - s * 0.40f),
+        size = Size(s * 0.40f, s * 0.40f), style = Stroke(w * 1.6f)
+    )
 }
