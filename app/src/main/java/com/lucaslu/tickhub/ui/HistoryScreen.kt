@@ -91,7 +91,7 @@ fun HistoryScreen(vm: AppViewModel) {
             ) {
                 items(reorder.items, key = { it.id }) { log ->
                     SwipeableCard(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().animateItem(),
                         onDelete = { vm.deleteLog(log.id) },
                         onClick = {
                             if (multiSelect) {

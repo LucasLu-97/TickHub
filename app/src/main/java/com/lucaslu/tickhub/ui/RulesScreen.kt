@@ -185,7 +185,7 @@ fun RulesScreen(vm: AppViewModel) {
                 }
                 items(repoRules, key = { it.id }) { rule ->
                     SwipeableCard(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().animateItem(),
                         onDelete = { vm.deleteRule(rule.id) },
                         onClick = {
                             if (multiSelect) {
