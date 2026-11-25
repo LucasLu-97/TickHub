@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.unit.dp
 import com.lucaslu.tickhub.data.Rule
 import com.lucaslu.tickhub.data.RuleStatus
@@ -136,6 +137,7 @@ fun RulesScreen(vm: AppViewModel) {
 
 @Composable
 private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () -> Unit, onTriggerNow: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
         val names = rule.workflowNames.ifEmpty { listOf(rule.workflowName.ifBlank { "工作流 #${rule.workflowId}" }) }
         Text(names.joinToString("、"), style = MaterialTheme.typography.titleSmall)
@@ -164,8 +166,8 @@ private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Switch(
                 checked = rule.status == RuleStatus.ENABLED,
-                onCheckedChange = onToggle,
-                modifier = Modifier.padding(end = 8.dp)
+                onCheckedChange = { onToggle(it); com.lucaslu.tickhub.util.Haptics.tick(context) },
+                modifier = Modifier.padding(end = 8.dp).scale(0.82f)
             )
             Text("启用", style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.weight(1f))

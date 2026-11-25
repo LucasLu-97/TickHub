@@ -39,6 +39,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     private val rulesKey = stringPreferencesKey("rules_json")
     private val logsKey = stringPreferencesKey("trigger_logs_json")
     private val tokenUserKey = stringPreferencesKey("logged_in_user")
+    private val avatarKey = stringPreferencesKey("avatar_url")
     private val lastScanKey = longPreferencesKey("last_scan_at")
     private val networkWaitKey = androidx.datastore.preferences.core.intPreferencesKey("network_wait_minutes")
     private val lastCatchUpKey = longPreferencesKey("last_catchup_at")
@@ -138,12 +139,20 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         context.dataStore.edit { it[lastCatchUpKey] = ts }
     }
 
-    suspend fun saveUser(login: String) {
-        context.dataStore.edit { it[tokenUserKey] = login }
+    suspend fun saveUser(login: String, avatarUrl: String? = null) {
+        context.dataStore.edit { p ->
+            p[tokenUserKey] = login
+            if (avatarUrl != null) p[avatarKey] = avatarUrl
+        }
     }
 
+    val avatarUrl: Flow<String?> = context.dataStore.data.map { it[avatarKey] }
+
     suspend fun clearUser() {
-        context.dataStore.edit { it.remove(tokenUserKey) }
+        context.dataStore.edit { p ->
+            p.remove(tokenUserKey)
+            p.remove(avatarKey)
+        }
     }
 
     suspend fun setSelected(workflowId: Long, selected: Boolean) {

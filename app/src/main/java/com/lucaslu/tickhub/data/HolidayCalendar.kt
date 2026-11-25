@@ -14,9 +14,9 @@ import kotlinx.serialization.json.Json
 import java.time.LocalDate
 
 private val Context.holidayDataStore by preferencesDataStore(name = "tickhub_holidays")
-private val KEY_HOLIDAY_JSON = stringPreferencesKey("holiday_json")
-private val KEY_HOLIDAY_YEAR = intPreferencesKey("holiday_year")
-private val KEY_HOLIDAY_FETCHED_FOR = intPreferencesKey("holiday_fetched_for")
+/** Persist all fetched years as one JSON array so current+next year can coexist. */
+private val KEY_HOLIDAY_DATA = stringPreferencesKey("holiday_data_json")
+private val KEY_HOLIDAY_FETCHED_FOR = stringPreferencesKey("holiday_fetched_years") // "2026,2027"
 
 @Serializable
 data class HolidayDay(
@@ -94,24 +94,23 @@ object HolidayCalendar {
     }
     """.trimIndent()
 
+    private suspend fun readAll(context: Context): MutableList<HolidayYearData> {
+        val raw = context.holidayDataStore.data.first()[KEY_HOLIDAY_DATA]
+        if (raw.isNullOrBlank()) return mutableListOf()
+        return try {
+            json.decodeFromString<List<HolidayYearData>>(raw).toMutableList()
+        } catch (e: Exception) {
+            mutableListOf()
+        }
+    }
+
     suspend fun load(context: Context, year: Int): HolidayYearData {
         if (cache != null && cacheYear == year) return cache!!
-        // try persisted data for this year
-        val prefs = context.holidayDataStore.data.first()
-        val savedYear = prefs[KEY_HOLIDAY_YEAR] ?: 0
-        val savedJson = prefs[KEY_HOLIDAY_JSON]
-        if (savedYear == year && !savedJson.isNullOrBlank()) {
-            try {
-                val parsed = json.decodeFromString<HolidayYearData>(savedJson)
-                cache = parsed; cacheYear = year
-                return parsed
-            } catch (e: Exception) { /* fall through */ }
-        }
-        // bundled fallback
-        val data = if (year == 2026) {
+        val all = readAll(context)
+        val found = all.firstOrNull { it.year == year }
+        val data = found ?: if (year == 2026) {
             json.decodeFromString<HolidayYearData>(bundled2026)
         } else {
-            // for other years, use bundled 2026 as shape but no days -> fall back to weekday math
             HolidayYearData(year, emptyList())
         }
         cache = data; cacheYear = year
@@ -119,31 +118,42 @@ object HolidayCalendar {
     }
 
     /**
-     * Fetch holiday data for a year. To save data/battery, only fetches once per
-     * year: if this year was already fetched successfully, skip (unless force).
-     * Returns true when data is available (already cached or freshly fetched).
+     * Fetch current + next year holiday data. Next-year notices are usually
+     * published by early December, so we attempt both but tolerate failure.
+     * A year is fetched at most once (persisted in fetched-years) unless forced.
+     * Years are merged by year key, so no conflicts between adjacent years.
      */
-    suspend fun refresh(context: Context, year: Int, force: Boolean = false): Boolean {
+    suspend fun refresh(context: Context, force: Boolean = false): Boolean {
+        val nowYear = LocalDate.now().year
+        val targets = listOf(nowYear, nowYear + 1)
         val prefs = context.holidayDataStore.data.first()
-        val fetchedFor = prefs[KEY_HOLIDAY_FETCHED_FOR] ?: 0
-        val savedJson = prefs[KEY_HOLIDAY_JSON]
-        val savedYear = prefs[KEY_HOLIDAY_YEAR] ?: 0
-        // already fetched this year and have data -> no network
-        if (!force && fetchedFor == year && savedYear == year && !savedJson.isNullOrBlank()) {
-            return true
-        }
-        val result = GitHubApi().fetchHolidayYear(year)
-        if (result is ApiResult.Success) {
-            val data = result.data
-            context.holidayDataStore.edit { p ->
-                p[KEY_HOLIDAY_JSON] = json.encodeToString(data)
-                p[KEY_HOLIDAY_YEAR] = year
-                p[KEY_HOLIDAY_FETCHED_FOR] = year
+        val fetched = (prefs[KEY_HOLIDAY_FETCHED_FOR] ?: "").split(",").filter { it.isNotBlank() }.toSet()
+        val all = readAll(context)
+        var changed = false
+        val api = GitHubApi()
+        for (year in targets) {
+            if (!force && fetched.contains(year.toString()) && all.any { it.year == year && it.days.isNotEmpty() }) {
+                continue // already have this year, no network
             }
-            cache = data; cacheYear = year
-            return true
+            when (val result = api.fetchHolidayYear(year)) {
+                is ApiResult.Success -> {
+                    val data = result.data
+                    val idx = all.indexOfFirst { it.year == year }
+                    if (idx >= 0) all[idx] = data else all.add(data)
+                    changed = true
+                }
+                is ApiResult.Error -> { /* next year may not be published yet, ignore */ }
+            }
         }
-        return false
+        if (changed) {
+            val newFetched = (fetched + targets.map { it.toString() }).joinToString(",")
+            context.holidayDataStore.edit { p ->
+                p[KEY_HOLIDAY_DATA] = json.encodeToString(all)
+                p[KEY_HOLIDAY_FETCHED_FOR] = newFetched
+            }
+            cache = null // force reload next time
+        }
+        return changed
     }
 
     /** Is this date a statutory working day (includes makeup work weekends)? */

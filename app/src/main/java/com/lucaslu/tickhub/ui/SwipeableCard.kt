@@ -54,7 +54,7 @@ fun SwipeableCard(
     )
     val cardColor by animateColorAsState(
         if (selected) MaterialTheme.colorScheme.primaryContainer
-        else MaterialTheme.colorScheme.surfaceContainerLow
+        else MaterialTheme.colorScheme.surfaceContainer
     )
     SwipeToDismissBox(
         state = dismissState,

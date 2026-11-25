@@ -50,6 +50,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val logs = repository.logs
     val networkWaitMinutes = repository.networkWaitMinutes
     val loggedInUser = repository.loggedInUser
+    val avatarUrl = repository.avatarUrl
 
     private val _login = MutableStateFlow(LoginUiState(isLoggedIn = tokenStore.getToken() != null))
     val login: StateFlow<LoginUiState> = _login.asStateFlow()
@@ -112,7 +113,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             tokenStore.saveToken(poll.token)
                             val userResult = api.getCurrentUser(poll.token)
                             val loginName = if (userResult is ApiResult.Success) userResult.data.login else "GitHub 用户"
-                            repository.saveUser(loginName)
+                            val avatarUrl = if (userResult is ApiResult.Success) userResult.data.avatarUrl else null
+                            repository.saveUser(loginName, avatarUrl)
                             AppLogger.i("Auth", "LOGIN OK user=$loginName")
                             _login.value = LoginUiState(isLoggedIn = true, status = "登录成功：$loginName")
                             return
@@ -294,9 +296,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Refresh holiday data from GitHub (best effort). */
     fun refreshHolidays() {
         viewModelScope.launch {
-            val year = java.time.LocalDate.now().year
-            val ok = com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication(), year)
-            AppLogger.i("Holiday", "refresh $year result=$ok")
+            val ok = com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication())
+            AppLogger.i("Holiday", "refresh current+next year result=$ok")
         }
     }
 }

@@ -34,15 +34,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.lucaslu.tickhub.data.ScanSnapshot
 import com.lucaslu.tickhub.data.WorkflowItem
+import com.lucaslu.tickhub.util.Haptics
+
+private fun hapticTick(context: android.content.Context) = Haptics.tick(context)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReposScreen(vm: AppViewModel) {
     val snapshot by vm.snapshot.collectAsState(initial = ScanSnapshot())
     val user by vm.loggedInUser.collectAsState(initial = null)
+    val avatar by vm.avatarUrl.collectAsState(initial = null)
     val state by vm.repo.collectAsState()
 
     var multiSelect by remember { mutableStateOf(false) }
@@ -53,19 +59,7 @@ fun ReposScreen(vm: AppViewModel) {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primaryContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                (user ?: "?").take(1).uppercase(),
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                        }
+                        AvatarImage(url = avatar, name = user ?: "?")
                         Spacer(Modifier.padding(8.dp))
                         Text(user ?: "未登录", style = MaterialTheme.typography.titleMedium)
                     }
@@ -91,11 +85,11 @@ fun ReposScreen(vm: AppViewModel) {
                 enabled = !state.scanning,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
             ) {
-                if (state.scanning) {
-                    CircularProgressIndicator(modifier = Modifier.height(16.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.padding(4.dp))
-                }
                 Text(if (state.scanning) "扫描中…" else "扫描仓库与工作流")
+                if (state.scanning) {
+                    Spacer(Modifier.padding(4.dp))
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                }
             }
 
             state.message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -157,6 +151,7 @@ private fun RepoCardContent(
     onWorkflowToggle: (Long, Boolean) -> Unit,
     onTriggerWorkflow: (WorkflowItem) -> Unit
 ) {
+    val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -171,7 +166,11 @@ private fun RepoCardContent(
                 Spacer(Modifier.padding(12.dp))
                 Text("全选", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.padding(4.dp))
-                Switch(checked = managed, onCheckedChange = onManagedChange)
+                Switch(
+                    checked = managed,
+                    onCheckedChange = { onManagedChange(it); hapticTick(context) },
+                    modifier = Modifier.scale(0.82f)
+                )
             }
             if (expanded) {
                 Spacer(Modifier.height(8.dp))
