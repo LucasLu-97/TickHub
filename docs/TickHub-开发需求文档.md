@@ -9,7 +9,7 @@
 | 决策记录 | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release |
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
-| 最新测试版 | v0.7.1-beta15（单层导航消除白块 + 浮动半透明tab + 图标语义化），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.7.1-beta15 |
+| 最新测试版 | v0.7.2-beta16（修复顶栏消失 + 实色底栏 + 官方Material线条图标 + 删除图标居中），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.7.2-beta16 |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
 | 计划仓库 | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1） |
