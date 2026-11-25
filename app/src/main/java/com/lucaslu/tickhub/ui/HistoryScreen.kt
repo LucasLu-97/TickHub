@@ -44,6 +44,10 @@ fun HistoryScreen(vm: AppViewModel) {
         topBar = {
             androidx.compose.material3.TopAppBar(
                 modifier = Modifier.height(48.dp),
+                colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background
+                ),
                 title = { Text("触发历史") },
                 actions = {
                     if (multiSelect) {
@@ -60,7 +64,7 @@ fun HistoryScreen(vm: AppViewModel) {
             )
         }
     ) { pad ->
-        Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp)) {
+        Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(bottom = 72.dp)) {
         Text("最近 ${logs.size} 条记录", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
 

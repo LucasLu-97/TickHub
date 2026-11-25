@@ -8,14 +8,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -25,7 +26,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -79,9 +82,29 @@ private fun TickHubApp() {
             return@TickHubTheme
         }
 
-        Scaffold(
-            bottomBar = {
-                NavigationBar {
+        // Single-layer structure: grey root, full-screen content, floating translucent tab bar.
+        // (A nested Scaffold here used to paint a white surface over status bar / tab area.)
+        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+            when (tab) {
+                0 -> ReposScreen(vm)
+                1 -> RulesScreen(vm)
+                2 -> HistoryScreen(vm)
+                3 -> SettingsScreen(vm, onOpenLogs = { showLogs = true })
+            }
+
+            if (showLogs) {
+                LogScreen(onBack = { showLogs = false })
+            } else {
+                // floating translucent NavigationBar: content scrolls underneath, like MIUI
+                NavigationBar(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .graphicsLayer(alpha = 0.86f),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.82f),
+                    tonalElevation = 0.dp
+                ) {
                     val items = listOf("仓库", "规则", "历史", "设置")
                     items.forEachIndexed { index, label ->
                         NavigationBarItem(
@@ -101,18 +124,6 @@ private fun TickHubApp() {
                             label = { Text(label, style = MaterialTheme.typography.labelSmall) }
                         )
                     }
-                }
-            }
-        ) { padding ->
-            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                when (tab) {
-                    0 -> ReposScreen(vm)
-                    1 -> RulesScreen(vm)
-                    2 -> HistoryScreen(vm)
-                    3 -> SettingsScreen(vm, onOpenLogs = { showLogs = true })
-                }
-                if (showLogs) {
-                    LogScreen(onBack = { showLogs = false })
                 }
             }
         }

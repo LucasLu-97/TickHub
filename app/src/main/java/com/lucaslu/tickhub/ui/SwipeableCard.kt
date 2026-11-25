@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -64,13 +65,14 @@ fun SwipeableCard(
 
     Box(modifier = modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(12.dp))) {
         // delete icon revealed behind the card (no colored strip), centered in the revealed area
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.End
-        ) {
-            IconButton(onClick = { onDelete() }, modifier = Modifier.width(deleteWidth)) {
-                DeleteLineIcon(tint = MaterialTheme.colorScheme.error)
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+            Box(
+                modifier = Modifier.width(deleteWidth).fillMaxHeight(),
+                contentAlignment = Alignment.Center
+            ) {
+                IconButton(onClick = { onDelete() }) {
+                    DeleteLineIcon(tint = MaterialTheme.colorScheme.error)
+                }
             }
         }
         // foreground card

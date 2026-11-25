@@ -98,6 +98,10 @@ fun RulesScreen(vm: AppViewModel) {
         topBar = {
             androidx.compose.material3.TopAppBar(
                 modifier = Modifier.height(48.dp),
+                colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background
+                ),
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("触发规则")
@@ -124,7 +128,7 @@ fun RulesScreen(vm: AppViewModel) {
             )
         }
     ) { pad ->
-        Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp)) {
+        Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(bottom = 72.dp)) {
         if (selectedWorkflows.isEmpty()) {
             Spacer(Modifier.height(16.dp))
             Text("请先在「仓库」页勾选要纳管的工作流，再来创建规则。", color = MaterialTheme.colorScheme.onSurfaceVariant)

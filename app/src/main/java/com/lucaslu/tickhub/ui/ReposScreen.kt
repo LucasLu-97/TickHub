@@ -73,6 +73,10 @@ fun ReposScreen(vm: AppViewModel) {
         topBar = {
             TopAppBar(
                 modifier = Modifier.height(48.dp),
+                colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background
+                ),
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         AvatarImage(url = avatar, name = user ?: "?")
@@ -95,7 +99,7 @@ fun ReposScreen(vm: AppViewModel) {
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp)) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp).padding(bottom = 72.dp)) {
             PullToRefreshBox(isRefreshing = refreshing, onRefresh = { vm.refreshProfile() }) {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     item {
