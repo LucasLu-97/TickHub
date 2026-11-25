@@ -1,6 +1,5 @@
 package com.lucaslu.tickhub.ui
 
-import androidx.compose.foundation.animateItem
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -145,7 +144,7 @@ fun ReposScreen(vm: AppViewModel) {
                     items(reorder.items, key = { it.id }) { repo ->
                         val wfs = snapshot.workflows.filter { it.repoId == repo.id && it.state == "active" }
                         SwipeableCard(
-                            modifier = Modifier.fillMaxWidth().animateItem(),
+                            modifier = Modifier.fillMaxWidth(),
                             onDelete = { vm.removeRepo(repo.id) },
                             onClick = {
                                 if (!multiSelect) {

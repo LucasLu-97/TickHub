@@ -27,7 +27,6 @@ import androidx.compose.material3.TextButton
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import androidx.compose.foundation.animateItem
 
 private val fmt = SimpleDateFormat("MM-dd HH:mm:ss", Locale.getDefault())
 
@@ -39,10 +38,10 @@ fun HistoryScreen(vm: AppViewModel) {
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var orderLoaded by remember { mutableStateOf(false) }
 
-    val reorder = rememberReorderController<String>(
-        keyOf = { it },
+    val reorder = rememberReorderController<TriggerLog>(
+        keyOf = { it.id },
         itemHeightDp = 132.dp,
-        onCommit = { ids -> vm.saveOrder("logs", ids) }
+        onCommit = { list -> vm.saveOrder("logs", list.map { it.id }) }
     )
 
     LaunchedEffect(Unit) {
@@ -92,9 +91,7 @@ fun HistoryScreen(vm: AppViewModel) {
             ) {
                 items(reorder.items, key = { it.id }) { log ->
                     SwipeableCard(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .animateItem(),
+                        modifier = Modifier.fillMaxWidth(),
                         onDelete = { vm.deleteLog(log.id) },
                         onClick = {
                             if (multiSelect) {

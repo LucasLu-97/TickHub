@@ -1,6 +1,5 @@
 package com.lucaslu.tickhub.ui
 
-import androidx.compose.foundation.animateItem
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -142,7 +141,7 @@ fun RulesScreen(vm: AppViewModel) {
                     } else {
                         androidx.compose.material3.IconButton(onClick = { creating = true }, enabled = selectedWorkflows.isNotEmpty()) {
                             androidx.compose.material3.Icon(
-                                imageVector = androidx.compose.material.icons.Icons.Default.Add,
+                                imageVector = androidx.compose.material.icons.Icons.Outlined.Add,
                                 contentDescription = "新建规则"
                             )
                         }
@@ -175,7 +174,7 @@ fun RulesScreen(vm: AppViewModel) {
                 }
                 items(repoRules, key = { it.id }) { rule ->
                     SwipeableCard(
-                        modifier = Modifier.fillMaxWidth().animateItem(),
+                        modifier = Modifier.fillMaxWidth(),
                         onDelete = { vm.deleteRule(rule.id) },
                         onClick = {
                             if (multiSelect) {
