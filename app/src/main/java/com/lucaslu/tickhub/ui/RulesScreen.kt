@@ -57,6 +57,7 @@ fun RulesScreen(vm: AppViewModel) {
     var creating by remember { mutableStateOf(false) }
     var multiSelect by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
+    var confirmTrigger by remember { mutableStateOf<Rule?>(null) }
 
     val selectedWorkflows = snapshot.workflows.filter { it.selected }
     val repoNames = snapshot.repos.associateBy { it.id }
@@ -78,6 +79,18 @@ fun RulesScreen(vm: AppViewModel) {
             onCancel = { creating = false; editing = null }
         )
         return
+    }
+
+    confirmTrigger?.let { ruleToTrigger ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmTrigger = null },
+            title = { Text("确认立即触发") },
+            text = { Text("将立即触发「${ruleToTrigger.workflowNames.joinToString("、").ifBlank { ruleToTrigger.workflowName }}」，确定继续？") },
+            confirmButton = {
+                TextButton(onClick = { vm.triggerNow(ruleToTrigger); confirmTrigger = null }) { Text("确认触发") }
+            },
+            dismissButton = { TextButton(onClick = { confirmTrigger = null }) { Text("取消") } }
+        )
     }
 
     Scaffold(
@@ -117,7 +130,7 @@ fun RulesScreen(vm: AppViewModel) {
         Spacer(Modifier.height(12.dp))
 
         // group by repo
-        val grouped = rules.groupBy { it.repoFullName.ifBlank { "未分类" } }
+        val grouped = rules.groupBy { it.repoFullName.split("/").lastOrNull().takeUnless { it.isNullOrBlank() } ?: "未分类" }
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             grouped.forEach { (repoName, repoRules) ->
                 item(key = "header-$repoName") {
@@ -151,7 +164,7 @@ fun RulesScreen(vm: AppViewModel) {
                                     rule = rule,
                                     onToggle = { vm.setRuleEnabled(rule.id, it) },
                                     onEdit = { editing = rule },
-                                    onTriggerNow = { vm.triggerNow(rule) },
+                                    onTriggerNow = { confirmTrigger = rule },
                                     runningStart = if (showExec) running[rule.id] else null
                                 )
                             }
@@ -193,10 +206,10 @@ private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () 
         }
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Switch(
+            MiuixSwitch(
                 checked = rule.status == RuleStatus.ENABLED,
-                onCheckedChange = { onToggle(it); com.lucaslu.tickhub.util.Haptics.tick(context) },
-                modifier = Modifier.padding(end = 8.dp).graphicsLayer(scaleY = 0.72f)
+                onCheckedChange = onToggle,
+                modifier = Modifier.padding(end = 8.dp)
             )
             Text("启用", style = MaterialTheme.typography.labelMedium)
             if (runningStart != null) {

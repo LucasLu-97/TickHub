@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -61,15 +62,15 @@ fun SwipeableCard(
         else MaterialTheme.colorScheme.surfaceContainer
     )
 
-    Box(modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))) {
-        // red reveal strip behind the card, strictly clipped to rounded shape
+    Box(modifier = modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(12.dp))) {
+        // delete icon revealed behind the card (no colored strip), centered in the revealed area
         Row(
-            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer),
+            modifier = Modifier.fillMaxSize(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.End
         ) {
             IconButton(onClick = { onDelete() }, modifier = Modifier.width(deleteWidth)) {
-                DeleteLineIcon(tint = MaterialTheme.colorScheme.onErrorContainer)
+                DeleteLineIcon(tint = MaterialTheme.colorScheme.error)
             }
         }
         // foreground card

@@ -51,6 +51,22 @@ fun ReposScreen(vm: AppViewModel) {
     var multiSelect by remember { mutableStateOf(false) }
     var selectedRepoIds by remember { mutableStateOf(setOf<Long>()) }
     var expandedRepo by rememberSaveable { mutableStateOf<Long?>(null) }
+    var confirmWf by remember { mutableStateOf<Pair<String, WorkflowItem>?>(null) }
+
+    confirmWf?.let { (fullName, wf) ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmWf = null },
+            title = { Text("确认立即触发") },
+            text = { Text("将立即触发工作流「${wf.name}」，确定继续？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.triggerWorkflowNow(fullName, wf.id, wf.name)
+                    confirmWf = null
+                }) { Text("确认触发") }
+            },
+            dismissButton = { TextButton(onClick = { confirmWf = null }) { Text("取消") } }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -138,7 +154,7 @@ fun ReposScreen(vm: AppViewModel) {
                                         selectedIds = wfs.filter { it.selected }.map { it.id }.toSet(),
                                         onManagedChange = { vm.toggleManaged(repo.id, it) },
                                         onWorkflowToggle = { id, checked -> vm.toggleWorkflow(id, checked) },
-                                        onTriggerWorkflow = { wf -> vm.triggerWorkflowNow(repo.fullName, wf.id, wf.name) }
+                                        onTriggerWorkflow = { wf -> confirmWf = repo.fullName to wf }
                                     )
                                 }
                             )
@@ -169,7 +185,7 @@ private fun RepoCardContent(
             Column(modifier = Modifier.weight(1f)) {
                 Text(repoName, style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "${if (private) "私有" else "公开"} · ${workflows.size} 个工作流",
+                    "${if (private) "私有" else "公开"} · ${selectedIds.size}/${workflows.size} 工作流",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -177,11 +193,7 @@ private fun RepoCardContent(
             Spacer(Modifier.padding(12.dp))
             Text("全选", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.padding(4.dp))
-            Switch(
-                checked = managed,
-                onCheckedChange = { onManagedChange(it); cardHaptic() },
-                modifier = Modifier.graphicsLayer(scaleY = 0.72f)
-            )
+            MiuixSwitch(checked = managed, onCheckedChange = { onManagedChange(it) })
         }
         if (expanded) {
             Spacer(Modifier.height(8.dp))

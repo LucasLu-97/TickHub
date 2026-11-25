@@ -106,14 +106,17 @@ private fun DrawScope.drawLog(c: Color, w: Float) {
 }
 
 private fun DrawScope.drawSettings(c: Color, w: Float) {
-    // three horizontal sliders (settings/tune icon), distinct from a sun
-    val left = size.width * 0.18f
-    val right = size.width * 0.82f
-    val ys = listOf(size.height * 0.3f, size.height * 0.5f, size.height * 0.7f)
-    val knobs = listOf(0.35f, 0.65f, 0.45f)
-    ys.forEachIndexed { i, y ->
-        drawLine(color = c, start = Offset(left, y), end = Offset(right, y), strokeWidth = w)
-        val kx = left + (right - left) * knobs[i]
-        drawCircle(color = c, radius = w * 2.2f, center = Offset(kx, y))
+    // gear outline (settings cog)
+    val cx = size.width / 2
+    val cy = size.height / 2
+    val r = minOf(size.width, size.height) * 0.34f
+    drawCircle(color = c, radius = r * 0.42f, center = Offset(cx, cy), style = Stroke(w))
+    for (i in 0..7) {
+        val angle = i * 45f * kotlin.math.PI.toFloat() / 180f
+        val sx = cx + cos(angle) * r * 0.62f
+        val sy = cy + sin(angle) * r * 0.62f
+        val ex = cx + cos(angle) * r * 0.92f
+        val ey = cy + sin(angle) * r * 0.92f
+        drawLine(color = c, start = Offset(sx, sy), end = Offset(ex, ey), strokeWidth = w * 1.4f)
     }
 }

@@ -110,23 +110,25 @@ private fun LogCardContent(log: TriggerLog) {
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.weight(1f)
             )
-            if (log.durationMs > 0) {
-                val s = log.durationMs / 1000
-                Text(
-                    "${(s / 60).toString().padStart(2, '0')}m${(s % 60).toString().padStart(2, '0')}s",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-            }
             Text(label, color = color, style = MaterialTheme.typography.labelLarge)
         }
         if (log.repoFullName.isNotBlank()) {
-            Text(log.repoFullName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(log.repoFullName.split("/").lastOrNull() ?: log.repoFullName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.height(4.dp))
         Text("计划：${fmt.format(Date(log.plannedAt))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        log.firedAt?.let { Text("实际：${fmt.format(Date(it))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            log.firedAt?.let { Text("实际：${fmt.format(Date(it))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f)) }
+                ?: Spacer(Modifier.weight(1f))
+            if (log.durationMs > 0) {
+                val s = log.durationMs / 1000
+                Text(
+                    "耗时 ${(s / 60).toString().padStart(2, '0')}m${(s % 60).toString().padStart(2, '0')}s",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
         log.errorMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
     }
 }

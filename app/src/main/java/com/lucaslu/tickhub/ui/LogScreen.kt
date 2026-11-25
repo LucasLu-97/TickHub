@@ -43,7 +43,7 @@ fun LogScreen() {
             androidx.compose.material3.TopAppBar(title = { Text("调试日志") })
         }
     ) { pad ->
-    Column(modifier = Modifier.fillMaxSize().padding(pad).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(top = 4.dp)) {
         Text("记录闹钟注册/触发、网络等待、dispatch 全过程，可导出分析故障", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
 

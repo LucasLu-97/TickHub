@@ -66,7 +66,7 @@ fun SettingsScreen(vm: AppViewModel) {
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp).padding(top = 4.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
             fun setHaptic(enabled: Boolean) { vm.setShowExecutionStatus(enabled); com.lucaslu.tickhub.util.Haptics.tick(context) }
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -122,11 +122,7 @@ fun SettingsScreen(vm: AppViewModel) {
                             Text("执行状态监测", style = MaterialTheme.typography.titleMedium)
                             Text("触发时显示转圈与已用时长；仅前台刷新，不额外耗电", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Switch(
-                            checked = showExec,
-                            onCheckedChange = { setHaptic(it) },
-                            modifier = Modifier.graphicsLayer(scaleY = 0.72f)
-                        )
+                        MiuixSwitch(checked = showExec, onCheckedChange = { setHaptic(it) })
                     }
                 }
             }
