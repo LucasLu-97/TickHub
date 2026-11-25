@@ -141,7 +141,7 @@ fun RulesScreen(vm: AppViewModel) {
                     } else {
                         androidx.compose.material3.IconButton(onClick = { creating = true }, enabled = selectedWorkflows.isNotEmpty()) {
                             androidx.compose.material3.Icon(
-                                imageVector = androidx.compose.material.icons.Icons.Outlined.Add,
+                                imageVector = androidx.compose.material.icons.filled.Add,
                                 contentDescription = "新建规则"
                             )
                         }
