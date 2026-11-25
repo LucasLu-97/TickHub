@@ -9,7 +9,7 @@
 | 决策记录 | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release |
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
-| 最新测试版 | v0.7.2-beta16（修复顶栏消失 + 实色底栏 + 官方Material线条图标 + 删除图标居中），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.7.2-beta16 |
+| 最新测试版 | v0.7.3-beta17（追踪期持续转圈计时 + 底栏融合手势区 + 分隔线 + 震动开关），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.7.3-beta17 |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
 | 计划仓库 | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1） |
@@ -872,7 +872,9 @@ local.properties
 3. 用 run 的 `run_started_at` 到 `updated_at` 算真实时长，回填历史日志 `durationMs`、最终状态（success/failure），并发通知栏通知。
 4. **资源评估**：每次查询是一次短暂 Worker 唤醒（间隔 30 秒），**不是**前台服务或常驻轮询，不持 WakeLock，耗电可忽略；设置页「执行结果与通知」开关可整体关闭（默认开）。
 
-历史卡片在追踪完成前显示「执行中」，完成后显示真实耗时与成功/失败。
+历史卡片在追踪完成前显示「执行中」并实时递增计时（从 firedAt 起每秒刷新），完成后显示真实耗时与成功/失败。**规则页转圈数据源 `runningExecutions` 合并了 Worker 运行窗口与所有 `tracking=true` 的日志**，所以转圈和计时在整个真实执行期间（数分钟）持续显示，不会在 dispatch 的几秒后消失。
+
+**底栏设计**：底栏白色 surface 通过外层 Box 延伸到系统手势条区域（消除灰条），顶部加一条淡色分隔线，避免白色历史卡片滑到底时与白底栏融为一体；列表底部留白加大到 96dp 确保最后一项不被遮挡。
 
 ## 20. 多时段触发与执行状态（M7）
 
