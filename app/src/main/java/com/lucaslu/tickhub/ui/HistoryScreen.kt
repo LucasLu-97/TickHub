@@ -129,7 +129,7 @@ private fun LogCardContent(log: TriggerLog) {
                 ?: Spacer(Modifier.weight(1f))
             if (log.tracking) {
                 Text("耗时 ", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                ElapsedText(startAt = log.firedAt)
+                ElapsedText(startAt = log.firedAt ?: log.plannedAt)
             } else if (log.durationMs > 0) {
                 val s = log.durationMs / 1000
                 Text(

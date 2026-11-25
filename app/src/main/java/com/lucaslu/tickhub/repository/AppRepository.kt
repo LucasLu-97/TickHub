@@ -185,7 +185,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         // merge in every log whose GitHub run is still executing
         readLogs(prefs).filter { it.tracking }.forEach { log ->
             val existing = result[log.ruleId]
-            val start = log.firedAt
+            val start = log.firedAt ?: 0L
             if (existing == null || start < existing) result[log.ruleId] = start
         }
         result
