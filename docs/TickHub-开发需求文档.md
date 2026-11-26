@@ -9,7 +9,7 @@
 | 决策记录 | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release |
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
-| 最新测试版 | v1.0.14-beta32（按用户要求回退到beta24稳定拖拽：每组ReorderableColumn原生拖动，移除手动滚动/空气墙裁剪；保留放下震动1次），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.14-beta32 |
+| 最新测试版 | v1.0.15-beta33（仓库页拖动越过卡片震动补回；规则页落下震动改到松手瞬间即时触发），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.15-beta33 |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
 | 计划仓库 | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1） |
@@ -877,6 +877,7 @@ local.properties
 - **最终形态（beta30，用户明确目标）**：规则页单个 LazyColumn 把**所有仓库组全部平铺**（header + 卡片都在一个列表）；拖动某组卡片时把其他组卡片 `ReorderableItem(enabled=false)`（库源码：enabled=false 的 item 不进 reorderableKeys，不会被当作交换目标和滚动终点），从而库层面锁死组边界——卡到达本组第一行/最后一行后库停止滚动，但整页仍是同一个列表自然上下移动。onMove 直接交换（库预测正确无弹跳）。**震动：放下时 1 次**（onDragStarted/onDragStopped 各 tick 一次，onMove 不 tick）。弃用分组独立滚动窗口（用户要求全平铺）。
 - **组边界精确停滚（beta31）**：库 scroller 只按整个列表边界停（源码 Scroller.kt 的 canScroll + maxScrollDistance），不认组边界。禁用库 scroller（`scrollThreshold=0.dp`），自实现边缘滚动：拖拽期间手指在顶/底 96dp 内时 `lazyListState.dispatchRawDelta` 滚动列表（库 draggingItemOffset 公式 = 手指位移+(初始位置-当前位置)，会自动补偿滚动，卡片稳跟手指不掉落）；每滚过一个卡片高度 55% 就把被拖卡片和组内相邻卡交换（哒哒哒）；到达本组第一行/最后一行 gi 到边界即停止滚动，即使手指仍在顶底栏。
 - **回退 beta24（beta32）**：beta25–31 的边缘滚动改造越做越差，用户明确要求回退。从 GitHub commit `1a1166e`（beta24）取回 RulesScreen.kt / ReposScreen.kt / SwipeableCard.kt 三个文件完全恢复（每组独立 ReorderableColumn 原生拖动、组名正常、无手动滚动、无 clipToBounds 空气墙）；仅保留一处后续修复：去掉 onDragStopped 的重复震动，放下只震 1 次（onSettle 那次）。数字等宽字体在 Theme.kt 未动，保留。
+- **震动修正（beta33）**：仓库页 reorderState 的 onMove 里补回 `haptic()`（拖过的卡片越过另一张时 tick）；规则页落下震动从 `onSettle`（库落位动画完成后才回调，延迟明显）移到 `onDragStopped`（松手瞬间即时），仍只震 1 次。
 - **边缘自动滚动 + 空气墙（beta25/26/27）**：组内卡片超出一页时，拖到屏幕上下边缘会自动滚动外层列表。ReorderableColumn 无原生边缘滚动，故外层 Column 用 `awaitPointerEvent(Initial)` 观察手指 Y（不消费事件），拖拽期间协程每 16ms 滚动。beta26 修正坐标基准绑固定视口。beta27 加**空气墙**：用 `onGloballyPositioned` 记录每组在滚动内容中的 top/bottom，拖拽时只在本组范围内滚动（组名 header 触顶/组底触底即停），不会把整个页面滚走；卡片本身由库的独立组容器限制不能跨组。数字用等宽字形：主题 typography 全体加 `fontFeatureSettings="tnum"`（tabular numbers，仅数字等宽，中文不受影响）。
 - **新增仓库**：扫描到的新仓库追加到列表末尾。
 
