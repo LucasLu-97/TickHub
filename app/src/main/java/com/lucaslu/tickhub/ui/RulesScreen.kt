@@ -51,6 +51,7 @@ private val TYPE_LABELS = mapOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RulesScreen(vm: AppViewModel) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val rules by vm.rules.collectAsState(initial = emptyList())
     val snapshot by vm.snapshot.collectAsState(initial = com.lucaslu.tickhub.data.ScanSnapshot())
     val running by vm.runningExecutions.collectAsState(initial = emptyMap())
@@ -133,7 +134,7 @@ fun RulesScreen(vm: AppViewModel) {
             title = { Text("确认立即触发") },
             text = { Text("将立即触发「${ruleToTrigger.workflowNames.joinToString("、").ifBlank { ruleToTrigger.workflowName }}」，确定继续？") },
             confirmButton = {
-                TextButton(onClick = { Haptics.tick(androidx.compose.ui.platform.LocalContext.current); vm.triggerNow(ruleToTrigger); confirmTrigger = null }) { Text("确认触发") }
+                TextButton(onClick = { Haptics.tick(context); vm.triggerNow(ruleToTrigger); confirmTrigger = null }) { Text("确认触发") }
             },
             dismissButton = { TextButton(onClick = { confirmTrigger = null }) { Text("取消") } }
         )
@@ -167,7 +168,7 @@ fun RulesScreen(vm: AppViewModel) {
                         }) { Text("删除") }
                         TextButton(onClick = { multiSelect = false; selectedIds = emptySet() }) { Text("取消") }
                     } else {
-                        androidx.compose.material3.IconButton(onClick = { Haptics.tick(androidx.compose.ui.platform.LocalContext.current); creating = true }, enabled = selectedWorkflows.isNotEmpty()) {
+                        androidx.compose.material3.IconButton(onClick = { Haptics.tick(context); creating = true }, enabled = selectedWorkflows.isNotEmpty()) {
                             Text("＋", style = MaterialTheme.typography.titleLarge)
                         }
                     }
@@ -218,16 +219,16 @@ fun RulesScreen(vm: AppViewModel) {
                                 dragging = isDragging,
                                 dragHandle = if (canDrag) with(this) {
                                     Modifier.longPressDraggableHandle(
-                                        onDragStarted = { Haptics.tick(androidx.compose.ui.platform.LocalContext.current) },
-                                        onDragStopped = { Haptics.tick(androidx.compose.ui.platform.LocalContext.current) }
+                                        onDragStarted = { Haptics.tick(context) },
+                                        onDragStopped = { Haptics.tick(context) }
                                     )
                                 } else Modifier,
                                 content = {
                                     RuleCardContent(
                                         rule = rule,
-                                        onToggle = { Haptics.tick(androidx.compose.ui.platform.LocalContext.current); vm.setRuleEnabled(rule.id, it) },
-                                        onEdit = { Haptics.tick(androidx.compose.ui.platform.LocalContext.current); editing = rule },
-                                        onTriggerNow = { Haptics.tick(androidx.compose.ui.platform.LocalContext.current); confirmTrigger = rule },
+                                        onToggle = { Haptics.tick(context); vm.setRuleEnabled(rule.id, it) },
+                                        onEdit = { Haptics.tick(context); editing = rule },
+                                        onTriggerNow = { Haptics.tick(context); confirmTrigger = rule },
                                         runningStart = if (showExec) running[rule.id] else null
                                     )
                                 }

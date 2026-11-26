@@ -33,6 +33,7 @@ private val fmt = SimpleDateFormat("MM-dd HH:mm:ss", Locale.getDefault())
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(vm: AppViewModel) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val logs by vm.logs.collectAsState(initial = emptyList())
     var multiSelect by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
@@ -49,7 +50,7 @@ fun HistoryScreen(vm: AppViewModel) {
                 actions = {
                     if (multiSelect) {
                         TextButton(onClick = {
-                            com.lucaslu.tickhub.util.Haptics.tick(androidx.compose.ui.platform.LocalContext.current)
+                            com.lucaslu.tickhub.util.Haptics.tick(context)
                             selectedIds = if (selectedIds.size == logs.size) emptySet() else logs.map { it.id }.toSet()
                         }) { Text("全选") }
                         TextButton(onClick = {
