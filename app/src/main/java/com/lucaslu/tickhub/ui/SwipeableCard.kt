@@ -62,7 +62,6 @@ fun SwipeableCard(
     val scope = rememberCoroutineScope()
     var revealed by remember { mutableStateOf(false) }
     var selectRevealed by remember { mutableStateOf(false) }
-    var pressed by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(12.dp)
 
     // select-all from outside: slide every card right into selected state
@@ -121,7 +120,6 @@ fun SwipeableCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
-                .then(dragHandle)
                 .graphicsLayer {
                     alpha = if (dragging) 0.95f else 1f
                     scaleX = if (dragging) 1.02f else 1f
@@ -163,17 +161,17 @@ fun SwipeableCard(
                             } else {
                                 onClick?.invoke()
                             }
-                        },
-                        onLongPress = { pressed = true }
+                        }
                     )
                 },
             shape = shape,
-            colors = CardDefaults.cardColors(
-                containerColor = if (pressed) MaterialTheme.colorScheme.surfaceContainerHighest
-                else MaterialTheme.colorScheme.surfaceContainer
-            )
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
         ) {
-            content()
+            // drag handle lives on an inner element (as in the official demo), so it
+            // doesn't fight the card's horizontal-swipe / tap pointer inputs
+            Box(modifier = Modifier.fillMaxWidth().then(dragHandle)) {
+                content()
+            }
         }
     }
 }
