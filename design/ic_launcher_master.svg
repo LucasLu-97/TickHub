@@ -1,7 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108">
-  <!-- TickHub launcher icon — original clock shape scaled up, GitHub black & white palette -->
+  <!-- TickHub launcher icon — GitHub black & white, clock scaled 1.6 about center -->
   <rect width="108" height="108" fill="#181717"/>
-  <g transform="translate(54,54) scale(1.5) translate(-54,-54)">
-    <path fill="#FFFFFF" d="M54,28a26,26 0 1,0 0,52a26,26 0 1,0 0,-52zM54,36a2,2 0 0,1 2,2v16l12,7a2,2 0 1,1 -2,3.5l-13,-7.5a2,2 0 0,1 -1,-1.7V38a2,2 0 0,1 2,-2z"/>
+  <g transform="translate(54,54) scale(1.6) translate(-54,-54)">
+    <circle cx="54" cy="54" r="26" fill="#FFFFFF"/>
+    <path fill="#181717" d="M54,36a2,2 0 0,1 2,2v16l12,7a2,2 0 1,1 -2,3.5l-13,-7.5a2,2 0 0,1 -1,-1.7V38a2,2 0 0,1 2,-2z"/>
   </g>
 </svg>

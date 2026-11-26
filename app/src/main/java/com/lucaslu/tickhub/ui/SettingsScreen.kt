@@ -74,7 +74,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp).padding(top = 4.dp, bottom = 16.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp).padding(top = 4.dp, bottom = 88.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
             fun setHaptic(enabled: Boolean) { vm.setShowExecutionStatus(enabled); com.lucaslu.tickhub.util.Haptics.tick(context) }
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                 Column(modifier = Modifier.padding(16.dp)) {
