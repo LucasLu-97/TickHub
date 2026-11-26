@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -239,8 +240,8 @@ fun RulesScreen(vm: AppViewModel) {
                 .onGloballyPositioned { contentRootY = it.positionInRoot().y }
         ) {
             groups.forEach { (repoName, groupRules) ->
-                // wrap header + list in a Box to capture this group's bounds in content coords
-                androidx.compose.foundation.layout.Box(
+                // header + list stacked vertically; capture this group's bounds in content coords
+                Column(
                     modifier = Modifier.onGloballyPositioned { coords ->
                         val top = coords.positionInRoot().y - contentRootY
                         groupBounds[repoName] = top to (top + coords.size.height)
@@ -282,7 +283,7 @@ fun RulesScreen(vm: AppViewModel) {
                         vm.saveOrder("rules", orderedRules.map { it.id })
                     }
                 )
-                } // Box
+                } // group Column
             }
         }
         }
@@ -359,7 +360,7 @@ private fun RuleGroupList(
     var groupRules by remember(rules) { mutableStateOf(rules) }
     val canDrag = groupRules.size > 1
     sh.calvin.reorderable.ReorderableColumn(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clipToBounds(),
         list = groupRules,
         onSettle = { fromIndex, toIndex ->
             groupRules = groupRules.toMutableList().apply {
