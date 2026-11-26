@@ -9,7 +9,7 @@
 | 决策记录 | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release |
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
-| 最新测试版 | v1.0.11-beta29（规则页改回库原生LazyList边缘滚动，消除手动滚动导致的卡片掉落；放下震动只1次），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.11-beta29 |
+| 最新测试版 | v1.0.12-beta30（规则页回归单列表全平铺 + 库enabled机制锁组边界 + 放下震动1次），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.12-beta30 |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
 | 计划仓库 | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1） |
@@ -873,7 +873,8 @@ local.properties
 - **历史页**：按时间线排序，不支持长按拖拽（仅保留长按时卡片变暗的按压反馈）。
 - **组内硬边界（beta23/24）**：规则页每个仓库组用独立的拖拽容器，卡片物理上无法被拖出本组，彻底消除越界时的"掉落再跟随"动效；单卡组不给 dragHandle。beta24 修正：容器从固定高度的 LazyColumn 改为库的 **`ReorderableColumn`**（普通 Column，高度 wrap content 自适应），修复卡片被下一组遮挡的问题。仓库页单列表内库原生限制在列表边界内。
 - **真空气墙（beta28）**：库拖拽位移是 internal 无法 clamp，改用 `Modifier.clipToBounds()` 裁剪列表容器——浮起的卡片越出容器边界的部分被裁掉，视觉上被"墙"挡住。仓库页把扫描按钮与"已纳管xxx"文字移出 LazyColumn 固定，卡片列表单独 clip，墙顶正好在"已纳管"文字下方；规则页每组 ReorderableColumn 加 clip。beta27 组名消失是因为用 Box 叠加导致，改回 Column 纵向排列恢复。onMove 索引去掉 header 的 -1 偏移。
-- **规则页回归库原生滚动（beta29）**：手动 `scrollState.scrollTo` 滚动外层页面会被库误判为手指移动、重算拖拽位移导致卡片"掉下去"。彻底删除手动边缘滚动，规则页每组改回 **LazyColumn + rememberReorderableLazyListState**（库原生边缘滚动，与拖拽内部协调），每组固定高度 = min(卡片数,5)*104dp 形成有限视口触发库原生滚动；外层 verticalScroll 仅供浏览各组，不参与拖拽。放下震动去掉 onDragStopped 重复 tick，只 onMove(越过卡片) 触发一次。
+- **规则页回归库原生滚动（beta29）**：手动 `scrollState.scrollTo` 滚动外层页面会被库误判为手指移动、重算拖拽位移导致卡片"掉下去"。彻底删除手动边缘滚动。
+- **最终形态（beta30，用户明确目标）**：规则页单个 LazyColumn 把**所有仓库组全部平铺**（header + 卡片都在一个列表）；拖动某组卡片时把其他组卡片 `ReorderableItem(enabled=false)`（库源码：enabled=false 的 item 不进 reorderableKeys，不会被当作交换目标和滚动终点），从而库层面锁死组边界——卡到达本组第一行/最后一行后库停止滚动，但整页仍是同一个列表自然上下移动。onMove 直接交换（库预测正确无弹跳）。**震动：放下时 1 次**（onDragStarted/onDragStopped 各 tick 一次，onMove 不 tick）。弃用分组独立滚动窗口（用户要求全平铺）。
 - **边缘自动滚动 + 空气墙（beta25/26/27）**：组内卡片超出一页时，拖到屏幕上下边缘会自动滚动外层列表。ReorderableColumn 无原生边缘滚动，故外层 Column 用 `awaitPointerEvent(Initial)` 观察手指 Y（不消费事件），拖拽期间协程每 16ms 滚动。beta26 修正坐标基准绑固定视口。beta27 加**空气墙**：用 `onGloballyPositioned` 记录每组在滚动内容中的 top/bottom，拖拽时只在本组范围内滚动（组名 header 触顶/组底触底即停），不会把整个页面滚走；卡片本身由库的独立组容器限制不能跨组。数字用等宽字形：主题 typography 全体加 `fontFeatureSettings="tnum"`（tabular numbers，仅数字等宽，中文不受影响）。
 - **新增仓库**：扫描到的新仓库追加到列表末尾。
 
