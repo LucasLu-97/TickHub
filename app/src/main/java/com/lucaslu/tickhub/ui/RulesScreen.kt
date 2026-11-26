@@ -259,8 +259,9 @@ private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () 
 }
 
 /**
- * One repo group with its own reorder state. Because each group is a separate
- * LazyColumn, cards can never be dragged outside the group boundary.
+ * One repo group with its own reorder state. Uses ReorderableColumn (plain Column,
+ * height wraps content) so cards are never clipped, while each group stays an
+ * isolated reorder scope — cards physically cannot be dragged outside the group.
  */
 @Composable
 private fun RuleGroupList(
@@ -279,21 +280,21 @@ private fun RuleGroupList(
     onReorder: (List<com.lucaslu.tickhub.data.Rule>) -> Unit
 ) {
     var groupRules by remember(rules) { mutableStateOf(rules) }
-    val lazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
-    val reorderState = sh.calvin.reorderable.rememberReorderableLazyListState(lazyListState) { from, to ->
-        groupRules = groupRules.toMutableList().apply { add(to.index, removeAt(from.index)) }
-        onReorder(groupRules)
-    }
     val canDrag = groupRules.size > 1
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height((groupRules.size * 112).dp),
-        state = lazyListState,
-        userScrollEnabled = false // group list is short; outer column handles scrolling
-    ) {
-        items(groupRules, key = { it.id }) { rule ->
-            ReorderableItem(reorderState, key = rule.id) { isDragging ->
+    sh.calvin.reorderable.ReorderableColumn(
+        modifier = Modifier.fillMaxWidth(),
+        list = groupRules,
+        onSettle = { fromIndex, toIndex ->
+            groupRules = groupRules.toMutableList().apply {
+                add(toIndex, removeAt(fromIndex))
+            }
+            Haptics.tick(context)
+            onReorder(groupRules)
+        },
+        onMove = { Haptics.tick(context) }
+    ) { _, rule, isDragging ->
+        androidx.compose.runtime.key(rule.id) {
+            ReorderableItem {
                 SwipeableCard(
                     modifier = Modifier.fillMaxWidth(),
                     onDelete = { onDelete(rule.id) },
