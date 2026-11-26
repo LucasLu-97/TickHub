@@ -125,7 +125,7 @@ fun RuleEditScreen(
                 Text("时间${idx + 1}：$slot", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                 TextButton(onClick = { editingSlotIndex = idx; Haptics.tick(context) }) { Text("修改") }
                 if (timeSlots.size > 1) {
-                    TextButton(onClick = { timeSlots = timeSlots.filterIndexed { i, _ -> i != idx } }) { Text("移除") }
+                    TextButton(onClick = { Haptics.tick(context); timeSlots = timeSlots.filterIndexed { i, _ -> i != idx } }) { Text("移除") }
                 }
             }
         }
@@ -154,7 +154,7 @@ fun RuleEditScreen(
             Spacer(Modifier.height(4.dp))
         }
         when (type) {
-            RuleType.ONCE -> TextButton(onClick = { dateTarget = "once"; showDate = true }) { Text("日期：$onceDate  修改") }
+            RuleType.ONCE -> TextButton(onClick = { Haptics.tick(context); dateTarget = "once"; showDate = true }) { Text("日期：$onceDate  修改") }
             RuleType.WEEKLY -> {
                 Text("选择星期（可多选）", style = MaterialTheme.typography.labelLarge)
                 Row(modifier = Modifier.fillMaxWidth()) {
@@ -172,8 +172,8 @@ fun RuleEditScreen(
                 }
             }
             RuleType.EVERY_N_DAYS -> {
-                TextButton(onClick = { showInterval = true }) { Text("每隔 $interval 天（1=每天）  修改") }
-                TextButton(onClick = { dateTarget = "start"; showDate = true }) { Text("起始日期：$startDate  修改") }
+                TextButton(onClick = { Haptics.tick(context); showInterval = true }) { Text("每隔 $interval 天（1=每天）  修改") }
+                TextButton(onClick = { Haptics.tick(context); dateTarget = "start"; showDate = true }) { Text("起始日期：$startDate  修改") }
             }
             else -> Unit
         }

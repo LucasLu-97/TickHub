@@ -25,7 +25,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -120,12 +119,7 @@ fun SwipeableCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
-                .graphicsLayer {
-                    alpha = if (dragging) 0.95f else 1f
-                    scaleX = if (dragging) 1.02f else 1f
-                    scaleY = if (dragging) 1.02f else 1f
-                }
-                .then(if (dragging) Modifier.shadow(14.dp, shape, clip = true) else Modifier)
+                .graphicsLayer { alpha = if (dragging) 0.97f else 1f }
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
@@ -165,7 +159,8 @@ fun SwipeableCard(
                     )
                 },
             shape = shape,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            elevation = CardDefaults.cardElevation(defaultElevation = if (dragging) 8.dp else 0.dp)
         ) {
             // drag handle lives on an inner element (as in the official demo), so it
             // doesn't fight the card's horizontal-swipe / tap pointer inputs

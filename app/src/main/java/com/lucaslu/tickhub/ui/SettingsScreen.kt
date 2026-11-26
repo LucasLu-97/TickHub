@@ -42,9 +42,9 @@ import androidx.core.content.getSystemService
 fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
     val context = LocalContext.current
     val themeMode by vm.themeMode.collectAsState()
-    val showExec by vm.showExecutionStatus.collectAsState(initial = true)
-    val runTrack by vm.runTrackingEnabled.collectAsState(initial = true)
-    val haptics by vm.hapticsEnabled.collectAsState(initial = true)
+    val showExec by vm.showExecutionStatusFlow.collectAsState()
+    val runTrack by vm.runTrackingFlow.collectAsState()
+    val haptics by vm.hapticsFlow.collectAsState()
     val pm = context.getSystemService(PowerManager::class.java)
     val batteryOptimized = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
         pm?.isIgnoringBatteryOptimizations(context.packageName) != true
@@ -60,7 +60,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                 ),
                 title = { Text("设置") },
                 actions = {
-                    IconButton(onClick = { vm.cycleTheme() }) {
+                    IconButton(onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); vm.cycleTheme() }) {
                         Text(
                             when (themeMode) {
                                 0 -> "☀"   // light
@@ -90,11 +90,11 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                     Spacer(Modifier.height(12.dp))
                     Row {
                         Button(
-                            onClick = { openBatterySettings(context) },
+                            onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); openBatterySettings(context) },
                             modifier = Modifier.weight(1f).padding(end = 4.dp)
                         ) { Text("电池无限制") }
                         OutlinedButton(
-                            onClick = { openAppDetails(context) },
+                            onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); openAppDetails(context) },
                             modifier = Modifier.weight(1f).padding(start = 4.dp)
                         ) { Text("自启动设置") }
                     }
@@ -116,7 +116,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                         )
                         if (!canExact) {
                             Spacer(Modifier.height(8.dp))
-                            Button(onClick = { openExactAlarmSettings(context) }) { Text("去开启精确闹钟") }
+                            Button(onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); openExactAlarmSettings(context) }) { Text("去开启精确闹钟") }
                         }
                     }
                 }
@@ -143,7 +143,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                             Text("执行结果通知", style = MaterialTheme.typography.titleMedium)
                             Text("任务完成后通知成功或失败，并显示真实用时", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        MiuixSwitch(checked = runTrack, onCheckedChange = { vm.setRunTrackingEnabled(it) })
+                        MiuixSwitch(checked = runTrack, onCheckedChange = { vm.setRunTrackingEnabled(it); com.lucaslu.tickhub.util.Haptics.tick(context) })
                     }
                 }
             }
@@ -156,7 +156,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                             Text("触感反馈", style = MaterialTheme.typography.titleMedium)
                             Text("开关、滑动、拨轮、页面切换的短震动反馈", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        MiuixSwitch(checked = haptics, onCheckedChange = { vm.setHapticsEnabled(it) })
+                        MiuixSwitch(checked = haptics, onCheckedChange = { vm.setHapticsEnabled(it); com.lucaslu.tickhub.util.Haptics.tick(context) })
                     }
                 }
             }
@@ -175,7 +175,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
             }
             Spacer(Modifier.height(16.dp))
 
-            Card(modifier = Modifier.fillMaxWidth().clickable { onOpenLogs?.invoke() }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Card(modifier = Modifier.fillMaxWidth().clickable { com.lucaslu.tickhub.util.Haptics.tick(context); onOpenLogs?.invoke() }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("调试日志", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
@@ -185,7 +185,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
             Spacer(Modifier.height(24.dp))
 
             OutlinedButton(
-                onClick = { vm.logout() },
+                onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); vm.logout() },
                 modifier = Modifier.fillMaxWidth()
             ) { Text("退出登录", color = MaterialTheme.colorScheme.primary) }
         }

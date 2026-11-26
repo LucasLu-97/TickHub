@@ -55,7 +55,7 @@ fun RulesScreen(vm: AppViewModel) {
     val rules by vm.rules.collectAsState(initial = emptyList())
     val snapshot by vm.snapshot.collectAsState(initial = com.lucaslu.tickhub.data.ScanSnapshot())
     val running by vm.runningExecutions.collectAsState(initial = emptyMap())
-    val showExec by vm.showExecutionStatus.collectAsState(initial = true)
+    val showExec by vm.showExecutionStatusFlow.collectAsState()
 
     var editing by remember { mutableStateOf<Rule?>(null) }
     var creating by remember { mutableStateOf(false) }
@@ -76,14 +76,15 @@ fun RulesScreen(vm: AppViewModel) {
         orderedRules = vm.applyOrder(rules, savedRuleOrder) { it.id }
     }
 
-    // flat slots mirror the LazyColumn: "h:<group>" headers and rule ids
-    var slots by remember { mutableStateOf<List<String>>(emptyList()) }
-    LaunchedEffect(orderedRules, repoNameOrder) {
+    // flat slots mirror the LazyColumn: "h:<group>" headers and rule ids.
+    // Derived synchronously from orderedRules (NOT via LaunchedEffect) so the
+    // library sees the new order in the same frame as onMove -> no ghost flash.
+    val slots = remember(orderedRules, repoNameOrder) {
         val g = linkedMapOf<String, List<com.lucaslu.tickhub.data.Rule>>()
         val raw = orderedRules.groupBy { groupNameOf(it) }
         repoNameOrder.forEach { raw[it]?.let { v -> g[it] = v } }
         raw.forEach { (k, v) -> if (!g.containsKey(k)) g[k] = v }
-        slots = buildList {
+        buildList {
             g.forEach { (name, rs) ->
                 add("h:$name")
                 rs.forEach { add(it.id) }
@@ -136,7 +137,7 @@ fun RulesScreen(vm: AppViewModel) {
             confirmButton = {
                 TextButton(onClick = { Haptics.tick(context); vm.triggerNow(ruleToTrigger); confirmTrigger = null }) { Text("确认触发") }
             },
-            dismissButton = { TextButton(onClick = { confirmTrigger = null }) { Text("取消") } }
+            dismissButton = { TextButton(onClick = { Haptics.tick(context); confirmTrigger = null }) { Text("取消") } }
         )
     }
 
@@ -160,13 +161,15 @@ fun RulesScreen(vm: AppViewModel) {
                 actions = {
                     if (multiSelect) {
                         TextButton(onClick = {
+                            Haptics.tick(context)
                             selectedIds = if (selectedIds.size == rules.size) emptySet() else rules.map { it.id }.toSet()
                         }) { Text("全选") }
                         TextButton(onClick = {
+                            Haptics.tick(context)
                             selectedIds.forEach { vm.deleteRule(it) }
                             selectedIds = emptySet(); multiSelect = false
                         }) { Text("删除") }
-                        TextButton(onClick = { multiSelect = false; selectedIds = emptySet() }) { Text("取消") }
+                        TextButton(onClick = { Haptics.tick(context); multiSelect = false; selectedIds = emptySet() }) { Text("取消") }
                     } else {
                         androidx.compose.material3.IconButton(onClick = { Haptics.tick(context); creating = true }, enabled = selectedWorkflows.isNotEmpty()) {
                             Text("＋", style = MaterialTheme.typography.titleLarge)

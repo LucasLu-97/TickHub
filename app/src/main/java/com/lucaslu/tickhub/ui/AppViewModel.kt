@@ -56,20 +56,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val runTrackingEnabled = repository.runTrackingEnabled
     val hapticsEnabled = repository.hapticsEnabled
 
-    // In-memory order cache: survives tab switches without re-reading DataStore,
-    // preventing the "flash back to old order then re-sort" on every navigation.
-    private val _orders = MutableStateFlow<Map<String, List<String>>>(emptyMap())
+    // Load persisted prefs SYNCHRONOUSLY at construction so the very first frame
+    // already shows the saved order / switch states (no "flash to default" on cold start).
+    private val _orders = MutableStateFlow<Map<String, List<String>>>(
+        kotlinx.coroutines.runBlocking {
+            mapOf("repos", "rules", "logs").associateWith { repository.readOrder(it) }
+        }
+    )
     val orders: StateFlow<Map<String, List<String>>> = _orders.asStateFlow()
+
+    private val _showExecutionStatus = MutableStateFlow(kotlinx.coroutines.runBlocking { repository.showExecutionStatusOnce() })
+    val showExecutionStatusFlow: StateFlow<Boolean> = _showExecutionStatus.asStateFlow()
+    private val _runTrackingEnabled = MutableStateFlow(kotlinx.coroutines.runBlocking { repository.runTrackingOnce() })
+    val runTrackingFlow: StateFlow<Boolean> = _runTrackingEnabled.asStateFlow()
+    private val _hapticsEnabled = MutableStateFlow(kotlinx.coroutines.runBlocking { repository.hapticsOnce() })
+    val hapticsFlow: StateFlow<Boolean> = _hapticsEnabled.asStateFlow()
 
     init {
         viewModelScope.launch {
             repository.hapticsEnabled.collect { com.lucaslu.tickhub.util.Haptics.enabled = it }
         }
-        viewModelScope.launch {
-            val loaded = mutableMapOf<String, List<String>>()
-            listOf("repos", "rules", "logs").forEach { loaded[it] = repository.readOrder(it) }
-            _orders.value = loaded
-        }
+        // keep sync-loaded values fresh if prefs change elsewhere
+        viewModelScope.launch { repository.showExecutionStatus.collect { _showExecutionStatus.value = it } }
+        viewModelScope.launch { repository.runTrackingEnabled.collect { _runTrackingEnabled.value = it } }
+        viewModelScope.launch { repository.hapticsEnabled.collect { _hapticsEnabled.value = it } }
     }
 
     private val _login = MutableStateFlow(LoginUiState(isLoggedIn = tokenStore.getToken() != null))

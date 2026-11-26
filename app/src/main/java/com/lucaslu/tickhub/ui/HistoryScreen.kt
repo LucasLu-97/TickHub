@@ -54,10 +54,11 @@ fun HistoryScreen(vm: AppViewModel) {
                             selectedIds = if (selectedIds.size == logs.size) emptySet() else logs.map { it.id }.toSet()
                         }) { Text("全选") }
                         TextButton(onClick = {
+                            com.lucaslu.tickhub.util.Haptics.tick(context)
                             selectedIds.forEach { vm.deleteLog(it) }
                             selectedIds = emptySet(); multiSelect = false
                         }) { Text("删除") }
-                        TextButton(onClick = { multiSelect = false; selectedIds = emptySet() }) { Text("取消") }
+                        TextButton(onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); multiSelect = false; selectedIds = emptySet() }) { Text("取消") }
                     }
                 }
             )

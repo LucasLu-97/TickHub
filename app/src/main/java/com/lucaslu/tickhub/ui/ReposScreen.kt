@@ -82,7 +82,7 @@ fun ReposScreen(vm: AppViewModel) {
                     confirmWf = null
                 }) { Text("确认触发") }
             },
-            dismissButton = { TextButton(onClick = { confirmWf = null }) { Text("取消") } }
+            dismissButton = { TextButton(onClick = { haptic(); confirmWf = null }) { Text("取消") } }
         )
     }
 
@@ -108,10 +108,11 @@ fun ReposScreen(vm: AppViewModel) {
                             selectedRepoIds = if (selectedRepoIds.size == repos.size) emptySet() else repos.map { it.id }.toSet()
                         }) { Text("全选") }
                         TextButton(onClick = {
+                            haptic()
                             selectedRepoIds.forEach { vm.removeRepo(it) }
                             selectedRepoIds = emptySet(); multiSelect = false
                         }) { Text("删除") }
-                        TextButton(onClick = { multiSelect = false; selectedRepoIds = emptySet() }) { Text("取消") }
+                        TextButton(onClick = { haptic(); multiSelect = false; selectedRepoIds = emptySet() }) { Text("取消") }
                     }
                 }
             )
@@ -221,7 +222,7 @@ private fun RepoCardContent(
             Spacer(Modifier.padding(12.dp))
             Text("全选", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.padding(4.dp))
-            MiuixSwitch(checked = managed, onCheckedChange = { onManagedChange(it) })
+            MiuixSwitch(checked = managed, onCheckedChange = { cardHaptic(); onManagedChange(it) })
         }
         if (expanded) {
             Spacer(Modifier.height(8.dp))

@@ -193,6 +193,10 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
 
     val showExecutionStatus: Flow<Boolean> = context.dataStore.data.map { it[showExecutionKey] ?: true }
 
+    suspend fun showExecutionStatusOnce(): Boolean = context.dataStore.data.first()[showExecutionKey] ?: true
+    suspend fun runTrackingOnce(): Boolean = context.dataStore.data.first()[runTrackingKey] ?: true
+    suspend fun hapticsOnce(): Boolean = context.dataStore.data.first()[hapticsKey] ?: true
+
     suspend fun setShowExecutionStatus(enabled: Boolean) {
         context.dataStore.edit { it[showExecutionKey] = enabled }
     }
@@ -221,6 +225,14 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     suspend fun readOrder(kind: String): List<String> {
         val raw = context.dataStore.data.first()[orderKey(kind)] ?: return emptyList()
         return try { json.decodeFromString(raw) } catch (e: Exception) { emptyList() }
+    }
+
+    /** All saved orders as a flow, so the UI renders the persisted order on the first frame. */
+    val allOrders: Flow<Map<String, List<String>>> = context.dataStore.data.map { prefs ->
+        mapOf("repos", "rules", "logs").associateWith { kind ->
+            val raw = prefs[orderKey(kind)] ?: return@associateWith emptyList()
+            try { json.decodeFromString<List<String>>(raw) } catch (e: Exception) { emptyList() }
+        }
     }
 
     /** Apply a saved id order to a list, keeping any new items at the end. */
