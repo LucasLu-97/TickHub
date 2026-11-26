@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.scrollBy
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Checkbox
@@ -157,7 +156,7 @@ fun RulesScreen(vm: AppViewModel) {
             }
             if (speed == 0f) { scrollAccum = 0f; continue }
             // scroll the list a step; library compensates card position
-            lazyListState.scrollBy(speed)
+            lazyListState.dispatchRawDelta(speed)
             scrollAccum += kotlin.math.abs(speed)
             if (scrollAccum >= rowPx * 0.55f) {
                 scrollAccum = 0f
