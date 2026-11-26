@@ -9,7 +9,7 @@
 | 决策记录 | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release |
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
-| 最新测试版 | v1.0.1-beta19（拖拽交互修正：隐藏背景图标/互斥滑动/组内排序/历史禁拖拽/让位动效），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.1-beta19 |
+| 最新测试版 | v1.0.2-beta20（Calvin Reorderable开源库替换自研拖拽 + 规则顺序无闪烁 + 组内限制 + 震动补齐 + 全选自动右滑），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.2-beta20 |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
 | 计划仓库 | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1） |
@@ -872,6 +872,8 @@ local.properties
 - **规则页**：仓库分组顺序不可拖拽，严格同步仓库页保存的顺序；同仓库多卡可组内拖拽排序（ReorderController 的 `groupOf` 限制交换范围在本组内）。
 - **历史页**：按时间线排序，不支持长按拖拽（仅保留长按时卡片变暗的按压反馈）。
 - **新增仓库**：扫描到的新仓库追加到列表末尾。
+
+**拖拽改用开源库（beta20）**：弃用自研手势，接入 `sh.calvin.reorderable:reorderable-android:3.1.0`（Calvin-LL/Reorderable）。用 `rememberReorderableLazyListState` + `ReorderableItem` + `Modifier.longPressDraggableHandle`（成员扩展，在 ReorderableItem scope 内用），库负责跟手位移、边缘滚动、`animateItem` 让位动效。仓库/规则页可拖拽，历史页不接拖拽。规则页通过 slots（header+rule id）换算索引，拖拽仅在本仓库组内生效，单卡分组不可拖。顺序缓存提升到 ViewModel 的 `orders` StateFlow，切 tab 不再重排闪烁。
 
 **统一震感**：全 app 所有按钮/开关/滑动/删除/拨轮/长按统一走 `Haptics.tick`，用系统 `VibrationEffect.EFFECT_TICK`（MIUI 式清脆"哒"），低版本回退短 oneShot；设置页「触感反馈」总开关。
 
