@@ -35,7 +35,7 @@ import com.lucaslu.tickhub.data.RuleStatus
 import com.lucaslu.tickhub.data.RuleType
 import com.lucaslu.tickhub.domain.RuleEngine
 import com.lucaslu.tickhub.util.Haptics
-import sh.calvin.reorderable.longPressDraggableHandle
+import sh.calvin.reorderable.ReorderableItem
 
 @Suppress("DEPRECATION")
 private val TYPE_LABELS = mapOf(
@@ -201,7 +201,7 @@ fun RulesScreen(vm: AppViewModel) {
                     val rule = orderedRules.firstOrNull { it.id == key }
                     if (rule != null) {
                         val canDrag = (ruleCountByGroup[groupNameOf(rule)] ?: 0) > 1
-                        sh.calvin.reorderable.ReorderableItem(reorderState, key = rule.id) { isDragging ->
+                        ReorderableItem(reorderState, key = rule.id) { isDragging ->
                             SwipeableCard(
                                 modifier = Modifier.fillMaxWidth(),
                                 onDelete = { vm.deleteRule(rule.id) },

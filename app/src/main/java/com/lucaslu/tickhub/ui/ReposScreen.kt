@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.dp
 import com.lucaslu.tickhub.data.ScanSnapshot
 import com.lucaslu.tickhub.data.WorkflowItem
 import com.lucaslu.tickhub.util.Haptics
-import sh.calvin.reorderable.longPressDraggableHandle
+import sh.calvin.reorderable.ReorderableItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -146,7 +146,7 @@ fun ReposScreen(vm: AppViewModel) {
                         )
                     }
                     items(repos, key = { it.id }) { repo ->
-                        sh.calvin.reorderable.ReorderableItem(reorderState, key = repo.id) { isDragging ->
+                        ReorderableItem(reorderState, key = repo.id) { isDragging ->
                             val wfs = snapshot.workflows.filter { it.repoId == repo.id && it.state == "active" }
                             SwipeableCard(
                                 modifier = Modifier.fillMaxWidth(),
