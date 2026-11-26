@@ -32,7 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.lucaslu.tickhub.data.ScanSnapshot
@@ -64,10 +63,10 @@ fun ReposScreen(vm: AppViewModel) {
     }
     val lazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
     val reorderState = sh.calvin.reorderable.rememberReorderableLazyListState(lazyListState) { from, to ->
+        // header occupies index 0
         repos = repos.toMutableList().apply {
-            add(to.index, removeAt(from.index))
+            add(to.index - 1, removeAt(from.index - 1))
         }
-        haptic() // tick each time the dragged card passes another card
         vm.saveOrder("repos", repos.map { it.id.toString() })
     }
 
@@ -121,33 +120,32 @@ fun ReposScreen(vm: AppViewModel) {
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp)) {
             PullToRefreshBox(isRefreshing = refreshing, onRefresh = { haptic(); vm.refreshProfile() }) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                // fixed header (outside the reorder list) — also the drag "air wall" top edge
-                Button(
-                    onClick = { haptic(); vm.scanRepos() },
-                    enabled = !state.scanning,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
-                ) {
-                    Text("扫描仓库与工作流")
-                    if (state.scanning) {
-                        Spacer(Modifier.padding(4.dp))
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    }
-                }
-                state.message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                state.error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
-                Text(
-                    "已纳管 ${snapshot.workflows.count { it.selected }} 个工作流 / ${snapshot.repos.size} 个仓库（下拉可刷新头像与纳管项）",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 6.dp)
-                )
-                // clipToBounds = drag air wall: lifted cards can't cross this list's edges
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize().clipToBounds(),
+                    modifier = Modifier.fillMaxSize(),
                     state = lazyListState,
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)
                 ) {
+                    item {
+                        Button(
+                            onClick = { haptic(); vm.scanRepos() },
+                            enabled = !state.scanning,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                        ) {
+                            Text(if (state.scanning) "扫描仓库与工作流" else "扫描仓库与工作流")
+                            if (state.scanning) {
+                                Spacer(Modifier.padding(4.dp))
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            }
+                        }
+                        state.message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        state.error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+                        Text(
+                            "已纳管 ${snapshot.workflows.count { it.selected }} 个工作流 / ${snapshot.repos.size} 个仓库（下拉可刷新头像与纳管项）",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 6.dp)
+                        )
+                    }
                     items(repos, key = { it.id }) { repo ->
                         ReorderableItem(reorderState, key = repo.id) { isDragging ->
                             val wfs = snapshot.workflows.filter { it.repoId == repo.id && it.state == "active" }
@@ -192,7 +190,6 @@ fun ReposScreen(vm: AppViewModel) {
                         }
                     }
                 }
-                } // reorder Column
             }
         }
     }
