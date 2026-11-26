@@ -101,6 +101,9 @@ fun RulesScreen(vm: AppViewModel) {
     // the library itself refuses cross-group swaps and stops edge-scroll at the
     // group's first/last row — no manual page scrolling, no card drop.
     var activeGroup by remember { mutableStateOf<String?>(null) }
+    var draggingRuleId by remember { mutableStateOf<String?>(null) }
+    var dragFingerY by remember { mutableFloatStateOf(-1f) }
+    var viewportHeight by remember { mutableIntStateOf(0) }
     val lazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
     // slots mirror the LazyColumn: "h:<group>" for headers, rule id for cards
     val slots = remember(groups) {
@@ -111,7 +114,14 @@ fun RulesScreen(vm: AppViewModel) {
             }
         }
     }
-    val reorderState = sh.calvin.reorderable.rememberReorderableLazyListState(lazyListState) { from, to ->
+    // Library scroller only stops at the whole-list edge, not the group edge, so we
+    // disable it (scrollThreshold=0) and drive edge scrolling ourselves. The library's
+    // draggingItemOffset compensates list scroll automatically, so the lifted card
+    // stays glued to the finger while we animateScroll the list.
+    val reorderState = sh.calvin.reorderable.rememberReorderableLazyListState(
+        lazyListState,
+        scrollThreshold = 0.dp
+    ) { from, to ->
         val fromKey = slots.getOrNull(from.index) ?: return@rememberReorderableLazyListState
         val toKey = slots.getOrNull(to.index) ?: return@rememberReorderableLazyListState
         if (fromKey.startsWith("h:") || toKey.startsWith("h:")) return@rememberReorderableLazyListState
@@ -120,6 +130,49 @@ fun RulesScreen(vm: AppViewModel) {
         if (fi < 0 || ti < 0) return@rememberReorderableLazyListState
         orderedRules = orderedRules.toMutableList().apply { add(ti, removeAt(fi)) }
         vm.saveOrder("rules", orderedRules.map { it.id })
+    }
+
+    // Edge auto-scroll limited to the dragged card's own group: scroll the list,
+    // and once the card passes a sibling, swap them ("哒哒哒"). Stop exactly at
+    // this group's first/last row even if the finger stays at the screen edge.
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val edgePx = with(density) { 96.dp.toPx() }
+    val rowPx = with(density) { 104.dp.toPx() }
+    LaunchedEffect(draggingRuleId) {
+        val dragId = draggingRuleId ?: return@LaunchedEffect
+        var scrollAccum = 0f
+        while (true) {
+            kotlinx.coroutines.delay(16)
+            val rule = orderedRules.firstOrNull { it.id == dragId } ?: break
+            val group = groupNameOf(rule)
+            val groupIds = groups[group]?.map { it.id } ?: break
+            val gi = groupIds.indexOf(dragId)
+            val y = dragFingerY
+            val h = viewportHeight.toFloat()
+            val speed = when {
+                y >= 0f && y < edgePx && gi > 0 -> -rowPx * 0.28f   // near top, can go up
+                y > h - edgePx && gi < groupIds.lastIndex -> rowPx * 0.28f // near bottom, can go down
+                else -> 0f
+            }
+            if (speed == 0f) { scrollAccum = 0f; continue }
+            // scroll the list a step; library compensates card position
+            lazyListState.scrollBy(speed)
+            scrollAccum += kotlin.math.abs(speed)
+            if (scrollAccum >= rowPx * 0.55f) {
+                scrollAccum = 0f
+                // swap dragged card with the sibling in the scroll direction
+                val swapWith = if (speed < 0f) gi - 1 else gi + 1
+                if (swapWith in groupIds.indices) {
+                    val otherId = groupIds[swapWith]
+                    val fi = orderedRules.indexOfFirst { it.id == dragId }
+                    val ti = orderedRules.indexOfFirst { it.id == otherId }
+                    if (fi >= 0 && ti >= 0) {
+                        orderedRules = orderedRules.toMutableList().apply { add(ti, removeAt(fi)) }
+                        vm.saveOrder("rules", orderedRules.map { it.id })
+                    }
+                }
+            }
+        }
     }
 
     val selectedWorkflows = snapshot.workflows.filter { it.selected }
@@ -207,7 +260,20 @@ fun RulesScreen(vm: AppViewModel) {
         Spacer(Modifier.height(12.dp))
 
         LazyColumn(
-            modifier = Modifier.fillMaxSize().clipToBounds(),
+            modifier = Modifier
+                .fillMaxSize()
+                .clipToBounds()
+                .onSizeChanged { viewportHeight = it.height }
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            dragFingerY = event.changes.firstOrNull()?.position?.y ?: -1f
+                            if (event.changes.all { !it.pressed }) break
+                        }
+                    }
+                },
             state = lazyListState,
             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)
         ) {
@@ -244,8 +310,18 @@ fun RulesScreen(vm: AppViewModel) {
                                 dragging = isDragging,
                                 dragHandle = if (canDrag) with(this) {
                                     Modifier.longPressDraggableHandle(
-                                        onDragStarted = { activeGroup = group; Haptics.tick(context) },
-                                        onDragStopped = { activeGroup = null; Haptics.tick(context) }
+                                        onDragStarted = {
+                                            activeGroup = group
+                                            draggingRuleId = rule.id
+                                            dragFingerY = -1f
+                                            Haptics.tick(context)
+                                        },
+                                        onDragStopped = {
+                                            activeGroup = null
+                                            draggingRuleId = null
+                                            dragFingerY = -1f
+                                            Haptics.tick(context)
+                                        }
                                     )
                                 } else Modifier,
                                 content = {
