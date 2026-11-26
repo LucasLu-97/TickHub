@@ -20,9 +20,10 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Polls GitHub Actions for the real start/end time of dispatched runs.
- * Each poll is a short WorkManager wake-up (30s delay between), NOT a persistent
- * foreground service — so it stays lightweight. Re-enqueues itself until done
- * or until MAX_POLLS is reached (~12 min), then finalizes with best-effort data.
+ * Each poll is a short WorkManager wake-up (5s delay between), NOT a persistent
+ * foreground service — so it stays lightweight. The loop stops as soon as the
+ * run completes (typical 1-3 min = ~12-36 polls), so the 12-min MAX_POLLS is only
+ * a worst-case cap for long/stuck runs. 5s gives near-real-time result notification.
  */
 class RunTrackerWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
 
@@ -110,8 +111,8 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         const val KEY_RULE_ID = "rule_id"
         const val KEY_POLL = "poll"
         const val UNIQUE_NAME = "tickhub_track"
-        const val POLL_DELAY_SEC = 30L
-        const val MAX_POLLS = 24 // ~12 minutes at 30s intervals — fewer wake-ups, same coverage
+        const val POLL_DELAY_SEC = 5L
+        const val MAX_POLLS = 144 // ~12 minutes at 5s intervals; stops early once the run completes
 
         fun enqueue(context: Context, logId: String, ruleId: String) {
             val data = workDataOf(KEY_LOG_ID to logId, KEY_RULE_ID to ruleId, KEY_POLL to 0)

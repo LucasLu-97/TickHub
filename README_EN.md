@@ -19,7 +19,7 @@ Replace GitHub's unreliable `on.schedule` with an Android phone: sign in to GitH
 | Scheduler | ✅ Exact alarms + network wait + dispatch + catch-up + reboot re-registration |
 | Device acceptance | ✅ Verified overnight-to-next-morning on-time triggers, no Doze sleep; reboot & background-kill resilient |
 | Native schedule | Disabled by repo-side automation; not duplicated in the app |
-| Size / power | ✅ ~2 MB APK after R8 shrink; result polling at 30s intervals, low power |
+| Size / power | ✅ ~2 MB APK after R8 shrink; result polling at 5s intervals (stops on completion, no residual wake-ups) |
 
 ## Why
 

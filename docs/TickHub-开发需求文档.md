@@ -10,8 +10,9 @@
 | 决策记录 | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release |
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
-| 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖 + 轮询30s，APK 14.2MB→2.03MB），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35 |
-| 正式版 | v1.0.0，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.0 |
+| 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35 |
+| 当前正式版 | v1.0.1（结果轮询改回 5s 提升及时性），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.1 |
+| 历史正式版 | v1.0.0，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.0 |
 | 真机验收 | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现） |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
@@ -897,7 +898,7 @@ local.properties
 1. 调 `GET /repos/{owner}/{repo}/actions/workflows/{id}/runs?per_page=5` 找到本次新建的 run（取最新一条），把 workflowId→runId 存进历史日志。
 2. 由 `RunTrackerWorker`（WorkManager 一次性任务）每 5 秒轻量查询一次 run 的 `status` / `conclusion`，直到 `status=completed` 或达 144 次（约 12 分钟）上限。
 3. 用 run 的 `run_started_at` 到 `updated_at` 算真实时长，回填历史日志 `durationMs`、最终状态（success/failure），并发通知栏通知。
-4. **资源评估**：每次查询是一次短暂 Worker 唤醒（间隔 30 秒），**不是**前台服务或常驻轮询，不持 WakeLock，耗电可忽略；设置页「执行结果与通知」开关可整体关闭（默认开）。
+4. **资源评估**：每次查询是一次短暂 Worker 唤醒（间隔 5 秒），**不是**前台服务或常驻轮询，不持 WakeLock。轮询在任务 `completed` 后立即停止（典型 1-3 分钟约 12-36 次请求），12 分钟 / 144 次仅为长任务兜底上限；绝对耗电极小且完全有界。5 秒间隔使完成通知延迟 ≤5 秒，及时性明显优于 30 秒。设置页「执行结果与通知」开关可整体关闭（默认开）。
 
 历史卡片在追踪完成前显示「执行中」并实时递增计时（从 firedAt 起每秒刷新），完成后显示真实耗时与成功/失败。**规则页转圈数据源 `runningExecutions` 合并了 Worker 运行窗口与所有 `tracking=true` 的日志**，所以转圈和计时在整个真实执行期间（数分钟）持续显示，不会在 dispatch 的几秒后消失。
 
@@ -958,7 +959,7 @@ APP 内置了 **GitHub CLI 的官方公开 Client ID**（`178c6fc778ccc68e1d6a`�
 **低资源占用优化（beta35）**：
 - Release 启用 R8 shrink（`-dontobfuscate` 只裁剪不混淆，保留 data 模型 / Worker / Receiver / 入口），APK **14.2MB → 2.03MB（-86%）**，相应大幅降低 ART（odex/vdex）编译产物与系统"应用存储"占用。
 - 删除零使用依赖：Retrofit、retrofit-kotlin-serialization、okhttp-logging。
-- `RunTrackerWorker` 结果轮询 5s → 30s（MAX_POLLS 144 → 24，仍覆盖 12 分钟），唤醒与网络请求减少 6 倍，符合 §21 原设计。
+- `RunTrackerWorker` 结果轮询：beta35 曾 5s→30s 省电，v1.0.1 应及时性需求**改回 5s**（MAX_POLLS 144，覆盖 12 分钟）。评估：轮询在任务完成后立即停止，典型 12-36 次请求即结束，绝对开销小且有界；5s 使完成通知延迟 ≤5 秒。
 - 头像仅内存缓存、日志滚动 800 行（约 100KB），无磁盘缓存膨胀；80MB 存储主因是 ART 编译产物，已随 APK 瘦身下降。
 
 **仓库介绍**：description 中英双语（含 GitHub Actions scheduler / Kotlin / Compose 等英文关键词）；README 默认中文并切换英文版（`README_EN.md`）。
