@@ -4,6 +4,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.awaitPointerEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -204,12 +208,10 @@ fun RulesScreen(vm: AppViewModel) {
                 .padding(bottom = 88.dp)
                 .onSizeChanged { viewportHeight = it.height }
                 .pointerInput(Unit) {
-                    androidx.compose.foundation.gestures.awaitEachGesture {
-                        androidx.compose.foundation.gestures.awaitFirstDown(requireUnconsumed = false)
-                        while (true) {
-                            val event = androidx.compose.ui.input.pointer.awaitPointerEvent(
-                                androidx.compose.ui.input.pointer.PointerEventPass.Initial
-                            )
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        while ( true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
                             dragFingerY = event.changes.firstOrNull()?.position?.y ?: -1f
                             if (event.changes.all { !it.pressed }) break
                         }
