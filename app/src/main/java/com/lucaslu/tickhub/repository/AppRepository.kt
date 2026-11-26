@@ -229,7 +229,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
 
     /** All saved orders as a flow, so the UI renders the persisted order on the first frame. */
     val allOrders: Flow<Map<String, List<String>>> = context.dataStore.data.map { prefs ->
-        mapOf("repos", "rules", "logs").associateWith { kind ->
+        listOf("repos", "rules", "logs").associateWith { kind ->
             val raw = prefs[orderKey(kind)] ?: return@associateWith emptyList()
             try { json.decodeFromString<List<String>>(raw) } catch (e: Exception) { emptyList() }
         }

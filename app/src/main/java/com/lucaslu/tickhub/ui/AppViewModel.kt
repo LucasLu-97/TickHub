@@ -60,7 +60,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // already shows the saved order / switch states (no "flash to default" on cold start).
     private val _orders = MutableStateFlow<Map<String, List<String>>>(
         kotlinx.coroutines.runBlocking {
-            mapOf("repos", "rules", "logs").associateWith { repository.readOrder(it) }
+            listOf("repos", "rules", "logs").associateWith { repository.readOrder(it) }
         }
     )
     val orders: StateFlow<Map<String, List<String>>> = _orders.asStateFlow()
