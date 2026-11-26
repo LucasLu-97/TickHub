@@ -2,6 +2,7 @@ package com.lucaslu.tickhub.ui
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -76,35 +77,15 @@ fun RulesScreen(vm: AppViewModel) {
         orderedRules = vm.applyOrder(rules, savedRuleOrder) { it.id }
     }
 
-    // flat slots mirror the LazyColumn: "h:<group>" headers and rule ids.
-    // Derived synchronously from orderedRules (NOT via LaunchedEffect) so the
-    // library sees the new order in the same frame as onMove -> no ghost flash.
-    val slots = remember(orderedRules, repoNameOrder) {
+    // Group rules by repo, ordered by the repo page's saved order.
+    // Each group gets its OWN LazyColumn + Reorderable state, so a card physically
+    // cannot leave its group — no cross-group ghost animation at all.
+    val groups = remember(orderedRules, repoNameOrder) {
         val g = linkedMapOf<String, List<com.lucaslu.tickhub.data.Rule>>()
         val raw = orderedRules.groupBy { groupNameOf(it) }
         repoNameOrder.forEach { raw[it]?.let { v -> g[it] = v } }
         raw.forEach { (k, v) -> if (!g.containsKey(k)) g[k] = v }
-        buildList {
-            g.forEach { (name, rs) ->
-                add("h:$name")
-                rs.forEach { add(it.id) }
-            }
-        }
-    }
-
-    val lazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
-    val reorderState = sh.calvin.reorderable.rememberReorderableLazyListState(lazyListState) { from, to ->
-        val fromKey = slots.getOrNull(from.index) ?: return@rememberReorderableLazyListState
-        val toKey = slots.getOrNull(to.index) ?: return@rememberReorderableLazyListState
-        if (fromKey.startsWith("h:") || toKey.startsWith("h:")) return@rememberReorderableLazyListState
-        val fromRule = orderedRules.firstOrNull { it.id == fromKey } ?: return@rememberReorderableLazyListState
-        val toRule = orderedRules.firstOrNull { it.id == toKey } ?: return@rememberReorderableLazyListState
-        // only reorder within the same repo group
-        if (groupNameOf(fromRule) != groupNameOf(toRule)) return@rememberReorderableLazyListState
-        val fi = orderedRules.indexOfFirst { it.id == fromKey }
-        val ti = orderedRules.indexOfFirst { it.id == toKey }
-        orderedRules = orderedRules.toMutableList().apply { add(ti, removeAt(fi)) }
-        vm.saveOrder("rules", orderedRules.map { it.id })
+        g
     }
 
     val selectedWorkflows = snapshot.workflows.filter { it.selected }
@@ -186,59 +167,47 @@ fun RulesScreen(vm: AppViewModel) {
         }
         Spacer(Modifier.height(12.dp))
 
-        val ruleCountByGroup = orderedRules.groupingBy { groupNameOf(it) }.eachCount()
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            state = lazyListState,
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(androidx.compose.foundation.rememberScrollState())
+                .padding(bottom = 88.dp)
         ) {
-            items(slots, key = { it }) { key ->
-                if (key.startsWith("h:")) {
-                    Text(
-                        key.removePrefix("h:"),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
-                    )
-                } else {
-                    val rule = orderedRules.firstOrNull { it.id == key }
-                    if (rule != null) {
-                        val canDrag = (ruleCountByGroup[groupNameOf(rule)] ?: 0) > 1
-                        ReorderableItem(reorderState, key = rule.id) { isDragging ->
-                            SwipeableCard(
-                                modifier = Modifier.fillMaxWidth(),
-                                onDelete = { vm.deleteRule(rule.id) },
-                                onClick = {
-                                    if (multiSelect) {
-                                        selectedIds = if (selectedIds.contains(rule.id)) selectedIds - rule.id else selectedIds + rule.id
-                                    }
-                                },
-                                onSelect = { sel ->
-                                    multiSelect = true
-                                    selectedIds = if (sel) selectedIds + rule.id else selectedIds - rule.id
-                                },
-                                selected = selectedIds.contains(rule.id),
-                                autoSelected = multiSelect && selectedIds.contains(rule.id),
-                                dragging = isDragging,
-                                dragHandle = if (canDrag) with(this) {
-                                    Modifier.longPressDraggableHandle(
-                                        onDragStarted = { Haptics.tick(context) },
-                                        onDragStopped = { Haptics.tick(context) }
-                                    )
-                                } else Modifier,
-                                content = {
-                                    RuleCardContent(
-                                        rule = rule,
-                                        onToggle = { Haptics.tick(context); vm.setRuleEnabled(rule.id, it) },
-                                        onEdit = { Haptics.tick(context); editing = rule },
-                                        onTriggerNow = { Haptics.tick(context); confirmTrigger = rule },
-                                        runningStart = if (showExec) running[rule.id] else null
-                                    )
-                                }
-                            )
+            groups.forEach { (repoName, groupRules) ->
+                Text(
+                    repoName,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+                )
+                RuleGroupList(
+                    rules = groupRules,
+                    context = context,
+                    multiSelect = multiSelect,
+                    selectedIds = selectedIds,
+                    onSelect = { id, sel ->
+                        multiSelect = true
+                        selectedIds = if (sel) selectedIds + id else selectedIds - id
+                    },
+                    onClickRule = { id ->
+                        selectedIds = if (selectedIds.contains(id)) selectedIds - id else selectedIds + id
+                    },
+                    onDelete = { vm.deleteRule(it) },
+                    onToggle = { vm.setRuleEnabled(it.first, it.second) },
+                    onEdit = { editing = it },
+                    onTriggerNow = { confirmTrigger = it },
+                    showExec = showExec,
+                    running = running,
+                    onReorder = { newGroupRules ->
+                        // splice this group's new order back into the global orderedRules
+                        val idSet = groupRules.map { it.id }.toSet()
+                        var cursor = 0
+                        orderedRules = orderedRules.map { r ->
+                            if (r.id in idSet) newGroupRules.getOrNull(cursor++) ?: r else r
                         }
+                        vm.saveOrder("rules", orderedRules.map { it.id })
                     }
-                }
+                )
             }
         }
         }
@@ -285,6 +254,71 @@ private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () 
             Spacer(Modifier.weight(1f))
             TextButton(onClick = onTriggerNow) { Text("立即触发") }
             TextButton(onClick = onEdit) { Text("编辑") }
+        }
+    }
+}
+
+/**
+ * One repo group with its own reorder state. Because each group is a separate
+ * LazyColumn, cards can never be dragged outside the group boundary.
+ */
+@Composable
+private fun RuleGroupList(
+    rules: List<com.lucaslu.tickhub.data.Rule>,
+    context: android.content.Context,
+    multiSelect: Boolean,
+    selectedIds: Set<String>,
+    onSelect: (String, Boolean) -> Unit,
+    onClickRule: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    onToggle: (Pair<String, Boolean>) -> Unit,
+    onEdit: (com.lucaslu.tickhub.data.Rule) -> Unit,
+    onTriggerNow: (com.lucaslu.tickhub.data.Rule) -> Unit,
+    showExec: Boolean,
+    running: Map<String, Long>,
+    onReorder: (List<com.lucaslu.tickhub.data.Rule>) -> Unit
+) {
+    var groupRules by remember(rules) { mutableStateOf(rules) }
+    val lazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val reorderState = sh.calvin.reorderable.rememberReorderableLazyListState(lazyListState) { from, to ->
+        groupRules = groupRules.toMutableList().apply { add(to.index, removeAt(from.index)) }
+        onReorder(groupRules)
+    }
+    val canDrag = groupRules.size > 1
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height((groupRules.size * 112).dp),
+        state = lazyListState,
+        userScrollEnabled = false // group list is short; outer column handles scrolling
+    ) {
+        items(groupRules, key = { it.id }) { rule ->
+            ReorderableItem(reorderState, key = rule.id) { isDragging ->
+                SwipeableCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    onDelete = { onDelete(rule.id) },
+                    onClick = { if (multiSelect) onClickRule(rule.id) },
+                    onSelect = { sel -> onSelect(rule.id, sel) },
+                    selected = selectedIds.contains(rule.id),
+                    autoSelected = multiSelect && selectedIds.contains(rule.id),
+                    dragging = isDragging,
+                    dragHandle = if (canDrag) with(this) {
+                        Modifier.longPressDraggableHandle(
+                            onDragStarted = { Haptics.tick(context) },
+                            onDragStopped = { Haptics.tick(context) }
+                        )
+                    } else Modifier,
+                    content = {
+                        RuleCardContent(
+                            rule = rule,
+                            onToggle = { Haptics.tick(context); onToggle(rule.id to it) },
+                            onEdit = { Haptics.tick(context); onEdit(rule) },
+                            onTriggerNow = { Haptics.tick(context); onTriggerNow(rule) },
+                            runningStart = if (showExec) running[rule.id] else null
+                        )
+                    }
+                )
+            }
         }
     }
 }
