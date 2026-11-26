@@ -98,44 +98,9 @@ fun RulesScreen(vm: AppViewModel) {
         g
     }
 
-    // Edge auto-scroll while dragging: ReorderableColumn (plain Column) has no
-    // built-in edge scrolling, so we observe the finger via Initial pass and
-    // scroll the outer column ourselves.
+    // outer scroll is only for browsing groups; reorder scrolling is handled by
+    // each group's own LazyList state inside the library (native edge scroll).
     val scrollState = androidx.compose.foundation.rememberScrollState()
-    var dragFingerY by remember { mutableFloatStateOf(-1f) }
-    var activeDragGroup by remember { mutableStateOf<String?>(null) }
-    var viewportHeight by remember { mutableIntStateOf(0) }
-    var contentRootY by remember { mutableFloatStateOf(0f) } // scroll content top in root coords
-    // group name -> (top, bottom) in scroll-content coordinates (fixed, independent of scrolling)
-    val groupBounds = remember { mutableMapOf<String, Pair<Float, Float>>() }
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val edgePx = with(density) { 96.dp.toPx() }
-    val scrollSpeed = with(density) { 14.dp.toPx() }
-
-    LaunchedEffect(activeDragGroup) {
-        val group = activeDragGroup ?: return@LaunchedEffect
-        while (true) {
-            val bounds = groupBounds[group] ?: break
-            val y = dragFingerY
-            val h = viewportHeight.toFloat()
-            // "air wall": only scroll while the group's own header/bottom has not
-            // reached the viewport edge — never drag the whole page past the group.
-            val canScrollUp = scrollState.value > bounds.first + 1f
-            val canScrollDown = scrollState.value + h < bounds.second - 1f
-            val delta = when {
-                y >= 0f && y < edgePx && canScrollUp -> -scrollSpeed
-                y > h - edgePx && y <= h + edgePx && canScrollDown -> scrollSpeed
-                else -> 0f
-            }
-            if (delta != 0f) {
-                val lower = bounds.first.toInt().coerceAtLeast(0)
-                val upper = (bounds.second - h).toInt().coerceAtLeast(lower)
-                val target = (scrollState.value + delta).toInt().coerceIn(lower, upper)
-                if (target != scrollState.value) scrollState.scrollTo(target)
-            }
-            kotlinx.coroutines.delay(16)
-        }
-    }
 
     val selectedWorkflows = snapshot.workflows.filter { it.selected }
     val repoNames = snapshot.repos.associateBy { it.id }
@@ -214,17 +179,6 @@ fun RulesScreen(vm: AppViewModel) {
                 .fillMaxSize()
                 .padding(pad)
                 .padding(horizontal = 16.dp)
-                .onSizeChanged { viewportHeight = it.height }
-                .pointerInput(Unit) {
-                    awaitEachGesture {
-                        awaitFirstDown(requireUnconsumed = false)
-                        while (true) {
-                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                            dragFingerY = event.changes.firstOrNull()?.position?.y ?: -1f
-                            if (event.changes.all { !it.pressed }) break
-                        }
-                    }
-                }
         ) {
         if (selectedWorkflows.isEmpty()) {
             Spacer(Modifier.height(16.dp))
@@ -237,16 +191,9 @@ fun RulesScreen(vm: AppViewModel) {
                 .fillMaxSize()
                 .verticalScroll(scrollState)
                 .padding(bottom = 88.dp)
-                .onGloballyPositioned { contentRootY = it.positionInRoot().y }
         ) {
             groups.forEach { (repoName, groupRules) ->
-                // header + list stacked vertically; capture this group's bounds in content coords
-                Column(
-                    modifier = Modifier.onGloballyPositioned { coords ->
-                        val top = coords.positionInRoot().y - contentRootY
-                        groupBounds[repoName] = top to (top + coords.size.height)
-                    }
-                ) {
+                Column {
                 Text(
                     repoName,
                     style = MaterialTheme.typography.labelSmall,
@@ -271,8 +218,8 @@ fun RulesScreen(vm: AppViewModel) {
                     onTriggerNow = { confirmTrigger = it },
                     showExec = showExec,
                     running = running,
-                    onDragStart = { activeDragGroup = repoName },
-                    onDragStop = { activeDragGroup = null },
+                    onDragStart = { },
+                    onDragStop = { },
                     onReorder = { newGroupRules ->
                         // splice this group's new order back into the global orderedRules
                         val idSet = groupRules.map { it.id }.toSet()
@@ -359,20 +306,23 @@ private fun RuleGroupList(
 ) {
     var groupRules by remember(rules) { mutableStateOf(rules) }
     val canDrag = groupRules.size > 1
-    sh.calvin.reorderable.ReorderableColumn(
-        modifier = Modifier.fillMaxWidth().clipToBounds(),
-        list = groupRules,
-        onSettle = { fromIndex, toIndex ->
-            groupRules = groupRules.toMutableList().apply {
-                add(toIndex, removeAt(fromIndex))
-            }
-            Haptics.tick(context)
-            onReorder(groupRules)
-        },
-        onMove = { Haptics.tick(context) }
-    ) { _, rule, isDragging ->
-        androidx.compose.runtime.key(rule.id) {
-            ReorderableItem {
+    val lazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    // Native-library edge scrolling: keep a bounded viewport so that groups with
+    // many cards scroll INSIDE this list (the library handles it), never by
+    // moving the outer page — moving the page is what made the card "drop".
+    val visibleRows = groupRules.size.coerceAtMost(5).coerceAtLeast(1)
+    val listHeight = (visibleRows * 104).dp
+    val reorderState = sh.calvin.reorderable.rememberReorderableLazyListState(lazyListState) { from, to ->
+        groupRules = groupRules.toMutableList().apply { add(to.index, removeAt(from.index)) }
+        Haptics.tick(context) // one tick per card the dragged item passes
+        onReorder(groupRules)
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxWidth().height(listHeight).clipToBounds(),
+        state = lazyListState
+    ) {
+        items(groupRules, key = { it.id }) { rule ->
+            ReorderableItem(reorderState, key = rule.id) { isDragging ->
                 SwipeableCard(
                     modifier = Modifier.fillMaxWidth(),
                     onDelete = { onDelete(rule.id) },
@@ -384,7 +334,7 @@ private fun RuleGroupList(
                     dragHandle = if (canDrag) with(this) {
                         Modifier.longPressDraggableHandle(
                             onDragStarted = { Haptics.tick(context); onDragStart() },
-                            onDragStopped = { Haptics.tick(context); onDragStop() }
+                            onDragStopped = { onDragStop() }
                         )
                     } else Modifier,
                     content = {
