@@ -37,9 +37,14 @@ jobs:
             VERSION_NAME="0.0.1-dev-${GITHUB_RUN_NUMBER}"
           fi
           VERSION_CODE="${GITHUB_RUN_NUMBER}"
+          case "${VERSION_NAME}" in
+            *beta*) IS_BETA=true ;;
+            *) IS_BETA=false ;;
+          esac
           echo "name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
           echo "code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
-          echo "Version: ${VERSION_NAME} (${VERSION_CODE})"
+          echo "is_beta=${IS_BETA}" >> "$GITHUB_OUTPUT"
+          echo "Version: ${VERSION_NAME} (${VERSION_CODE}) beta=${IS_BETA}"
 
       - name: Run unit tests
         run: |
@@ -67,21 +72,45 @@ jobs:
           if [ -z "$APK" ]; then echo "No APK produced"; exit 1; fi
           cp "$APK" "TickHub-v${{ steps.version.outputs.name }}.apk"
 
+      - name: Prepare release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          if [ "${{ steps.version.outputs.is_beta }}" = "true" ]; then
+            cat > RELEASE_BODY.md <<'EOF'
+          TickHub Android 测试版构建（由 Actions 自动签名产出）。
+
+          - 版本：v${{ steps.version.outputs.name }}（versionCode ${{ steps.version.outputs.code }}）
+          - 签名：与后续更新使用同一密钥，可直接覆盖安装
+
+          > 测试版，仅供作者与受邀者使用。
+          EOF
+          else
+            cat > RELEASE_BODY.md <<'EOF'
+          # TickHub v${{ steps.version.outputs.name }}
+
+          把手机变成 GitHub Actions 的可靠调度中心。
+
+          - 登录：GitHub OAuth Device Flow，装完即用
+          - 调度：精确闹钟 + 网络等待 + dispatch + 补触发，夜间到点准时触发
+          - 规则：单次 / 每天 / 每周 / 法定工作日 / 法定节假日 / 每隔 N 天，支持一天多时段
+          - 结果：追踪真实执行时长并通知，漏触发自动补跑
+          - 架构：100% Kotlin + Compose + WorkManager，R8 瘦身，APK 约 2 MB，低功耗
+
+          签名 APK 可直接覆盖安装。完整文档见仓库 README 与开发需求文档。
+
+          > 国产 ROM 请务必开启自启动 + 电池无限制 + 精确闹钟，否则后台定时可能失效。
+          EOF
+          fi
+
       - name: Create/Update GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: TickHub-v${{ steps.version.outputs.name }}.apk
           name: TickHub v${{ steps.version.outputs.name }}
-          body: |
-            TickHub Android 测试版构建（由 Actions 自动签名产出）。
-
-            - 版本：v${{ steps.version.outputs.name }}（versionCode ${{ steps.version.outputs.code }}）
-            - 架构：arm64-v8a
-            - 签名：与后续更新使用同一密钥，可直接覆盖安装
-
-            > 测试版，仅供作者与受邀者使用。
-          prerelease: true
+          body_path: RELEASE_BODY.md
+          prerelease: ${{ steps.version.outputs.is_beta == 'true' }}
+          make_latest: ${{ steps.version.outputs.is_beta == 'false' }}
 
       - name: Upload APK artifact (workflow_dispatch)
         if: github.event_name == 'workflow_dispatch'
