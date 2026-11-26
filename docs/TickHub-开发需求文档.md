@@ -9,7 +9,7 @@
 | 决策记录 | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release |
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
-| 最新测试版 | v1.0.3-beta21（修正拖拽手柄集成：handle移至卡片内子元素 + 移除冲突的onLongPress深色状态），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.3-beta21 |
+| 最新测试版 | v1.0.4-beta22（修复拖拽方角阴影/规则页残影/冷启动顺序与开关闪烁/全局震动补齐），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.4-beta22 |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
 | 计划仓库 | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1） |
