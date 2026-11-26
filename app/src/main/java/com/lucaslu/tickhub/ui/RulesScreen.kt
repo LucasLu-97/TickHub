@@ -34,6 +34,8 @@ import com.lucaslu.tickhub.data.Rule
 import com.lucaslu.tickhub.data.RuleStatus
 import com.lucaslu.tickhub.data.RuleType
 import com.lucaslu.tickhub.domain.RuleEngine
+import com.lucaslu.tickhub.util.Haptics
+import sh.calvin.reorderable.longPressDraggableHandle
 
 @Suppress("DEPRECATION")
 private val TYPE_LABELS = mapOf(
@@ -59,29 +61,48 @@ fun RulesScreen(vm: AppViewModel) {
     var multiSelect by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var confirmTrigger by remember { mutableStateOf<Rule?>(null) }
-    var orderLoaded by remember { mutableStateOf(false) }
-    var repoOrder by remember { mutableStateOf<List<String>>(emptyList()) } // repo ids, from repo page
-    var repoNameOrder by remember { mutableStateOf<List<String>>(emptyList()) } // display names in that order
+    val orders by vm.orders.collectAsState()
+    var orderedRules by remember { mutableStateOf<List<com.lucaslu.tickhub.data.Rule>>(emptyList()) }
+    val savedRuleOrder = orders["rules"] ?: emptyList()
+    val savedRepoOrder = orders["repos"] ?: emptyList()
+    val repoNameOrder = vm.applyOrder(snapshot.repos, savedRepoOrder) { it.id.toString() }
+        .map { it.fullName.split("/").lastOrNull() ?: it.fullName }
 
-    val reorder = rememberReorderController<com.lucaslu.tickhub.data.Rule>(
-        keyOf = { it.id },
-        itemHeightDp = 112.dp,
-        groupOf = { it.repoFullName.split("/").lastOrNull().takeUnless { it.isNullOrBlank() } ?: "未分类" },
-        onCommit = { vm.saveOrder("rules", it.map { r -> r.id }) }
-    )
-    LaunchedEffect(Unit) {
-        repoOrder = vm.readOrder("repos")
-        val saved = vm.readOrder("rules")
-        reorder.syncFrom(vm.applyOrder(rules, saved) { it.id })
-        orderLoaded = true
+    fun groupNameOf(rule: com.lucaslu.tickhub.data.Rule): String =
+        rule.repoFullName.split("/").lastOrNull().takeUnless { it.isNullOrBlank() } ?: "未分类"
+
+    LaunchedEffect(rules, savedRuleOrder) {
+        orderedRules = vm.applyOrder(rules, savedRuleOrder) { it.id }
     }
-    LaunchedEffect(snapshot.repos, repoOrder) {
-        // derive repo display-name order from the repo page's saved id order
-        repoNameOrder = vm.applyOrder(snapshot.repos, repoOrder) { it.id.toString() }
-            .map { it.fullName.split("/").lastOrNull() ?: it.fullName }
+
+    // flat slots mirror the LazyColumn: "h:<group>" headers and rule ids
+    var slots by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(orderedRules, repoNameOrder) {
+        val g = linkedMapOf<String, List<com.lucaslu.tickhub.data.Rule>>()
+        val raw = orderedRules.groupBy { groupNameOf(it) }
+        repoNameOrder.forEach { raw[it]?.let { v -> g[it] = v } }
+        raw.forEach { (k, v) -> if (!g.containsKey(k)) g[k] = v }
+        slots = buildList {
+            g.forEach { (name, rs) ->
+                add("h:$name")
+                rs.forEach { add(it.id) }
+            }
+        }
     }
-    LaunchedEffect(rules) {
-        if (orderLoaded && reorder.draggingKey == null) reorder.syncFrom(rules)
+
+    val lazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val reorderState = sh.calvin.reorderable.rememberReorderableLazyListState(lazyListState) { from, to ->
+        val fromKey = slots.getOrNull(from.index) ?: return@rememberReorderableLazyListState
+        val toKey = slots.getOrNull(to.index) ?: return@rememberReorderableLazyListState
+        if (fromKey.startsWith("h:") || toKey.startsWith("h:")) return@rememberReorderableLazyListState
+        val fromRule = orderedRules.firstOrNull { it.id == fromKey } ?: return@rememberReorderableLazyListState
+        val toRule = orderedRules.firstOrNull { it.id == toKey } ?: return@rememberReorderableLazyListState
+        // only reorder within the same repo group
+        if (groupNameOf(fromRule) != groupNameOf(toRule)) return@rememberReorderableLazyListState
+        val fi = orderedRules.indexOfFirst { it.id == fromKey }
+        val ti = orderedRules.indexOfFirst { it.id == toKey }
+        orderedRules = orderedRules.toMutableList().apply { add(ti, removeAt(fi)) }
+        vm.saveOrder("rules", orderedRules.map { it.id })
     }
 
     val selectedWorkflows = snapshot.workflows.filter { it.selected }
@@ -112,7 +133,7 @@ fun RulesScreen(vm: AppViewModel) {
             title = { Text("确认立即触发") },
             text = { Text("将立即触发「${ruleToTrigger.workflowNames.joinToString("、").ifBlank { ruleToTrigger.workflowName }}」，确定继续？") },
             confirmButton = {
-                TextButton(onClick = { vm.triggerNow(ruleToTrigger); confirmTrigger = null }) { Text("确认触发") }
+                TextButton(onClick = { Haptics.tick(androidx.compose.ui.platform.LocalContext.current); vm.triggerNow(ruleToTrigger); confirmTrigger = null }) { Text("确认触发") }
             },
             dismissButton = { TextButton(onClick = { confirmTrigger = null }) { Text("取消") } }
         )
@@ -146,7 +167,7 @@ fun RulesScreen(vm: AppViewModel) {
                         }) { Text("删除") }
                         TextButton(onClick = { multiSelect = false; selectedIds = emptySet() }) { Text("取消") }
                     } else {
-                        androidx.compose.material3.IconButton(onClick = { creating = true }, enabled = selectedWorkflows.isNotEmpty()) {
+                        androidx.compose.material3.IconButton(onClick = { Haptics.tick(androidx.compose.ui.platform.LocalContext.current); creating = true }, enabled = selectedWorkflows.isNotEmpty()) {
                             Text("＋", style = MaterialTheme.typography.titleLarge)
                         }
                     }
@@ -161,57 +182,58 @@ fun RulesScreen(vm: AppViewModel) {
         }
         Spacer(Modifier.height(12.dp))
 
-        // group by repo; group ORDER follows the repo page's saved order (not user-sortable here);
-        // within a group, cards can be drag-reordered (handled by controller groupOf below)
-        val groupedRaw = reorder.items.groupBy { it.repoFullName.split("/").lastOrNull().takeUnless { it.isNullOrBlank() } ?: "未分类" }
-        val grouped = linkedMapOf<String, List<com.lucaslu.tickhub.data.Rule>>().apply {
-            repoNameOrder.forEach { display ->
-                groupedRaw[display]?.let { put(display, it) }
-            }
-            groupedRaw.forEach { (k, v) -> if (!containsKey(k)) put(k, v) }
-        }
+        val ruleCountByGroup = orderedRules.groupingBy { groupNameOf(it) }.eachCount()
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
+            state = lazyListState,
             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)
         ) {
-            grouped.forEach { (repoName, repoRules) ->
-                item(key = "header-$repoName") {
+            items(slots, key = { it }) { key ->
+                if (key.startsWith("h:")) {
                     Text(
-                        repoName,
+                        key.removePrefix("h:"),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
                     )
-                }
-                items(repoRules, key = { it.id }) { rule ->
-                    SwipeableCard(
-                        modifier = Modifier.fillMaxWidth().animateItem(),
-                        onDelete = { vm.deleteRule(rule.id) },
-                        onClick = {
-                            if (multiSelect) {
-                                selectedIds = if (selectedIds.contains(rule.id)) selectedIds - rule.id else selectedIds + rule.id
-                            }
-                        },
-                        onSelect = { sel ->
-                            multiSelect = true
-                            selectedIds = if (sel) selectedIds + rule.id else selectedIds - rule.id
-                        },
-                        selected = selectedIds.contains(rule.id),
-                        dragY = reorder.offsetFor(rule.id),
-                        dragging = reorder.isDragging(rule.id),
-                        onDragStart = { reorder.startDrag(rule.id) },
-                        onDragDelta = { reorder.drag(it) },
-                        onDragEnd = { reorder.endDrag() },
-                        content = {
-                            RuleCardContent(
-                                rule = rule,
-                                onToggle = { vm.setRuleEnabled(rule.id, it) },
-                                onEdit = { editing = rule },
-                                onTriggerNow = { confirmTrigger = rule },
-                                runningStart = if (showExec) running[rule.id] else null
+                } else {
+                    val rule = orderedRules.firstOrNull { it.id == key }
+                    if (rule != null) {
+                        val canDrag = (ruleCountByGroup[groupNameOf(rule)] ?: 0) > 1
+                        sh.calvin.reorderable.ReorderableItem(reorderState, key = rule.id) { isDragging ->
+                            SwipeableCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                onDelete = { vm.deleteRule(rule.id) },
+                                onClick = {
+                                    if (multiSelect) {
+                                        selectedIds = if (selectedIds.contains(rule.id)) selectedIds - rule.id else selectedIds + rule.id
+                                    }
+                                },
+                                onSelect = { sel ->
+                                    multiSelect = true
+                                    selectedIds = if (sel) selectedIds + rule.id else selectedIds - rule.id
+                                },
+                                selected = selectedIds.contains(rule.id),
+                                autoSelected = multiSelect && selectedIds.contains(rule.id),
+                                dragging = isDragging,
+                                dragHandle = if (canDrag) with(this) {
+                                    Modifier.longPressDraggableHandle(
+                                        onDragStarted = { Haptics.tick(androidx.compose.ui.platform.LocalContext.current) },
+                                        onDragStopped = { Haptics.tick(androidx.compose.ui.platform.LocalContext.current) }
+                                    )
+                                } else Modifier,
+                                content = {
+                                    RuleCardContent(
+                                        rule = rule,
+                                        onToggle = { Haptics.tick(androidx.compose.ui.platform.LocalContext.current); vm.setRuleEnabled(rule.id, it) },
+                                        onEdit = { Haptics.tick(androidx.compose.ui.platform.LocalContext.current); editing = rule },
+                                        onTriggerNow = { Haptics.tick(androidx.compose.ui.platform.LocalContext.current); confirmTrigger = rule },
+                                        runningStart = if (showExec) running[rule.id] else null
+                                    )
+                                }
                             )
                         }
-                    )
+                    }
                 }
             }
         }

@@ -36,22 +36,6 @@ fun HistoryScreen(vm: AppViewModel) {
     val logs by vm.logs.collectAsState(initial = emptyList())
     var multiSelect by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
-    var orderLoaded by remember { mutableStateOf(false) }
-
-    val reorder = rememberReorderController<TriggerLog>(
-        keyOf = { it.id },
-        itemHeightDp = 132.dp,
-        onCommit = { list -> vm.saveOrder("logs", list.map { it.id }) }
-    )
-
-    LaunchedEffect(Unit) {
-        val saved = vm.readOrder("logs")
-        reorder.syncFrom(vm.applyOrder(logs, saved) { it.id })
-        orderLoaded = true
-    }
-    LaunchedEffect(logs) {
-        if (orderLoaded && reorder.draggingKey == null) reorder.syncFrom(logs)
-    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -65,7 +49,8 @@ fun HistoryScreen(vm: AppViewModel) {
                 actions = {
                     if (multiSelect) {
                         TextButton(onClick = {
-                            selectedIds = if (selectedIds.size == reorder.items.size) emptySet() else reorder.items.map { it.id }.toSet()
+                            com.lucaslu.tickhub.util.Haptics.tick(androidx.compose.ui.platform.LocalContext.current)
+                            selectedIds = if (selectedIds.size == logs.size) emptySet() else logs.map { it.id }.toSet()
                         }) { Text("全选") }
                         TextButton(onClick = {
                             selectedIds.forEach { vm.deleteLog(it) }
@@ -89,9 +74,9 @@ fun HistoryScreen(vm: AppViewModel) {
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)
             ) {
-                items(reorder.items, key = { it.id }) { log ->
+                items(logs, key = { it.id }) { log ->
                     SwipeableCard(
-                        modifier = Modifier.fillMaxWidth().animateItem(),
+                        modifier = Modifier.fillMaxWidth(),
                         onDelete = { vm.deleteLog(log.id) },
                         onClick = {
                             if (multiSelect) {
@@ -103,7 +88,8 @@ fun HistoryScreen(vm: AppViewModel) {
                             selectedIds = if (sel) selectedIds + log.id else selectedIds - log.id
                         },
                         selected = selectedIds.contains(log.id),
-                        // history is timeline-ordered: no drag reorder; long-press only dims the card
+                        autoSelected = multiSelect && selectedIds.contains(log.id),
+                        // history is timeline-ordered: no drag handle; long-press only dims the card
                         content = { LogCardContent(log) }
                     )
                 }

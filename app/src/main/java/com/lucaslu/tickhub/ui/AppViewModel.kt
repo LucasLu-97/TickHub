@@ -56,9 +56,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val runTrackingEnabled = repository.runTrackingEnabled
     val hapticsEnabled = repository.hapticsEnabled
 
+    // In-memory order cache: survives tab switches without re-reading DataStore,
+    // preventing the "flash back to old order then re-sort" on every navigation.
+    private val _orders = MutableStateFlow<Map<String, List<String>>>(emptyMap())
+    val orders: StateFlow<Map<String, List<String>>> = _orders.asStateFlow()
+
     init {
         viewModelScope.launch {
             repository.hapticsEnabled.collect { com.lucaslu.tickhub.util.Haptics.enabled = it }
+        }
+        viewModelScope.launch {
+            val loaded = mutableMapOf<String, List<String>>()
+            listOf("repos", "rules", "logs").forEach { loaded[it] = repository.readOrder(it) }
+            _orders.value = loaded
         }
     }
 
@@ -303,10 +313,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun saveOrder(kind: String, ids: List<String>) {
+        _orders.value = _orders.value.toMutableMap().apply { put(kind, ids) }
         viewModelScope.launch { repository.saveOrder(kind, ids) }
     }
 
-    suspend fun readOrder(kind: String): List<String> = repository.readOrder(kind)
+    suspend fun readOrder(kind: String): List<String> = _orders.value[kind] ?: repository.readOrder(kind)
 
     fun <T> applyOrder(list: List<T>, order: List<String>, idOf: (T) -> String): List<T> =
         repository.applyOrder(list, order, idOf)

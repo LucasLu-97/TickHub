@@ -3,7 +3,6 @@ package com.lucaslu.tickhub.ui
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -18,6 +17,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,11 +35,11 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
- * Card with MIUI-style interactions:
+ * Card with MIUI-style interactions. Reordering is handled by Calvin Reorderable
+ * via [dragHandle] (a longPressDraggableHandle built in ReorderableItem scope).
  *  - swipe LEFT -> reveal red delete icon (vertically centered)
- *  - swipe RIGHT -> reveal checkbox, select (card color unchanged); states are exclusive
- *  - long press + drag -> lift & follow finger (reorder), background icons hidden while dragging
- *  - long press without drag -> dim only (history page)
+ *  - swipe RIGHT -> select; states exclusive; [autoSelected] drives select-all
+ *  - while dragging, reveal layers hidden and card lifted
  */
 @Composable
 fun SwipeableCard(
@@ -48,11 +48,9 @@ fun SwipeableCard(
     onClick: (() -> Unit)? = null,
     onSelect: ((Boolean) -> Unit)? = null,
     selected: Boolean = false,
-    dragY: Float = 0f,
+    autoSelected: Boolean = false,
     dragging: Boolean = false,
-    onDragStart: (() -> Unit)? = null,
-    onDragDelta: ((Float) -> Unit)? = null,
-    onDragEnd: (() -> Unit)? = null,
+    dragHandle: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     val deleteWidth = 76.dp
@@ -66,10 +64,20 @@ fun SwipeableCard(
     var selectRevealed by remember { mutableStateOf(false) }
     var pressed by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(12.dp)
-    val canReorder = onDragStart != null
+
+    // select-all from outside: slide every card right into selected state
+    LaunchedEffect(autoSelected) {
+        if (onSelect != null) {
+            revealed = false
+            selectRevealed = autoSelected
+            offsetX.animateTo(
+                if (autoSelected) selectWidthPx else 0f,
+                spring(dampingRatio = 0.8f, stiffness = 420f)
+            )
+        }
+    }
 
     Box(modifier = modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        // reveal layers hidden while dragging so they never stay behind the moved card
         if (!dragging) {
             if (onSelect != null) {
                 Box(
@@ -92,9 +100,7 @@ fun SwipeableCard(
                 }
             }
             Box(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .width(deleteWidth),
+                modifier = Modifier.align(Alignment.CenterEnd).width(deleteWidth),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
@@ -114,14 +120,14 @@ fun SwipeableCard(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .offset { IntOffset(offsetX.value.roundToInt(), dragY.roundToInt()) }
+                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .then(dragHandle)
                 .graphicsLayer {
                     alpha = if (dragging) 0.95f else 1f
                     scaleX = if (dragging) 1.02f else 1f
                     scaleY = if (dragging) 1.02f else 1f
                 }
                 .then(if (dragging) Modifier.shadow(14.dp, shape, clip = true) else Modifier)
-                // horizontal swipe: exclusive states (selected -> only reset; delete -> only reset)
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
@@ -146,7 +152,6 @@ fun SwipeableCard(
                         change.consume()
                     }
                 }
-                // tap / long-press dim
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onTap = {
@@ -159,25 +164,8 @@ fun SwipeableCard(
                                 onClick?.invoke()
                             }
                         },
-                        onLongPress = {
-                            com.lucaslu.tickhub.util.Haptics.tick(ctx)
-                            pressed = true
-                        }
+                        onLongPress = { pressed = true }
                     )
-                }
-                // long press + vertical drag reorder (only on reorderable pages)
-                .pointerInput(Unit) {
-                    if (canReorder) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = { onDragStart?.invoke() },
-                            onDrag = { change, delta ->
-                                onDragDelta?.invoke(delta.y)
-                                change.consume()
-                            },
-                            onDragEnd = { onDragEnd?.invoke() },
-                            onDragCancel = { onDragEnd?.invoke() }
-                        )
-                    }
                 },
             shape = shape,
             colors = CardDefaults.cardColors(

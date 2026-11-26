@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import com.lucaslu.tickhub.data.ScanSnapshot
 import com.lucaslu.tickhub.data.WorkflowItem
 import com.lucaslu.tickhub.util.Haptics
+import sh.calvin.reorderable.longPressDraggableHandle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,20 +54,20 @@ fun ReposScreen(vm: AppViewModel) {
     var selectedRepoIds by remember { mutableStateOf(setOf<Long>()) }
     var expandedRepo by rememberSaveable { mutableStateOf<Long?>(null) }
     var confirmWf by remember { mutableStateOf<Pair<String, WorkflowItem>?>(null) }
-    var orderLoaded by remember { mutableStateOf(false) }
-
-    val reorder = rememberReorderController<com.lucaslu.tickhub.data.RepoItem>(
-        keyOf = { it.id.toString() },
-        itemHeightDp = 132.dp,
-        onCommit = { vm.saveOrder("repos", it.map { r -> r.id.toString() }) }
-    )
-    LaunchedEffect(Unit) {
-        val saved = vm.readOrder("repos")
-        reorder.syncFrom(vm.applyOrder(snapshot.repos, saved) { it.id.toString() })
-        orderLoaded = true
+    val orders by vm.orders.collectAsState()
+    var repos by remember { mutableStateOf<List<com.lucaslu.tickhub.data.RepoItem>>(emptyList()) }
+    val savedOrder = orders["repos"] ?: emptyList()
+    // rebuild ordered list from data source + saved order; source-of-truth stays in VM cache
+    LaunchedEffect(snapshot.repos, savedOrder) {
+        repos = vm.applyOrder(snapshot.repos, savedOrder) { it.id.toString() }
     }
-    LaunchedEffect(snapshot.repos) {
-        if (orderLoaded && reorder.draggingKey == null) reorder.syncFrom(snapshot.repos)
+    val lazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val reorderState = sh.calvin.reorderable.rememberReorderableLazyListState(lazyListState) { from, to ->
+        // header occupies index 0
+        repos = repos.toMutableList().apply {
+            add(to.index - 1, removeAt(from.index - 1))
+        }
+        vm.saveOrder("repos", repos.map { it.id.toString() })
     }
 
     confirmWf?.let { (fullName, wf) ->
@@ -76,6 +77,7 @@ fun ReposScreen(vm: AppViewModel) {
             text = { Text("将立即触发工作流「${wf.name}」，确定继续？") },
             confirmButton = {
                 TextButton(onClick = {
+                    haptic()
                     vm.triggerWorkflowNow(fullName, wf.id, wf.name)
                     confirmWf = null
                 }) { Text("确认触发") }
@@ -102,7 +104,8 @@ fun ReposScreen(vm: AppViewModel) {
                 actions = {
                     if (multiSelect) {
                         TextButton(onClick = {
-                            selectedRepoIds = if (selectedRepoIds.size == snapshot.repos.size) emptySet() else snapshot.repos.map { it.id }.toSet()
+                            haptic()
+                            selectedRepoIds = if (selectedRepoIds.size == repos.size) emptySet() else repos.map { it.id }.toSet()
                         }) { Text("全选") }
                         TextButton(onClick = {
                             selectedRepoIds.forEach { vm.removeRepo(it) }
@@ -115,14 +118,15 @@ fun ReposScreen(vm: AppViewModel) {
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp)) {
-            PullToRefreshBox(isRefreshing = refreshing, onRefresh = { vm.refreshProfile() }) {
+            PullToRefreshBox(isRefreshing = refreshing, onRefresh = { haptic(); vm.refreshProfile() }) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
+                    state = lazyListState,
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)
                 ) {
                     item {
                         Button(
-                            onClick = { vm.scanRepos() },
+                            onClick = { haptic(); vm.scanRepos() },
                             enabled = !state.scanning,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                         ) {
@@ -141,43 +145,48 @@ fun ReposScreen(vm: AppViewModel) {
                             modifier = Modifier.padding(vertical = 6.dp)
                         )
                     }
-                    items(reorder.items, key = { it.id }) { repo ->
-                        val wfs = snapshot.workflows.filter { it.repoId == repo.id && it.state == "active" }
-                        SwipeableCard(
-                            modifier = Modifier.fillMaxWidth().animateItem(),
-                            onDelete = { vm.removeRepo(repo.id) },
-                            onClick = {
-                                if (!multiSelect) {
-                                    expandedRepo = if (expandedRepo == repo.id) null else repo.id
-                                    haptic()
-                                } else {
-                                    selectedRepoIds = if (selectedRepoIds.contains(repo.id)) selectedRepoIds - repo.id else selectedRepoIds + repo.id
+                    items(repos, key = { it.id }) { repo ->
+                        sh.calvin.reorderable.ReorderableItem(reorderState, key = repo.id) { isDragging ->
+                            val wfs = snapshot.workflows.filter { it.repoId == repo.id && it.state == "active" }
+                            SwipeableCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                onDelete = { vm.removeRepo(repo.id) },
+                                onClick = {
+                                    if (!multiSelect) {
+                                        expandedRepo = if (expandedRepo == repo.id) null else repo.id
+                                        haptic()
+                                    } else {
+                                        selectedRepoIds = if (selectedRepoIds.contains(repo.id)) selectedRepoIds - repo.id else selectedRepoIds + repo.id
+                                    }
+                                },
+                                onSelect = { sel ->
+                                    multiSelect = true
+                                    selectedRepoIds = if (sel) selectedRepoIds + repo.id else selectedRepoIds - repo.id
+                                },
+                                selected = selectedRepoIds.contains(repo.id),
+                                autoSelected = multiSelect && selectedRepoIds.contains(repo.id),
+                                dragging = isDragging,
+                                dragHandle = with(this) {
+                                    Modifier.longPressDraggableHandle(
+                                        onDragStarted = { haptic() },
+                                        onDragStopped = { haptic() }
+                                    )
+                                },
+                                content = {
+                                    RepoCardContent(
+                                        repoName = repo.name,
+                                        private = repo.private,
+                                        managed = repo.managed,
+                                        workflows = wfs,
+                                        expanded = expandedRepo == repo.id,
+                                        selectedIds = wfs.filter { it.selected }.map { it.id }.toSet(),
+                                        onManagedChange = { vm.toggleManaged(repo.id, it) },
+                                        onWorkflowToggle = { id, checked -> vm.toggleWorkflow(id, checked) },
+                                        onTriggerWorkflow = { wf -> confirmWf = repo.fullName to wf }
+                                    )
                                 }
-                            },
-                            onSelect = { sel ->
-                                multiSelect = true
-                                selectedRepoIds = if (sel) selectedRepoIds + repo.id else selectedRepoIds - repo.id
-                            },
-                            selected = selectedRepoIds.contains(repo.id),
-                            dragY = reorder.offsetFor(repo.id.toString()),
-                            dragging = reorder.isDragging(repo.id.toString()),
-                            onDragStart = { reorder.startDrag(repo.id.toString()) },
-                            onDragDelta = { reorder.drag(it) },
-                            onDragEnd = { reorder.endDrag() },
-                            content = {
-                                RepoCardContent(
-                                    repoName = repo.name,
-                                    private = repo.private,
-                                    managed = repo.managed,
-                                    workflows = wfs,
-                                    expanded = expandedRepo == repo.id,
-                                    selectedIds = wfs.filter { it.selected }.map { it.id }.toSet(),
-                                    onManagedChange = { vm.toggleManaged(repo.id, it) },
-                                    onWorkflowToggle = { id, checked -> vm.toggleWorkflow(id, checked) },
-                                    onTriggerWorkflow = { wf -> confirmWf = repo.fullName to wf }
-                                )
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }

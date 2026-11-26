@@ -196,6 +196,7 @@ fun RuleEditScreen(
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         Row(modifier = Modifier.fillMaxWidth()) {
             Button(onClick = {
+                Haptics.tick(context)
                 when {
                     selectedIds.isEmpty() -> error = "请至少勾选一个工作流"
                     type == RuleType.WEEKLY && selectedDays.isEmpty() -> error = "请至少选择一个星期"
@@ -229,7 +230,7 @@ fun RuleEditScreen(
                 }
             }, modifier = Modifier.weight(1f)) { Text("保存") }
             Spacer(Modifier.padding(8.dp))
-            OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text("取消") }
+            OutlinedButton(onClick = { Haptics.tick(context); onCancel() }, modifier = Modifier.weight(1f)) { Text("取消") }
         }
     }
 
