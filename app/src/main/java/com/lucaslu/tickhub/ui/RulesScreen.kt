@@ -204,10 +204,14 @@ fun RulesScreen(vm: AppViewModel) {
                 .padding(bottom = 88.dp)
                 .onSizeChanged { viewportHeight = it.height }
                 .pointerInput(Unit) {
-                    androidx.compose.ui.input.pointer.awaitPointerEventScope {
+                    androidx.compose.foundation.gestures.awaitEachGesture {
+                        androidx.compose.foundation.gestures.awaitFirstDown(requireUnconsumed = false)
                         while (true) {
-                            val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                            val event = androidx.compose.ui.input.pointer.awaitPointerEvent(
+                                androidx.compose.ui.input.pointer.PointerEventPass.Initial
+                            )
                             dragFingerY = event.changes.firstOrNull()?.position?.y ?: -1f
+                            if (event.changes.all { !it.pressed }) break
                         }
                     }
                 }
