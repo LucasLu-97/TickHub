@@ -6,6 +6,8 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.material3.Typography
 
 /**
  * MIUI-like palette: light-grey page background with white content cards.
@@ -42,6 +44,30 @@ private val DarkColors = darkColorScheme(
     surfaceContainerHighest = Color(0xFF323337),
 )
 
+// tabular numbers: digits share one fixed width so times/counts align neatly,
+// without forcing the whole text (e.g. Chinese) into a monospace face.
+private fun TextStyle.withTabularNumbers(): TextStyle = copy(fontFeatureSettings = "tnum")
+
+private val AppTypography = Typography().let { t ->
+    t.copy(
+        displayLarge = t.displayLarge.withTabularNumbers(),
+        displayMedium = t.displayMedium.withTabularNumbers(),
+        displaySmall = t.displaySmall.withTabularNumbers(),
+        headlineLarge = t.headlineLarge.withTabularNumbers(),
+        headlineMedium = t.headlineMedium.withTabularNumbers(),
+        headlineSmall = t.headlineSmall.withTabularNumbers(),
+        titleLarge = t.titleLarge.withTabularNumbers(),
+        titleMedium = t.titleMedium.withTabularNumbers(),
+        titleSmall = t.titleSmall.withTabularNumbers(),
+        bodyLarge = t.bodyLarge.withTabularNumbers(),
+        bodyMedium = t.bodyMedium.withTabularNumbers(),
+        bodySmall = t.bodySmall.withTabularNumbers(),
+        labelLarge = t.labelLarge.withTabularNumbers(),
+        labelMedium = t.labelMedium.withTabularNumbers(),
+        labelSmall = t.labelSmall.withTabularNumbers(),
+    )
+}
+
 @Composable
 fun TickHubTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -49,6 +75,7 @@ fun TickHubTheme(
 ) {
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
+        typography = AppTypography,
         content = content
     )
 }

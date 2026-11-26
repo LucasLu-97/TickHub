@@ -8,6 +8,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -100,24 +101,34 @@ fun RulesScreen(vm: AppViewModel) {
     // scroll the outer column ourselves.
     val scrollState = androidx.compose.foundation.rememberScrollState()
     var dragFingerY by remember { mutableFloatStateOf(-1f) }
-    var isDraggingCard by remember { mutableStateOf(false) }
+    var activeDragGroup by remember { mutableStateOf<String?>(null) }
     var viewportHeight by remember { mutableIntStateOf(0) }
+    var contentRootY by remember { mutableFloatStateOf(0f) } // scroll content top in root coords
+    // group name -> (top, bottom) in scroll-content coordinates (fixed, independent of scrolling)
+    val groupBounds = remember { mutableMapOf<String, Pair<Float, Float>>() }
     val density = androidx.compose.ui.platform.LocalDensity.current
     val edgePx = with(density) { 96.dp.toPx() }
     val scrollSpeed = with(density) { 14.dp.toPx() }
 
-    LaunchedEffect(isDraggingCard) {
-        if (!isDraggingCard) return@LaunchedEffect
+    LaunchedEffect(activeDragGroup) {
+        val group = activeDragGroup ?: return@LaunchedEffect
         while (true) {
+            val bounds = groupBounds[group] ?: break
             val y = dragFingerY
             val h = viewportHeight.toFloat()
+            // "air wall": only scroll while the group's own header/bottom has not
+            // reached the viewport edge — never drag the whole page past the group.
+            val canScrollUp = scrollState.value > bounds.first + 1f
+            val canScrollDown = scrollState.value + h < bounds.second - 1f
             val delta = when {
-                y >= 0f && y < edgePx -> -scrollSpeed          // near top edge: scroll up
-                y > h - edgePx && y <= h + edgePx -> scrollSpeed // near bottom edge: scroll down
+                y >= 0f && y < edgePx && canScrollUp -> -scrollSpeed
+                y > h - edgePx && y <= h + edgePx && canScrollDown -> scrollSpeed
                 else -> 0f
             }
             if (delta != 0f) {
-                val target = (scrollState.value + delta).toInt().coerceIn(0, scrollState.maxValue)
+                val lower = bounds.first.toInt().coerceAtLeast(0)
+                val upper = (bounds.second - h).toInt().coerceAtLeast(lower)
+                val target = (scrollState.value + delta).toInt().coerceIn(lower, upper)
                 if (target != scrollState.value) scrollState.scrollTo(target)
             }
             kotlinx.coroutines.delay(16)
@@ -224,8 +235,16 @@ fun RulesScreen(vm: AppViewModel) {
                 .fillMaxSize()
                 .verticalScroll(scrollState)
                 .padding(bottom = 88.dp)
+                .onGloballyPositioned { contentRootY = it.positionInRoot().y }
         ) {
             groups.forEach { (repoName, groupRules) ->
+                // wrap header + list in a Box to capture this group's bounds in content coords
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier.onGloballyPositioned { coords ->
+                        val top = coords.positionInRoot().y - contentRootY
+                        groupBounds[repoName] = top to (top + coords.size.height)
+                    }
+                ) {
                 Text(
                     repoName,
                     style = MaterialTheme.typography.labelSmall,
@@ -250,8 +269,8 @@ fun RulesScreen(vm: AppViewModel) {
                     onTriggerNow = { confirmTrigger = it },
                     showExec = showExec,
                     running = running,
-                    onDragStart = { isDraggingCard = true },
-                    onDragStop = { isDraggingCard = false },
+                    onDragStart = { activeDragGroup = repoName },
+                    onDragStop = { activeDragGroup = null },
                     onReorder = { newGroupRules ->
                         // splice this group's new order back into the global orderedRules
                         val idSet = groupRules.map { it.id }.toSet()
@@ -262,6 +281,7 @@ fun RulesScreen(vm: AppViewModel) {
                         vm.saveOrder("rules", orderedRules.map { it.id })
                     }
                 )
+                } // Box
             }
         }
         }
