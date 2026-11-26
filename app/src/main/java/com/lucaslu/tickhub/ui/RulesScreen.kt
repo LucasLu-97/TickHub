@@ -112,11 +112,14 @@ fun RulesScreen(vm: AppViewModel) {
             val y = dragFingerY
             val h = viewportHeight.toFloat()
             val delta = when {
-                y >= 0f && y < edgePx -> -scrollSpeed   // near top edge
-                y > h - edgePx -> scrollSpeed            // near/below bottom edge
+                y >= 0f && y < edgePx -> -scrollSpeed          // near top edge: scroll up
+                y > h - edgePx && y <= h + edgePx -> scrollSpeed // near bottom edge: scroll down
                 else -> 0f
             }
-            if (delta != 0f) scrollState.dispatchRawDelta(delta)
+            if (delta != 0f) {
+                val target = (scrollState.value + delta).toInt().coerceIn(0, scrollState.maxValue)
+                if (target != scrollState.value) scrollState.scrollTo(target)
+            }
             kotlinx.coroutines.delay(16)
         }
     }
@@ -193,7 +196,23 @@ fun RulesScreen(vm: AppViewModel) {
             )
         }
     ) { pad ->
-        Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(pad)
+                .padding(horizontal = 16.dp)
+                .onSizeChanged { viewportHeight = it.height }
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            dragFingerY = event.changes.firstOrNull()?.position?.y ?: -1f
+                            if (event.changes.all { !it.pressed }) break
+                        }
+                    }
+                }
+        ) {
         if (selectedWorkflows.isEmpty()) {
             Spacer(Modifier.height(16.dp))
             Text("请先在「仓库」页勾选要纳管的工作流，再来创建规则。", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -205,17 +224,6 @@ fun RulesScreen(vm: AppViewModel) {
                 .fillMaxSize()
                 .verticalScroll(scrollState)
                 .padding(bottom = 88.dp)
-                .onSizeChanged { viewportHeight = it.height }
-                .pointerInput(Unit) {
-                    awaitEachGesture {
-                        awaitFirstDown(requireUnconsumed = false)
-                        while ( true) {
-                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                            dragFingerY = event.changes.firstOrNull()?.position?.y ?: -1f
-                            if (event.changes.all { !it.pressed }) break
-                        }
-                    }
-                }
         ) {
             groups.forEach { (repoName, groupRules) ->
                 Text(

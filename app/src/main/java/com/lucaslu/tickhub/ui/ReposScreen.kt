@@ -67,6 +67,7 @@ fun ReposScreen(vm: AppViewModel) {
         repos = repos.toMutableList().apply {
             add(to.index - 1, removeAt(from.index - 1))
         }
+        haptic() // tick each time the dragged card passes another card
         vm.saveOrder("repos", repos.map { it.id.toString() })
     }
 

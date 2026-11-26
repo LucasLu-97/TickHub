@@ -81,7 +81,7 @@ fun RuleEditScreen(
     }
     fun repoLabel(id: Long) = (repoNames[id] ?: "仓库 $id").split("/").lastOrNull() ?: "仓库 $id"
 
-    Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp).padding(top = 40.dp, bottom = 80.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp).padding(top = 40.dp, bottom = 120.dp)) {
         Text(if (existing == null) "新建触发规则" else "编辑触发规则", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(16.dp))
 
