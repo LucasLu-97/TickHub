@@ -3,10 +3,13 @@ package com.lucaslu.tickhub.ui
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.awaitPointerEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.onSizeChanged
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,6 +26,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -86,6 +91,32 @@ fun RulesScreen(vm: AppViewModel) {
         repoNameOrder.forEach { raw[it]?.let { v -> g[it] = v } }
         raw.forEach { (k, v) -> if (!g.containsKey(k)) g[k] = v }
         g
+    }
+
+    // Edge auto-scroll while dragging: ReorderableColumn (plain Column) has no
+    // built-in edge scrolling, so we observe the finger via Initial pass and
+    // scroll the outer column ourselves.
+    val scrollState = androidx.compose.foundation.rememberScrollState()
+    var dragFingerY by remember { mutableFloatStateOf(-1f) }
+    var isDraggingCard by remember { mutableStateOf(false) }
+    var viewportHeight by remember { mutableIntStateOf(0) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val edgePx = with(density) { 96.dp.toPx() }
+    val scrollSpeed = with(density) { 14.dp.toPx() }
+
+    LaunchedEffect(isDraggingCard) {
+        if (!isDraggingCard) return@LaunchedEffect
+        while (true) {
+            val y = dragFingerY
+            val h = viewportHeight.toFloat()
+            val delta = when {
+                y >= 0f && y < edgePx -> -scrollSpeed   // near top edge
+                y > h - edgePx -> scrollSpeed            // near/below bottom edge
+                else -> 0f
+            }
+            if (delta != 0f) scrollState.scrollBy(delta)
+            kotlinx.coroutines.delay(16)
+        }
     }
 
     val selectedWorkflows = snapshot.workflows.filter { it.selected }
@@ -170,8 +201,17 @@ fun RulesScreen(vm: AppViewModel) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(androidx.compose.foundation.rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(bottom = 88.dp)
+                .onSizeChanged { viewportHeight = it.height }
+                .pointerInput(Unit) {
+                    androidx.compose.foundation.gestures.awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                            dragFingerY = event.changes.firstOrNull()?.position?.y ?: -1f
+                        }
+                    }
+                }
         ) {
             groups.forEach { (repoName, groupRules) ->
                 Text(
@@ -198,6 +238,8 @@ fun RulesScreen(vm: AppViewModel) {
                     onTriggerNow = { confirmTrigger = it },
                     showExec = showExec,
                     running = running,
+                    onDragStart = { isDraggingCard = true },
+                    onDragStop = { isDraggingCard = false },
                     onReorder = { newGroupRules ->
                         // splice this group's new order back into the global orderedRules
                         val idSet = groupRules.map { it.id }.toSet()
@@ -277,6 +319,8 @@ private fun RuleGroupList(
     onTriggerNow: (com.lucaslu.tickhub.data.Rule) -> Unit,
     showExec: Boolean,
     running: Map<String, Long>,
+    onDragStart: () -> Unit,
+    onDragStop: () -> Unit,
     onReorder: (List<com.lucaslu.tickhub.data.Rule>) -> Unit
 ) {
     var groupRules by remember(rules) { mutableStateOf(rules) }
@@ -305,8 +349,8 @@ private fun RuleGroupList(
                     dragging = isDragging,
                     dragHandle = if (canDrag) with(this) {
                         Modifier.longPressDraggableHandle(
-                            onDragStarted = { Haptics.tick(context) },
-                            onDragStopped = { Haptics.tick(context) }
+                            onDragStarted = { Haptics.tick(context); onDragStart() },
+                            onDragStopped = { Haptics.tick(context); onDragStop() }
                         )
                     } else Modifier,
                     content = {
