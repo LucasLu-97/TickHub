@@ -288,7 +288,6 @@ private fun RuleGroupList(
             groupRules = groupRules.toMutableList().apply {
                 add(toIndex, removeAt(fromIndex))
             }
-            Haptics.tick(context)
             onReorder(groupRules)
         },
         onMove = { Haptics.tick(context) }
@@ -306,7 +305,7 @@ private fun RuleGroupList(
                     dragHandle = if (canDrag) with(this) {
                         Modifier.longPressDraggableHandle(
                             onDragStarted = { Haptics.tick(context) },
-                            onDragStopped = { }
+                            onDragStopped = { Haptics.tick(context) }
                         )
                     } else Modifier,
                     content = {
