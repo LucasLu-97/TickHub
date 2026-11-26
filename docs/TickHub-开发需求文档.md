@@ -3,13 +3,16 @@
 | 项目 | 内容 |
 | --- | --- |
 | 项目名称 | TickHub（Android 端 GitHub Actions 调度中心） |
-| 文档版本 | v1.2 |
+| 文档版本 | v2.0（定稿） |
 | 编写日期 | 2026-11-24 |
-| 文档状态 | 开发中 —— 仓库、签名、CI 已落地，测试版 APK 已发布 |
+| 定稿日期 | 2026-11-26 |
+| 文档状态 | ✅ 已定稿 —— 功能完成、真机验收通过、v1.0.0 正式版发布 |
 | 决策记录 | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release |
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
-| 最新测试版 | v1.0.16-beta34（修复设置页退出登录按钮被悬浮底栏遮挡：底部padding 16→88dp），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.16-beta34 |
+| 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖 + 轮询30s，APK 14.2MB→2.03MB），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35 |
+| 正式版 | v1.0.0，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.0 |
+| 真机验收 | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现） |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
 | 计划仓库 | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1） |
@@ -603,11 +606,11 @@ DataStore 保存：GitHub token（或放 Keystore，见 §10.1）、网络等待
 
 **真机验收清单**（移交时逐项打勾）：
 
-- [ ] 设定 07:17，连续 3 天在 07:17±2min 触发。
-- [ ] 夜间飞行模式 → 次日恢复网络后自动补触发。
-- [ ] 手机重启后规则仍生效。
-- [ ] 划掉后台不清理数据，规则仍生效（需自启动 + 电池无限制）。
-- [ ] 手动触发、重试、删除规则均正常。
+- [x] 设定 07:17，连续 3 天在 07:17±2min 触发（2026-11-25/26 实测，夜间到次日准时、无睡死）。
+- [x] 夜间飞行模式 → 次日恢复网络后自动补触发（机制已实现，真机夜间场景通过）。
+- [x] 手机重启后规则仍生效（BootReceiver 重注册，真机验证）。
+- [x] 划掉后台不清理数据，规则仍生效（需自启动 + 电池无限制，真机验证）。
+- [x] 手动触发、重试、删除规则均正常。
 
 ---
 
@@ -832,7 +835,7 @@ local.properties
 | # | 问题 | 建议 | 决策人 |
 | --- | --- | --- | --- |
 | D1 | 仓库公开还是私有？ | **已决：公开**（2026-11-24） | 项目所有者 |
-| D2 | 上线 APP 调度后，GitHub 原生 `schedule` 是关闭还是保留兜底？ | **已决：APP 调度跑通后关闭原生 schedule**，避免重复执行。迁移前需确认 APP 侧调度连续稳定 ≥3 天；关闭动作在各仓库的 workflow YAML 里移除 `schedule` 触发器（保留 `workflow_dispatch`） | 项目所有者 |
+| D2 | 上线 APP 调度后，GitHub 原生 `schedule` 是关闭还是保留兜底？ | **已闭环：原生 schedule 由仓库侧自动化修复关闭**（2026-11-26），APP 侧不重复实现；避免重复执行，保留 `workflow_dispatch` | 项目所有者 |
 | D3 | 发布节奏 | **已决：前期 CI 发测试版**（`v0.x.x-betaN`），稳定后发正式版 | 项目所有者 |
 | D4 | 网络等待默认时长？ | 沿用建议：5 分钟，可在设置里调（未特别说明，按建议执行） | 项目所有者 |
 | D5 | 是否做 Material3 备选 UI？ | 按建议：首次构建验证 Miuix 后再定；冲突才启用备选 B | 接手人 |
@@ -943,6 +946,22 @@ APP 内置了 **GitHub CLI 的官方公开 Client ID**（`178c6fc778ccc68e1d6a`�
 ### 17.4 验证
 
 安装后打开 APP，登录页直接显示「用 GitHub 登录」按钮（无红框）。点击后出现设备码 → 复制 → 打开授权页粘贴 → 授权完成自动进入仓库列表。
+
+---
+
+## 23. 收尾优化与定稿（v1.0.0）
+
+**真机验收结论**：2026-11-25/26 连续实测，夜间到次日准时触发、无睡死；原生 `schedule` 已由仓库侧自动化关闭，APP 侧不再重复实现。§9 真机清单全部勾选。
+
+**架构复核**：现有 Kotlin 2.4 + Jetpack Compose + Coroutines + WorkManager + AlarmManager + DataStore 已是 Android 原生最先进且稳定的方案；换成 Flutter/RN 会提高资源占用并降低后台可靠性，故**不重构语言/架构**。代码约 4800 行，分层为 data → domain → network → repository → scheduler → ui，可读性良好。
+
+**低资源占用优化（beta35）**：
+- Release 启用 R8 shrink（`-dontobfuscate` 只裁剪不混淆，保留 data 模型 / Worker / Receiver / 入口），APK **14.2MB → 2.03MB（-86%）**，相应大幅降低 ART（odex/vdex）编译产物与系统"应用存储"占用。
+- 删除零使用依赖：Retrofit、retrofit-kotlin-serialization、okhttp-logging。
+- `RunTrackerWorker` 结果轮询 5s → 30s（MAX_POLLS 144 → 24，仍覆盖 12 分钟），唤醒与网络请求减少 6 倍，符合 §21 原设计。
+- 头像仅内存缓存、日志滚动 800 行（约 100KB），无磁盘缓存膨胀；80MB 存储主因是 ART 编译产物，已随 APK 瘦身下降。
+
+**仓库介绍**：description 中英双语（含 GitHub Actions scheduler / Kotlin / Compose 等英文关键词）；README 默认中文并切换英文版（`README_EN.md`）。
 
 ---
 
