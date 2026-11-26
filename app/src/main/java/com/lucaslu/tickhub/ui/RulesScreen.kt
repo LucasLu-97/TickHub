@@ -3,8 +3,6 @@ package com.lucaslu.tickhub.ui
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.gestures.awaitPointerEventScope
-import androidx.compose.foundation.scrollBy
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.Spacer
@@ -115,7 +113,7 @@ fun RulesScreen(vm: AppViewModel) {
                 y > h - edgePx -> scrollSpeed            // near/below bottom edge
                 else -> 0f
             }
-            if (delta != 0f) scrollState.scrollBy(delta)
+            if (delta != 0f) scrollState.dispatchRawDelta(delta)
             kotlinx.coroutines.delay(16)
         }
     }
@@ -206,7 +204,7 @@ fun RulesScreen(vm: AppViewModel) {
                 .padding(bottom = 88.dp)
                 .onSizeChanged { viewportHeight = it.height }
                 .pointerInput(Unit) {
-                    awaitPointerEventScope {
+                    androidx.compose.ui.input.pointer.awaitPointerEventScope {
                         while (true) {
                             val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
                             dragFingerY = event.changes.firstOrNull()?.position?.y ?: -1f
