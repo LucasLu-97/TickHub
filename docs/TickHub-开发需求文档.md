@@ -9,7 +9,7 @@
 | 决策记录 | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release |
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
-| 最新测试版 | v1.0.8-beta26（修正边缘滚动坐标基准 + 仓库页拖拽震动 + 新建页底部留白），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.8-beta26 |
+| 最新测试版 | v1.0.9-beta27（组内空气墙边界滚动 + 数字等宽字体），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.9-beta27 |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
 | 计划仓库 | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1） |
@@ -872,7 +872,7 @@ local.properties
 - **规则页**：仓库分组顺序不可拖拽，严格同步仓库页保存的顺序；同仓库多卡可组内拖拽排序（ReorderController 的 `groupOf` 限制交换范围在本组内）。
 - **历史页**：按时间线排序，不支持长按拖拽（仅保留长按时卡片变暗的按压反馈）。
 - **组内硬边界（beta23/24）**：规则页每个仓库组用独立的拖拽容器，卡片物理上无法被拖出本组，彻底消除越界时的"掉落再跟随"动效；单卡组不给 dragHandle。beta24 修正：容器从固定高度的 LazyColumn 改为库的 **`ReorderableColumn`**（普通 Column，高度 wrap content 自适应），修复卡片被下一组遮挡的问题。仓库页单列表内库原生限制在列表边界内。
-- **边缘自动滚动（beta25/26）**：组内卡片超出一页时，拖到屏幕上下边缘会自动滚动外层列表。ReorderableColumn 无原生边缘滚动，故外层 Column 用 `awaitPointerEvent(Initial)` 观察手指 Y（不消费事件），拖拽期间协程每 16ms 滚动。beta26 修正：手指坐标与视口高度必须绑定在**固定的外层 Column**（不能是 verticalScroll 的那个，否则坐标随内容滚动、高度变内容总高导致底部判断失效），滚动改用 `scrollState.scrollTo()`。
+- **边缘自动滚动 + 空气墙（beta25/26/27）**：组内卡片超出一页时，拖到屏幕上下边缘会自动滚动外层列表。ReorderableColumn 无原生边缘滚动，故外层 Column 用 `awaitPointerEvent(Initial)` 观察手指 Y（不消费事件），拖拽期间协程每 16ms 滚动。beta26 修正坐标基准绑固定视口。beta27 加**空气墙**：用 `onGloballyPositioned` 记录每组在滚动内容中的 top/bottom，拖拽时只在本组范围内滚动（组名 header 触顶/组底触底即停），不会把整个页面滚走；卡片本身由库的独立组容器限制不能跨组。数字用等宽字形：主题 typography 全体加 `fontFeatureSettings="tnum"`（tabular numbers，仅数字等宽，中文不受影响）。
 - **新增仓库**：扫描到的新仓库追加到列表末尾。
 
 **拖拽改用开源库（beta20）**：弃用自研手势，接入 `sh.calvin.reorderable:reorderable-android:3.1.0`（Calvin-LL/Reorderable）。用 `rememberReorderableLazyListState` + `ReorderableItem` + `Modifier.longPressDraggableHandle`（成员扩展，在 ReorderableItem scope 内用），库负责跟手位移、边缘滚动、`animateItem` 让位动效。仓库/规则页可拖拽，历史页不接拖拽。规则页通过 slots（header+rule id）换算索引，拖拽仅在本仓库组内生效，单卡分组不可拖。顺序缓存提升到 ViewModel 的 `orders` StateFlow，切 tab 不再重排闪烁。
