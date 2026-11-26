@@ -59,7 +59,7 @@ android {
             isMinifyEnabled = false
         }
         getByName("release") {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = if (System.getenv("KEYSTORE_BASE64") != null) {
                 signingConfigs.getByName("release")
@@ -90,16 +90,13 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.compose.material.icons)
     implementation("sh.calvin.reorderable:reorderable-android:3.1.0")
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.security.crypto)
     // Room will be added in M2 together with a KSP version aligned to the Kotlin toolchain
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.okhttp)
-    implementation(libs.okhttp.logging)
-    implementation(libs.retrofit)
-    implementation(libs.retrofit.kotlin.serialization)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
 
