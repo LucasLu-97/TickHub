@@ -3,13 +3,14 @@ package com.lucaslu.tickhub.ui
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.gestures.awaitPointerEvent
+import androidx.compose.foundation.gestures.awaitPointerEventScope
+import androidx.compose.foundation.scrollBy
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.onSizeChanged
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -205,7 +206,7 @@ fun RulesScreen(vm: AppViewModel) {
                 .padding(bottom = 88.dp)
                 .onSizeChanged { viewportHeight = it.height }
                 .pointerInput(Unit) {
-                    androidx.compose.foundation.gestures.awaitPointerEventScope {
+                    awaitPointerEventScope {
                         while (true) {
                             val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
                             dragFingerY = event.changes.firstOrNull()?.position?.y ?: -1f
