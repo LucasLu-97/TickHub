@@ -11,8 +11,8 @@
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
 | 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35 |
-| 当前正式版 | v1.1.3（历史页 i18n 补全 + 实时耗时追踪至任务完成），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.1.3 |
-| 历史正式版 | v1.1.2（i18n 布局优化）、v1.1.1（状态实时翻译/漏译补全）、v1.1.0（双语/节假日开关/耗时修复）、v1.0.3（登录页优化）、v1.0.2（关闭 R8 修复闪退）、v1.0.1 / v1.0.0（R8 闪退） |
+| 当前正式版 | v1.1.4（规则卡间隔天数/法定节假日下次时间 + 失败重试 + 精确闹钟降级提示），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.1.4 |
+| 历史正式版 | v1.1.3（历史页 i18n 补全 + 实时耗时追踪）、v1.1.2（i18n 布局优化）、v1.1.1（状态实时翻译）、v1.1.0（双语/节假日开关/耗时修复）、v1.0.3（登录页优化）、v1.0.2（关闭 R8 修复闪退）、v1.0.1 / v1.0.0（R8 闪退） |
 | 真机验收 | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现） |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
@@ -977,6 +977,8 @@ APP 内置了 **GitHub CLI 的官方公开 Client ID**（`178c6fc778ccc68e1d6a`�
 **时区确认**：RuleEngine 全程用 `LocalDateTime` + `ZoneId.systemDefault()`，存 epoch millis 绝对时间，AlarmManager 用 `RTC_WAKEUP` 按 epoch 触发，显示时再转回本机时区。国外用户按本机时区解释规则时间，**无硬编码北京时间**，无需改动。
 
 **i18n 修正（v1.1.1）**：① 状态文本（登录 status/error、仓库扫描 message/error）改为 ViewModel 存**中文 key**、UI 显示时 `L10n.tNow()` 实时翻译——修掉"生成时固化翻译导致切换语言后状态不跟随"的 bug（用户看到 "enter the code" 只有英文即此因）。② 补漏译：仓库页确认弹窗 `将立即触发工作流「…」`、卡片 `N 工作流`、历史页 `最近 N 条记录`（动态字符串脚本原先跳过）。③ 英文翻译精简：周期 chip `法定工作日→Weekdays`/`法定节假日→Holidays`、按钮 `立即触发→Trigger`/`扫描仓库与工作流→Scan repos`/`打开 GitHub 授权页面→Open GitHub` 等，长说明句全部缩短，避免换行导致按钮变高。④ 语言卡片移到设置页最底部（退出登录上方）。默认语言仍为中文。
+
+**规则卡片与调度可靠性（v1.1.4）**：① 每隔 N 天规则卡片显示具体天数（`每隔 ` + `rule.intervalDays` + ` 天`），不再笼统显示"每隔X天"。② 法定工作日/节假日跨年算错修复：`computeNextFire` 同时加载当年+次年节假日数据，谓词按候选日期年份取对应数据，跨年元旦/春节能算出下次时间；数据不可用时卡片显示"节假日数据未就绪，请在设置开启中国法定节假日"提示而非空白。③ **C1 失败不再消费触发点**（审查高优先级）：网络超时/dispatch 全失败时不再无条件 `advanceRule()`，改 `retryOrAdvance()`——同一 slot 15 分钟后重试（携带原始 plannedAt 保持去重键一致），最多 5 次后放弃推进，避免瞬时网络错误导致漏签。④ **C4 精确闹钟权限静默吞**：无精确闹钟权限时回退 `setAndAllowWhileIdle()`（仍能触发）+ 一次性通知引导，不再静默失败。
 
 **历史页 i18n 与耗时修正（v1.1.3）**：① 历史卡片"计划：/实际："原硬编码中文，改 `t()` + 补字典 key；errorMessage 显示时经 `L10n.tNow()`。全局扫描确认其余中文均为字典 key / 数据常量 / VM 待翻译 key。② 耗时不显示根因：`RunTrackerWorker` 跑满 144 次（12 分钟）后 `giveUp()` 把 `durationMs` 归零且 `tracking=false`，卡片既无实时计时也无静态耗时。修复：去掉短上限（改 24 小时安全网，任务 completed 立即停）；每次轮询把实时耗时写回日志（`updateLogElapsed`，找到 run 用 `run_started_at` 起算、未找到用 `firedAt` 起算），进程被杀重启也有耗时；只接受 `created_at >= firedAt - 2min` 的 run（避免误追踪旧 run，即审查 C3）；兜底超时用 `finalizeUnconfirmed` 保留耗时、不把成功的 dispatch 误改为 FAILED（审查 M7）。5s 轮询间隔保留（用户要求及时性）。
 
