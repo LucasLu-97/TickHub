@@ -80,6 +80,25 @@ class DispatchEngine(private val context: Context) {
             AppLogger.e("Engine", "rule not found: ${ruleId.take(8)}")
             return TriggerStatus.FAILED
         }
+        // C-1: an in-flight Worker may resume AFTER the user disabled the rule.
+        // Automatic dispatch (advance=true) must not fire for a non-ENABLED rule;
+        // manual trigger (advance=false) is always allowed.
+        if (advance && rule.status != RuleStatus.ENABLED) {
+            AppLogger.w("Engine", "rule=${ruleId.take(8)} status=${rule.status} -> skip dispatch")
+            return TriggerStatus.SKIPPED
+        }
+        // M4: a manual trigger at the same moment as the scheduled alarm has a
+        // different plannedAt, so WorkManager's unique name cannot dedupe it.
+        // Detect a successful dispatch for this rule in the last 20s and skip.
+        val recentSuccess = repository.getLogsOnce().any {
+            it.ruleId == ruleId &&
+                (it.status == TriggerStatus.SUCCESS || it.status == TriggerStatus.MAKEUP) &&
+                (it.firedAt ?: 0L) > System.currentTimeMillis() - 20_000L
+        }
+        if (recentSuccess && !isMakeup) {
+            AppLogger.w("Engine", "rule=${ruleId.take(8)} dispatched within 20s -> skip duplicate")
+            return TriggerStatus.SKIPPED
+        }
         // On a retry of a partially-failed slot, dispatch ONLY the workflows that
         // failed — re-sending already-successful ones causes duplicate check-ins.
         val isRetry = rule.retryPlannedAt == plannedAt && rule.retryFailedWfIds.isNotEmpty()
@@ -90,7 +109,7 @@ class DispatchEngine(private val context: Context) {
         if (workflowIds.isEmpty()) {
             // No workflow selected: retrying 5 times over 75min is pure noise.
             AppLogger.w("Engine", "rule=${ruleId.take(8)} has no workflows -> advance directly")
-            val transition = buildTransition(rule, plannedAt, allSuccess = true, advance = true, emptyList())
+            val transition = buildTransition(rule, plannedAt, allSuccess = true, advance = true, emptyList(), null)
             val log = com.lucaslu.tickhub.data.TriggerLog(
                 id = java.util.UUID.randomUUID().toString(), ruleId = rule.id,
                 workflowName = rule.workflowName, workflowNames = rule.workflowNames,
@@ -198,7 +217,7 @@ class DispatchEngine(private val context: Context) {
 
         // CRITICAL: compute the rule transition BEFORE the atomic commit, then write
         // log + rule state in ONE transaction. No "log written but slot stranded" window.
-        val transition = buildTransition(rule, plannedAt, allSuccess, advance, failedWfIds)
+        val transition = buildTransition(rule, plannedAt, allSuccess, advance, failedWfIds, httpCode)
         val updated = repository.commitDispatchOutcome(log, startTracking, rule.id, transition)
 
         if (startTracking) {
@@ -242,8 +261,23 @@ class DispatchEngine(private val context: Context) {
                 retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
             )
         } else {
-            // Transient infra: retry without touching the FAIL budget.
-            com.lucaslu.tickhub.repository.DispatchTransition(
+            // Transient infra: retry without touching the dispatch FAIL budget,
+            // but cap infra retries (M1) so a missing token/never-returning
+            // network cannot wake the device every 15min forever.
+            val infraAttempts = repository.getLogsOnce().count {
+                it.ruleId == rule.id && it.plannedAt == plannedAt && it.status == TriggerStatus.SKIPPED
+            }
+            if (infraAttempts >= DispatchPolicy.MAX_INFRA_RETRIES) {
+                AppLogger.w("Engine", "rule=${rule.id.take(8)} slot=$plannedAt infra retries exhausted ($infraAttempts) -> advance")
+                val (next, effective) = repository.computeNextFire(rule, LocalDateTime.now())
+                if (next == null || effective == null) {
+                    com.lucaslu.tickhub.repository.DispatchTransition(completed = true, lastFiredAt = System.currentTimeMillis())
+                } else com.lucaslu.tickhub.repository.DispatchTransition(
+                    nextFireAt = RuleEngine.toEpochMillis(next), effectiveFireAt = effective,
+                    lastFiredAt = System.currentTimeMillis(),
+                    retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
+                )
+            } else com.lucaslu.tickhub.repository.DispatchTransition(
                 nextFireAt = rule.nextFireAt, effectiveFireAt = rule.effectiveFireAt,
                 lastFiredAt = rule.lastFiredAt,
                 retryAt = System.currentTimeMillis() + RETRY_DELAY_MS,
@@ -257,7 +291,7 @@ class DispatchEngine(private val context: Context) {
     /** Build the rule-state transition from pure decisions. Called before the
      *  atomic commit so log + rule update happen in one DataStore transaction. */
     private suspend fun buildTransition(
-        rule: Rule, plannedAt: Long, allSuccess: Boolean, advance: Boolean, failedWfIds: List<Long>
+        rule: Rule, plannedAt: Long, allSuccess: Boolean, advance: Boolean, failedWfIds: List<Long>, httpCode: Int? = null
     ): com.lucaslu.tickhub.repository.DispatchTransition {
         if (allSuccess) {
             if (!advance) {
@@ -282,26 +316,42 @@ class DispatchEngine(private val context: Context) {
             )
         }
         // Failure: retry ONLY the failed workflows of the same slot.
-        return buildRetryTransition(rule, plannedAt, failedWfIds)
+        return buildRetryTransition(rule, plannedAt, failedWfIds, httpCode)
+    }
+
+    /** Compute the transition that advances to the next slot (or COMPLETED). */
+    private suspend fun advanceTransition(rule: Rule): com.lucaslu.tickhub.repository.DispatchTransition {
+        val (next, effective) = repository.computeNextFire(rule, LocalDateTime.now())
+        if (next == null || effective == null) {
+            return com.lucaslu.tickhub.repository.DispatchTransition(completed = true, lastFiredAt = System.currentTimeMillis())
+        }
+        return com.lucaslu.tickhub.repository.DispatchTransition(
+            nextFireAt = RuleEngine.toEpochMillis(next), effectiveFireAt = effective,
+            lastFiredAt = System.currentTimeMillis(),
+            retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
+        )
     }
 
     private suspend fun buildRetryTransition(
-        rule: Rule, plannedAt: Long, failedWfIds: List<Long>
+        rule: Rule, plannedAt: Long, failedWfIds: List<Long>, httpCode: Int? = null
     ): com.lucaslu.tickhub.repository.DispatchTransition {
+        // M2: permanent HTTP errors must not burn 5 retries over 75 minutes.
+        // 401 = token revoked (needs re-login), 404/422 = bad config.
+        if (httpCode == 401) {
+            AppLogger.w("Engine", "rule=${rule.id.take(8)} 401 unauthorized -> clear token, re-login required")
+            tokenStore.clearSync() // next launch shows logged-out; no pointless retries
+            return advanceTransition(rule)
+        }
+        if (httpCode != null && httpCode in 400..499 && httpCode != 429) {
+            AppLogger.w("Engine", "rule=${rule.id.take(8)} permanent HTTP $httpCode -> advance")
+            return advanceTransition(rule)
+        }
         val failCount = repository.getLogsOnce().count {
             it.ruleId == rule.id && it.plannedAt == plannedAt && it.status == TriggerStatus.FAILED
         }
         if (!DispatchPolicy.shouldRetry(failCount)) {
             AppLogger.w("Engine", "rule=${rule.id.take(8)} slot=$plannedAt exhausted $failCount retries -> advance")
-            val (next, effective) = repository.computeNextFire(rule, LocalDateTime.now())
-            if (next == null || effective == null) {
-                return com.lucaslu.tickhub.repository.DispatchTransition(completed = true, lastFiredAt = System.currentTimeMillis())
-            }
-            return com.lucaslu.tickhub.repository.DispatchTransition(
-                nextFireAt = RuleEngine.toEpochMillis(next), effectiveFireAt = effective,
-                lastFiredAt = System.currentTimeMillis(),
-                retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
-            )
+            return advanceTransition(rule)
         }
         val retryAt = System.currentTimeMillis() + RETRY_DELAY_MS
         AppLogger.i("Engine", "rule=${rule.id.take(8)} slot=$plannedAt retry #${failCount + 1} at=$retryAt failedWfs=${failedWfIds.size}")
@@ -316,7 +366,9 @@ class DispatchEngine(private val context: Context) {
     private fun postCommitSchedule(
         updated: Rule, transition: com.lucaslu.tickhub.repository.DispatchTransition
     ) {
-        if (updated.status == RuleStatus.COMPLETED) {
+        // C-1: any non-ENABLED rule (DISABLED/COMPLETED) must have NO alarm,
+        // including a retry — check this BEFORE the retry branch.
+        if (updated.status != RuleStatus.ENABLED) {
             alarmScheduler.cancel(updated.id)
             return
         }

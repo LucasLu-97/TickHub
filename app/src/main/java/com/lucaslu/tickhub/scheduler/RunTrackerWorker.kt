@@ -117,9 +117,12 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
             Duration.between(starts.min(), ends.max()).toMillis().coerceAtLeast(0L)
         } else (System.currentTimeMillis() - firedAt).coerceAtLeast(0L)
         val success = allRuns.all { it.second.conclusion == "success" }
-        repo.finalizeLog(logId, durationMs, success)
+        // A user-cancelled / skipped run is not a failure — don't send a false
+        // "execution failed" notification (M9).
+        val cancelled = allRuns.any { it.second.conclusion in setOf("cancelled", "skipped", "neutral") }
+        repo.finalizeLog(logId, durationMs, success, cancelled)
 
-        if (repo.isRunTrackingEnabledOnce()) {
+        if (repo.isRunTrackingEnabledOnce() && !cancelled) {
             val statusText = if (success) com.lucaslu.tickhub.util.L10n.tNow("执行成功") else com.lucaslu.tickhub.util.L10n.tNow("执行失败")
             NotificationHelper.notifyResult(
                 applicationContext,

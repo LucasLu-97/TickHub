@@ -68,9 +68,15 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
                             AppLogger.i("Auth", "token obtained, fetching user")
                             val persisted = c.tokenStore.saveToken(poll.token)
                             val userResult = c.api.getCurrentUser(poll.token)
-                            val loginName = if (userResult is ApiResult.Success) userResult.data.login else "GitHub 用户"
-                            val avatarUrl = if (userResult is ApiResult.Success) userResult.data.avatarUrl else null
-                            c.repository.saveUser(loginName, avatarUrl)
+                            // M7: don't overwrite the stored username with a placeholder
+                            // when /user fails (transient network/rate-limit).
+                            val loginName = if (userResult is ApiResult.Success) {
+                                userResult.data.login.also { name ->
+                                    c.repository.saveUser(name, userResult.data.avatarUrl)
+                                }
+                            } else {
+                                c.repository.loggedInUser.value.ifBlank { com.lucaslu.tickhub.util.L10n.tNow("GitHub 用户") }
+                            }
                             AppLogger.i("Auth", "LOGIN OK user=$loginName persisted=$persisted")
                             // If Keystore is unavailable the token is process-only —
                             // make that visible so the user isn't confused by

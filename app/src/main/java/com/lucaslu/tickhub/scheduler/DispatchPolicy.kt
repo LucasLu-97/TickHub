@@ -7,6 +7,7 @@ package com.lucaslu.tickhub.scheduler
 object DispatchPolicy {
 
     const val MAX_RETRIES = 5
+    const val MAX_INFRA_RETRIES = 3 // token/network infra failures must not retry forever
     const val RETRY_DELAY_MS = 15 * 60_000L
 
     /** Whether a failed slot should retry (vs. advance to the next slot). */

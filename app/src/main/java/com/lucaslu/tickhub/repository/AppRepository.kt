@@ -192,6 +192,11 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
                         lastFiredAt = transition.lastFiredAt ?: System.currentTimeMillis(),
                         retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
                     )
+                } else if (cur.status != com.lucaslu.tickhub.data.RuleStatus.ENABLED) {
+                    // C-1: the rule was disabled (or completed) while a Worker was
+                    // in flight. Never re-arm a retry on a non-ENABLED rule —
+                    // that would fire an unwanted check-in 15 minutes later.
+                    cur.copy(lastFiredAt = transition.lastFiredAt ?: cur.lastFiredAt)
                 } else {
                     cur.copy(
                         nextFireAt = transition.nextFireAt ?: cur.nextFireAt,
@@ -283,21 +288,22 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     }
 
     /** Finalize a tracked log with the real GitHub run duration and conclusion. */
-    suspend fun finalizeLog(logId: String, durationMs: Long, success: Boolean) {
+    suspend fun finalizeLog(logId: String, durationMs: Long, success: Boolean, cancelled: Boolean = false) {
         context.dataStore.edit { prefs ->
             val logs = readLogs(prefs).toMutableList()
             val idx = logs.indexOfFirst { it.id == logId }
             if (idx >= 0) {
                 val old = logs[idx]
-                val newStatus = if (success) {
+                val newStatus = if (cancelled) com.lucaslu.tickhub.data.TriggerStatus.SKIPPED
+                else if (success) {
                     if (old.isMakeup) com.lucaslu.tickhub.data.TriggerStatus.MAKEUP
                     else com.lucaslu.tickhub.data.TriggerStatus.SUCCESS
                 } else com.lucaslu.tickhub.data.TriggerStatus.FAILED
                 logs[idx] = old.copy(
                     status = newStatus,
                     httpCode = null,
-                    errorMessage = if (success) null else "工作流执行失败（GitHub 结论）",
-                    errorKey = if (success) null else "工作流执行失败（GitHub 结论）",
+                    errorMessage = if (success || cancelled) null else "工作流执行失败（GitHub 结论）",
+                    errorKey = if (success || cancelled) null else "工作流执行失败（GitHub 结论）",
                     errorArgs = emptyList(),
                     durationMs = durationMs,
                     tracking = false

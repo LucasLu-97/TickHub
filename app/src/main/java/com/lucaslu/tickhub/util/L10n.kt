@@ -186,6 +186,8 @@ object L10n {
         "执行异常：{0}" to "Execution error: {0}",
         "规则未选择任何工作流" to "No workflow selected for this rule",
         "手动触发失败：{0}" to "Manual trigger failed: {0}",
+        "读取日志失败：{0}" to "Failed to read log: {0}",
+        "、" to ", ",
         "中国法定节假日" to "China holidays",
         "仅中国用户需要：开启后拉取节假日数据，支持「法定工作日/节假日」周期。非中国地区不支持此周期。" to "For China only: downloads holiday data to enable workday/holiday schedules. Not supported in other regions.",
         "仓库 " to "Repo ", "工作流 " to "Workflow ", " 工作流" to " workflows", "将立即触发「" to "This will trigger \"",

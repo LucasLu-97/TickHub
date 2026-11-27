@@ -10,7 +10,7 @@ Replace GitHub's unreliable `on.schedule` with an Android phone: sign in to GitH
 
 | Item | Status |
 | --- | --- |
-| Version | **v1.4.0 stable** (signed APK, upgrade-compatible) |
+| Version | **v2.0.0-beta (ultimate optimization, under verification)** (signed APK, upgrade-compatible) |
 | Spec / architecture | ✅ [`docs/TickHub-开发需求文档.md`](docs/TickHub-开发需求文档.md) (Chinese) |
 | CI | ✅ GitHub Actions: build, unit tests, signing, Release publishing |
 | Login | ✅ GitHub OAuth Device Flow (built-in public Client ID, zero setup) |
@@ -19,7 +19,7 @@ Replace GitHub's unreliable `on.schedule` with an Android phone: sign in to GitH
 | Scheduler | ✅ Exact alarms + network wait + dispatch + catch-up + reboot re-registration |
 | Device acceptance | ✅ Verified overnight-to-next-morning on-time triggers, no Doze sleep; reboot & background-kill resilient |
 | Native schedule | Disabled by repo-side automation; not duplicated in the app |
-| Size / power | ✅ ~10 MB APK (smaller after R8 shrink); result polling at 5s intervals (stops on completion, no residual wake-ups) |
+| Size / power | ✅ ~2.13 MB APK (R8-shrunk); result polling at 5s intervals (stops on completion, no residual wake-ups) |
 
 ## Why
 
@@ -72,7 +72,7 @@ The app only sends HTTPS requests when a trigger fires. Business notifications a
 Everything builds in GitHub Actions — no local Android SDK needed:
 
 ```bash
-git tag v1.3.0 && git push origin v1.3.0
+git tag v2.0.0 && git push origin v2.0.0
 ```
 
 Actions runs unit tests → verifies R8 keep rules → builds an R8-shrunk signed **APK** → publishes a Release. You can also trigger `workflow_dispatch` manually for an artifact. The signing key lives in repo Secrets, valid until 2054.
@@ -82,7 +82,7 @@ Local build (Android SDK required):
 ```bash
 # APK only for now (store submission not planned yet)
 ./gradlew assembleRelease \
-  -PversionName=1.4.0 -PversionCode=140 \
+  -PversionName=2.0.0 -PversionCode=2000000 \
   -PgithubClientId=<your GitHub OAuth Client ID>
 ```
 

@@ -116,7 +116,7 @@ private fun LogCardContent(log: TriggerLog) {
         androidx.compose.foundation.layout.Row {
             val names = log.workflowNames.ifEmpty { listOfNotNull(log.workflowName.takeIf { it.isNotBlank() }) }
             Text(
-                if (names.isEmpty()) t("工作流") else names.joinToString("、"),
+                if (names.isEmpty()) t("工作流") else names.joinToString(t("、")),
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.weight(1f)
             )

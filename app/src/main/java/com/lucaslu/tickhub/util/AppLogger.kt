@@ -70,11 +70,11 @@ object AppLogger {
     }
 
     fun readAll(): String = synchronized(lock) {
-        val file = logFile ?: return "日志未初始化"
+        val file = logFile ?: return L10n.tNow("日志未初始化")
         val log = try {
-            if (file.exists()) file.readText() else "（暂无日志）"
+            if (file.exists()) file.readText() else L10n.tNow("（暂无日志）")
         } catch (e: Exception) {
-            "读取日志失败：${e.message}"
+            L10n.tFormat("读取日志失败：{0}", listOf(e.message.orEmpty()))
         }
         // Append last crash stack (if any) so flash-crashes are diagnosable.
         val crash = try {

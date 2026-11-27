@@ -126,7 +126,7 @@ fun RuleEditScreen(
         Spacer(Modifier.height(8.dp))
         timeSlots.forEachIndexed { idx, slot ->
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
-                Text(t("时间") + "${idx + 1}：$slot", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                Text(t("时间") + " ${idx + 1}: $slot", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                 TextButton(onClick = { editingSlotIndex = idx; Haptics.tick(context) }) { Text(t("修改")) }
                 if (timeSlots.size > 1) {
                     TextButton(onClick = { Haptics.tick(context); timeSlots = timeSlots.filterIndexed { i, _ -> i != idx } }) { Text(t("移除")) }

@@ -155,7 +155,7 @@ class RepoViewModel(app: Application) : AndroidViewModel(app) {
                             errorKey = "手动触发失败：{0}", errorArgs = listOf(result.message)
                         )
                     )
-                    c.updateRepo { it.copy(error = "手动触发失败：${result.message}") }
+                    c.updateRepo { it.copy(error = com.lucaslu.tickhub.util.L10n.tFormat("手动触发失败：{0}", listOf(result.message))) }
                 }
             }
         }

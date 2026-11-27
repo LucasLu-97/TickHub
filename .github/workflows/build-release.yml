@@ -36,9 +36,15 @@ jobs:
           else
             VERSION_NAME="0.0.1-dev-${GITHUB_RUN_NUMBER}"
           fi
-          VERSION_CODE="${GITHUB_RUN_NUMBER}"
+          # Semantic versionCode from versionName: v2.0.0 -> 2000000,
+          # v2.0.0-beta -> 1999999. Monotonic across releases and independent of
+          # workflow run numbers (which jump on every manual dispatch).
+          NUMERIC="${VERSION_NAME%%-*}"  # strip -beta suffix
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$NUMERIC"
+          MAJOR=${MAJOR:-0}; MINOR=${MINOR:-0}; PATCH=${PATCH:-0}
+          VERSION_CODE=$((MAJOR * 1000000 + MINOR * 10000 + PATCH * 100))
           case "${VERSION_NAME}" in
-            *beta*) IS_BETA=true ;;
+            *beta*) IS_BETA=true; VERSION_CODE=$((VERSION_CODE - 1)) ;;
             *) IS_BETA=false ;;
           esac
           echo "name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
@@ -80,6 +86,15 @@ jobs:
           if [ -z "$APK" ]; then echo "No APK produced"; exit 1; fi
           cp "$APK" "TickHub-v${{ steps.version.outputs.name }}.apk"
           ls -lh "TickHub-v${{ steps.version.outputs.name }}.apk"
+
+      - name: Verify APK signature (release key, not debug)
+        run: |
+          APK="TickHub-v${{ steps.version.outputs.name }}.apk"
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | head -1)
+          "$APKSIGNER" verify --print-certs "$APK"
+          # Fail if signed with the Android debug key (would break overwrite installs).
+          "$APKSIGNER" verify --print-certs "$APK" | grep -qi "CN=Android Debug" && { echo "DEBUG-SIGNED RELEASE!"; exit 1; } || true
+          echo "APK signature verified"
 
       - name: Prepare release notes
         if: startsWith(github.ref, 'refs/tags/')

@@ -116,7 +116,7 @@ fun RulesScreen(vm: RuleViewModel) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmTrigger = null },
             title = { Text(t("确认立即触发")) },
-            text = { Text(t("将立即触发「") + ruleToTrigger.workflowNames.joinToString("、").ifBlank { ruleToTrigger.workflowName } + t("」，确定继续？")) },
+            text = { Text(t("将立即触发「") + ruleToTrigger.workflowNames.joinToString(t("、")).ifBlank { ruleToTrigger.workflowName } + t("」，确定继续？")) },
             confirmButton = {
                 TextButton(onClick = { Haptics.tick(context); vm.triggerNow(ruleToTrigger); confirmTrigger = null }) { Text(t("确认触发")) }
             },
@@ -221,9 +221,9 @@ private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () 
     val context = androidx.compose.ui.platform.LocalContext.current
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
         val names = rule.workflowNames.ifEmpty { listOf(rule.workflowName.ifBlank { t("工作流 #") + "${rule.workflowId}" }) }
-        Text(names.joinToString("、"), style = MaterialTheme.typography.titleSmall)
+        Text(names.joinToString(t("、")), style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(6.dp))
-        val timeText = rule.timeSlots.ifEmpty { listOf(String.format("%02d:%02d", rule.hour, rule.minute)) }.joinToString("、")
+        val timeText = rule.timeSlots.ifEmpty { listOf(String.format("%02d:%02d", rule.hour, rule.minute)) }.joinToString(t("、"))
         val cycleText = when (rule.type) {
             RuleType.EVERY_N_DAYS -> t("每隔 ") + "${rule.intervalDays}" + t(" 天")
             else -> t(TYPE_LABELS[rule.type] ?: rule.type.name)

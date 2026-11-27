@@ -62,13 +62,15 @@ class RuleViewModel(app: Application) : AndroidViewModel(app) {
                 val (next, effective) = c.repository.computeNextFire(rule, LocalDateTime.now())
                 if (next == null || effective == null) {
                     AppLogger.w("App", "rule=$id re-enable: no future slot, mark COMPLETED")
-                    c.repository.updateRule(rule.copy(status = RuleStatus.COMPLETED, nextFireAt = null, effectiveFireAt = null))
+                    c.repository.updateRuleFields(id) { cur ->
+                        cur.copy(status = RuleStatus.COMPLETED, nextFireAt = null, effectiveFireAt = null)
+                    }
                     return@launch
                 }
-                rule = c.repository.updateRule(rule.copy(
-                    nextFireAt = RuleEngine.toEpochMillis(next),
-                    effectiveFireAt = effective
-                ))
+                // Field-level patch (M3): don't overwrite a concurrent retry state.
+                rule = c.repository.updateRuleFields(id) { cur ->
+                    cur.copy(nextFireAt = RuleEngine.toEpochMillis(next), effectiveFireAt = effective)
+                } ?: return@launch
             }
             val base = rule.nextFireAt ?: return@launch
             c.alarmScheduler.scheduleWithSlot(rule, triggerAt = rule.effectiveFireAt ?: base, plannedAt = base)

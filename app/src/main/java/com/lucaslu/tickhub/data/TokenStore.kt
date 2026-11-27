@@ -80,8 +80,10 @@ class TokenStore(context: Context) {
                     android.util.Log.e("TokenStore", "Keystore unavailable, token will be transient", it)
                     null
                 }
-                cachedContext = appCtx
+                // Publish sharedPrefs BEFORE cachedContext: readers gate on
+                // cachedContext, so once visible the prefs is guaranteed visible.
                 sharedPrefs = result
+                cachedContext = appCtx
                 result
             }
         }

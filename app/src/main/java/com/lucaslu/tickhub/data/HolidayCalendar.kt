@@ -130,6 +130,7 @@ object HolidayCalendar {
         val fetched = (prefs[KEY_HOLIDAY_FETCHED_FOR] ?: "").split(",").filter { it.isNotBlank() }.toSet()
         val all = readAll(context)
         var changed = false
+        val fetchedYears = mutableSetOf<String>()
         val api = GitHubApi()
         for (year in targets) {
             if (!force && fetched.contains(year.toString()) && all.any { it.year == year && it.days.isNotEmpty() }) {
@@ -140,13 +141,14 @@ object HolidayCalendar {
                     val data = result.data
                     val idx = all.indexOfFirst { it.year == year }
                     if (idx >= 0) all[idx] = data else all.add(data)
+                    fetchedYears.add(year.toString()) // only mark SUCCESS years
                     changed = true
                 }
                 is ApiResult.Error -> { /* next year may not be published yet, ignore */ }
             }
         }
         if (changed) {
-            val newFetched = (fetched + targets.map { it.toString() }).joinToString(",")
+            val newFetched = (fetched + fetchedYears).joinToString(",")
             context.holidayDataStore.edit { p ->
                 p[KEY_HOLIDAY_DATA] = json.encodeToString(all)
                 p[KEY_HOLIDAY_FETCHED_FOR] = newFetched
