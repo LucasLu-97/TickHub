@@ -17,7 +17,9 @@ import com.lucaslu.tickhub.data.RuleStatus
 object TransitionApplier {
     fun apply(cur: Rule, t: DispatchTransition, now: Long): Rule = when {
         cur.status != RuleStatus.ENABLED -> cur.copy(
-            lastFiredAt = t.lastFiredAt ?: cur.lastFiredAt
+            lastFiredAt = t.lastFiredAt ?: cur.lastFiredAt,
+            // Clear any stale retry state a disabled rule may still carry.
+            retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
         )
         t.completed -> cur.copy(
             status = RuleStatus.COMPLETED,
