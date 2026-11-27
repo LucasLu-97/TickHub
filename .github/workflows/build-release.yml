@@ -76,8 +76,8 @@ jobs:
           # NOTE: GitHub Actions transforms `$$` into a single `$` inside run:
           # blocks, so the serializer rule is checked by its unique prefix
           # (no `$$` literal). Other rules are matched as exact full lines.
-          grep -Fxq -- '-keep,includedescriptorclasses class com.lucaslu.tickhub.data.**$$serializer { *; }' app/proguard-rules.pro 2>/dev/null \
-            || grep -Fq -- '-keep,includedescriptorclasses class com.lucaslu.tickhub.data.**' app/proguard-rules.pro \
+          tr -d '\r' < app/proguard-rules.pro | grep -Fxq -- '-keep,includedescriptorclasses class com.lucaslu.tickhub.data.**$$serializer { *; }' 2>/dev/null \
+            || tr -d '\r' < app/proguard-rules.pro | grep -Fq -- '-keep,includedescriptorclasses class com.lucaslu.tickhub.data.**' \
             || { echo "MISSING keep rule: serializer descriptor"; exit 1; }
           for rule in \
             '-keep class com.lucaslu.tickhub.data.** { *; }' \
@@ -85,7 +85,7 @@ jobs:
             '-keep class androidx.startup.** { *; }' \
             '-keep class * extends androidx.work.InputMerger { public <init>(); }' \
             '-keep class * extends androidx.work.ListenableWorker { *; }'; do
-            grep -Fxq -- "$rule" app/proguard-rules.pro || { echo "MISSING keep rule: $rule"; exit 1; }
+            tr -d '\r' < app/proguard-rules.pro | grep -Fxq -- "$rule" || { echo "MISSING keep rule: $rule"; exit 1; }
           done
           echo "R8 keep rules present"
 
