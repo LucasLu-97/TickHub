@@ -11,7 +11,7 @@
 | 仓库    | <https://github.com/LucasLu-97/TickHub> （公开）                                                                                                                      |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1>                                                                   |
 | 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35>                             |
-| 当前正式版 | **v1.4.0（架构重构版）**（AppViewModel 517行拆为共享AppContainer + 5个领域ViewModel；等价重构，adb逐页验证无回归），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.4.0 |
+| 当前正式版 | **v1.4.0（架构重构 + 最终审视全修基线版）**（AppContainer+5领域VM；审视修掉重复签到Critical/主题持久化/幽灵闹钟/封装/签名防线），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.4.0 |
 | 历史正式版 | v1.2.0（全面加固）、v1.1.5（立即触发耗时追踪）、v1.1.4（规则卡/失败重试/闹钟降级）、v1.1.3（历史页i18n+耗时）、v1.1.2（i18n布局）、v1.1.1（状态实时翻译）、v1.1.0（双语/节假日开关）、v1.0.3（登录页）、v1.0.2（关闭R8）、v1.0.1/v1.0.0（R8闪退） |
 | 真机验收  | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现）                                                                                                 |
 | 登录方式  | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16）                                                                                                                  |
@@ -1090,6 +1090,18 @@ Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: a
 **踩坑**：推送脚本不处理文件删除，本地删的 AppViewModel.kt 在 GitHub 仍在导致重复定义编译失败 → 用 GitHub Contents API 显式删除。SettingsScreen 还用 themeMode/cycleTheme/logout → 在 SettingsViewModel 加转发（共享 container）。
 
 **APK 2.35MB**（与 v1.3.4 一致，纯结构重构无体积变化）。
+
+---
+
+## 31. 发布前最终审视（v1.4.0）
+
+用户要求发正式版前重新仔细全局审视。两路独立审查发现并修复：
+
+**Critical（重复签到，已修）**：`DispatchEngine.execute` 三处早期失败分支（token缺失/网络超时/仓库名无效）调用 `retryOrAdvance` 时未传 `retryFailedWfIds`，重试中途失败会把"失败工作流子集"清空为全部 → 已成功的 workflow 被重复 dispatch。修复：三处均传 `rule.retryFailedWfIds` 保留子集。
+
+**Medium（已修）**：themeMode 未持久化（重启丢失用户选择）→ Repository 加 theme key + container 首帧读取与 cycleTheme 持久化；取消勾选 workflow/repo 删除规则时未取消闹钟 → RepoViewModel 加 `cancelAlarmsForRemovedRules`；共享 StateFlow 对外可写 → AppContainer 改为内部 mutable + 对外只读 StateFlow + 明确写方法（setLogin/updateLogin/setRepo/saveOrder 等）；README 关于 AAB/mapping 的虚假声明纠正；release 签名密钥缺失改 task 级 fail-fast（不放配置阶段以免阻断 `gradlew test`）。
+
+**审视结论（诚实）**：架构是"可维护基线"但非最优（AppContainer 仍偏宽、Repository 无接口抽象致核心逻辑难单测）；功能核心状态机稳健但仍有 Medium 债务（早期失败计消耗重试额度、LEGAL_HOLIDAY 跨年数据缺失降级、DataStore 并发原子性）；上架准备按用户要求**刻意未做**（CI 只产 APK，无隐私政策/数据安全表单/AAB）。以上均标注为后续迭代项，不阻断基线发布。
 
 ---
 
