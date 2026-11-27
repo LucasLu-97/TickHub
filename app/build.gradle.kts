@@ -67,12 +67,13 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Fail fast: never publish a debug-signed "release" — it would break
-            // overwrite installs for existing users (signature mismatch).
+            // Use release signing when the key is present. Missing key is checked
+            // at TASK EXECUTION time below (not here) so `./gradlew test` still
+            // configures fine without secrets.
             signingConfig = if (System.getenv("KEYSTORE_BASE64") != null) {
                 signingConfigs.getByName("release")
             } else {
-                throw GradleException("KEYSTORE_BASE64 missing: release build requires the signing key")
+                signingConfigs.getByName("debug")
             }
         }
     }
@@ -85,7 +86,17 @@ android {
         compose = true
         buildConfig = true
     }
+}
 
+// Fail fast at task time: never produce a debug-signed APK from the release task —
+// it would break overwrite installs for existing users (signature mismatch).
+// Task-time (not configuration-time) so `./gradlew test` works without secrets.
+tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.configureEach {
+    doFirst {
+        if (System.getenv("KEYSTORE_BASE64").isNullOrBlank()) {
+            throw GradleException("KEYSTORE_BASE64 missing: release artifact requires the signing key")
+        }
+    }
 }
 
 dependencies {
