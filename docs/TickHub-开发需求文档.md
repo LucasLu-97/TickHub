@@ -1,22 +1,22 @@
 # TickHub 项目开发需求文档
 
-| 项目 | 内容 |
-| --- | --- |
-| 项目名称 | TickHub（Android 端 GitHub Actions 调度中心） |
-| 文档版本 | v2.0（定稿） |
-| 编写日期 | 2026-11-24 |
-| 定稿日期 | 2026-11-26 |
-| 文档状态 | ✅ 已定稿 —— 功能完成、真机验收通过、v1.0.0 正式版发布 |
-| 决策记录 | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release |
-| 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
-| 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
-| 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35 |
-| 当前正式版 | v1.2.0（全面加固：重试去重/后台i18n/runIds精确匹配/logout清理/HTTP分级/节假日策略/资源优化），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.2.0 |
-| 历史正式版 | v1.1.5（立即触发耗时追踪）、v1.1.4（规则卡间隔天数/失败重试/闹钟降级）、v1.1.3（历史页i18n+实时耗时）、v1.1.2（i18n布局）、v1.1.1（状态实时翻译）、v1.1.0（双语/节假日开关）、v1.0.3（登录页优化）、v1.0.2（关闭R8修复闪退）、v1.0.1/v1.0.0（R8闪退） |
-| 真机验收 | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现） |
-| 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
-| 目标读者 | 后续接手的开发者 / AI Agent |
-| 计划仓库 | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1） |
+| 项目    | 内容                                                                                                                                                                |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 项目名称  | TickHub（Android 端 GitHub Actions 调度中心）                                                                                                                            |
+| 文档版本  | v2.0（定稿）                                                                                                                                                          |
+| 编写日期  | 2026-11-24                                                                                                                                                        |
+| 定稿日期  | 2026-11-26                                                                                                                                                        |
+| 文档状态  | ✅ 已定稿 —— 功能完成、真机验收通过、v1.0.0 正式版发布                                                                                                                                 |
+| 决策记录  | 2026-11-24：仓库公开；APP 调度跑通后关闭原生 schedule；前期走 CI 发测试版 Release                                                                                                        |
+| 仓库    | <https://github.com/LucasLu-97/TickHub> （公开）                                                                                                                      |
+| 首个测试版 | v0.1.0-beta1，已签名 APK，Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1>                                                                   |
+| 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35>                             |
+| 当前正式版 | v1.3.0（第二次全面审查：P0三漏签隐患+P1全部+P2收尾+图标零依赖），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.3.0 |
+| 历史正式版 | v1.2.0（全面加固）、v1.1.5（立即触发耗时追踪）、v1.1.4（规则卡/失败重试/闹钟降级）、v1.1.3（历史页i18n+耗时）、v1.1.2（i18n布局）、v1.1.1（状态实时翻译）、v1.1.0（双语/节假日开关）、v1.0.3（登录页）、v1.0.2（关闭R8）、v1.0.1/v1.0.0（R8闪退） |
+| 真机验收  | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现）                                                                                                 |
+| 登录方式  | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16）                                                                                                                  |
+| 目标读者  | 后续接手的开发者 / AI Agent                                                                                                                                               |
+| 计划仓库  | `LucasLu-97/TickHub`（私有或公开待定，见 §12.1）                                                                                                                             |
 
 > 本文档的目的：让一个从未参与过本项目的人，只读这一份文档就能理解「为什么做、做什么、怎么做、做到什么程度算完成」，并能独立接手继续开发。文档中所有「待验证」「待决」条目都必须在实际动手时逐项闭环。
 
@@ -28,7 +28,7 @@
 
 项目所有者（LucasLu-97）在 GitHub 上维护了多个用 Actions 驱动的个人自动化仓库，例如：
 
-- `WB-Checkin`：WorkBuddy 每日自动签到（上游同步 + 签到 + 通知，4 个工作流）
+- `WB-Checkin`：WorkBuddy 每日自动签到（上游同步 + 签到 + 通知，4 个工作流）INTP-AINTP-AINTP-A
 - `KG-Checkin`：酷狗概念版自动签到（签到 / 保活 / 账号管理，6 个工作流）
 - `Release-Watch`：Star 仓库 Release 更新监测推送（检测 + 保活，2 个工作流）
 
@@ -63,13 +63,13 @@
 
 ### 2.1 设备与系统范围（用户已明确）
 
-| 维度 | 约束 |
-| --- | --- |
-| 平台 | 仅 Android，不做 iOS |
-| 系统版本 | 仅兼容较新版本（建议 minSdk 26 / Android 8.0，原因见 §6.2） |
-| CPU 架构 | 仅 arm64-v8a，不兼容 armeabi-v7a / x86 |
-| 厂商 | 面向国产 ROM（重点小米/HyperOS），需引导用户开启自启动 + 电池无限制 |
-| 分发 | GitHub Releases 提供 APK 下载，不上架 Google Play（首版） |
+| 维度     | 约束                                            |
+| ------ | --------------------------------------------- |
+| 平台     | 仅 Android，不做 iOS                              |
+| 系统版本   | 仅兼容较新版本（建议 minSdk 26 / Android 8.0，原因见 §6.2）  |
+| CPU 架构 | 仅 arm64-v8a，不兼容 armeabi-v7a / x86             |
+| 厂商     | 面向国产 ROM（重点小米/HyperOS），需引导用户开启自启动 + 电池无限制     |
+| 分发     | GitHub Releases 提供 APK 下载，不上架 Google Play（首版） |
 
 ### 2.2 用户已验证的前提（重要）
 
@@ -86,16 +86,16 @@
 
 ## 3. 术语表
 
-| 术语 | 含义 |
-| --- | --- |
-| `workflow_dispatch` | GitHub Actions 的一种事件类型，允许通过 REST API 手动触发工作流 |
-| dispatch | 本文动词，指调用 dispatch API 触发一次工作流 |
-| Device Flow | OAuth 2.0 设备授权流程（RFC 8628），适合无浏览器/无法接收回调的客户端；APP 显示一个用户码，用户在浏览器完成授权，APP 轮询拿 token |
-| OAuth App | GitHub 上注册的一类应用，用 classic scope（如 `repo`）授权，产出 `gho_`/`ghu_` 前缀 token |
-| scope | OAuth 授权范围；触发私有仓库工作流需要 `repo` scope |
-| rule / 触发规则 | 一条「某工作流 + 何时 + 按什么周期触发」的配置 |
-| 补触发 | APP 发现某条规则到点该触发却没触发时，主动补发一次 dispatch |
-| 纳管 | 把某个仓库/工作流加入 TickHub 的管理与调度范围 |
+| 术语                  | 含义                                                                                |
+| ------------------- | --------------------------------------------------------------------------------- |
+| `workflow_dispatch` | GitHub Actions 的一种事件类型，允许通过 REST API 手动触发工作流                                      |
+| dispatch            | 本文动词，指调用 dispatch API 触发一次工作流                                                     |
+| Device Flow         | OAuth 2.0 设备授权流程（RFC 8628），适合无浏览器/无法接收回调的客户端；APP 显示一个用户码，用户在浏览器完成授权，APP 轮询拿 token |
+| OAuth App           | GitHub 上注册的一类应用，用 classic scope（如 `repo`）授权，产出 `gho_`/`ghu_` 前缀 token             |
+| scope               | OAuth 授权范围；触发私有仓库工作流需要 `repo` scope                                               |
+| rule / 触发规则         | 一条「某工作流 + 何时 + 按什么周期触发」的配置                                                        |
+| 补触发                 | APP 发现某条规则到点该触发却没触发时，主动补发一次 dispatch                                              |
+| 纳管                  | 把某个仓库/工作流加入 TickHub 的管理与调度范围                                                      |
 
 ---
 
@@ -118,7 +118,7 @@
 
 ## 5. 功能需求
 
-> 优先级：P0 = 首版必须；P1 = 首版应有，可延后一个迭代；P2 = 锦上添花。
+> 优先级：P0 = 首版必须；P1 = 首版应有，可延后一个迭代；P2 = 锦上添花。  
 > 每条需求含「描述 + 验收标准」，验收标准是判断「做完了」的依据。
 
 ### FR-01 GitHub 账号登录（Device Flow） — P0
@@ -167,12 +167,12 @@
 
 支持的周期类型（用户诉求「一次、每30天、每7天、每工作日、每天」全部覆盖）：
 
-| 类型 | 参数 | 说明 |
-| --- | --- | --- |
-| `ONCE` | 指定日期时间 | 触发一次后自动置为已停用 |
-| `DAILY` | 指定时间（HH:mm） | 每天触发 |
-| `WEEKDAYS` | 指定时间 | 仅周一至周五触发 |
-| `WEEKLY` | 指定时间 + 星期几（可多选） | 每周指定日触发 |
+| 类型             | 参数                | 说明                          |
+| -------------- | ----------------- | --------------------------- |
+| `ONCE`         | 指定日期时间            | 触发一次后自动置为已停用                |
+| `DAILY`        | 指定时间（HH:mm）       | 每天触发                        |
+| `WEEKDAYS`     | 指定时间              | 仅周一至周五触发                    |
+| `WEEKLY`       | 指定时间 + 星期几（可多选）   | 每周指定日触发                     |
 | `EVERY_N_DAYS` | 指定时间 + N 天 + 起始日期 | 每 N 天触发（N=7 即每周，N=30 即每月近似） |
 
 - 时间按**本机时区**解释，但在本地存储时同时保存创建时的时区 ID（便于日后 Handling 时区变更，P2）。
@@ -322,6 +322,7 @@
           │  (签到 / 监测 / 通知 ... )   │
           └─────────────────────────────┘
 ```
+
 
 **职责边界**：TickHub 只做「时钟 + 触发器 + 管理界面」。业务逻辑（签到、监测、推送）全部留在各仓库的 Actions 里，不搬进 APP。
 
@@ -571,6 +572,7 @@ DataStore 保存：GitHub token（或放 Keystore，见 §10.1）、网络等待
 
 ### 8.1 Token 存储
 
+
 - access token 存入 **Android Keystore**：用 Keystore 生成的 AES 密钥加密后存 DataStore/SharedPreferences，或直接使用 `SecurityLib`（androidx.security:security-crypto）的 `EncryptedSharedPreferences`。
 - **禁止**：明文 SharedPreferences、明文文件、logcat、崩溃报告、工程内硬编码。
 - 退出登录时清除密文与密钥别名。
@@ -645,6 +647,8 @@ DataStore 保存：GitHub token（或放 Keystore，见 §10.1）、网络等待
 2. `actions/setup-java@v4`：Temurin JDK 21
 3. `android-actions/setup-android@v3`（或 ubuntu-latest 自带 SDK，显式 setup 更稳）
 4. `gradle/actions/setup-gradle@v4`（缓存依赖）
+|  |  |
+| --- | --- |
 5. 从 Secrets 解码 keystore：`echo "$KEYSTORE_BASE64" | base64 -d > app/tickhub-release.jks`
 6. `./gradlew assembleRelease -PversionName=... -PversionCode=...`（版本号从 tag 解析）
 7. `softprops/action-gh-release@v2`：上传 `app/build/outputs/apk/release/app-release.apk` 到对应 tag 的 Release，重命名 `TickHub-vX.Y.Z.apk`
@@ -866,6 +870,7 @@ local.properties
 - **离线可用**：APP 内置 2026 年完整数据；启动时联网尝试拉取当前年份最新数据并缓存，2027 年国务院发布后无需发版。
 - **省流量**：每年只联网拉取一次（`KEY_HOLIDAY_FETCHED_FOR` 记录已成功拉取的年份），当年已有数据时启动不再重复请求。启动时同时尝试拉「当年 + 次年」两个年份（次年通知通常 12 月上半月发布，未发布则失败后下次再试），多年数据按年份 key 合并存储、互不冲突。Android 系统无公开的"中国法定节假日"标准 API，各厂商日历数据格式不统一、不可靠，故不采用。
 
+
 ## 22. 卡片交互与统一震感（M14）
 
 **卡片交互**（仓库/规则/历史三页统一）：
@@ -999,6 +1004,22 @@ APP 内置了 **GitHub CLI 的官方公开 Client ID**（`178c6fc778ccc68e1d6a`�
 **历史页 i18n 与耗时修正（v1.1.3）**：① 历史卡片"计划：/实际："原硬编码中文，改 `t()` + 补字典 key；errorMessage 显示时经 `L10n.tNow()`。全局扫描确认其余中文均为字典 key / 数据常量 / VM 待翻译 key。② 耗时不显示根因：`RunTrackerWorker` 跑满 144 次（12 分钟）后 `giveUp()` 把 `durationMs` 归零且 `tracking=false`，卡片既无实时计时也无静态耗时。修复：去掉短上限（改 24 小时安全网，任务 completed 立即停）；每次轮询把实时耗时写回日志（`updateLogElapsed`，找到 run 用 `run_started_at` 起算、未找到用 `firedAt` 起算），进程被杀重启也有耗时；只接受 `created_at >= firedAt - 2min` 的 run（避免误追踪旧 run，即审查 C3）；兜底超时用 `finalizeUnconfirmed` 保留耗时、不把成功的 dispatch 误改为 FAILED（审查 M7）。5s 轮询间隔保留（用户要求及时性）。
 
 **i18n 布局优化（v1.1.2，用户实机截图反馈）**：英文翻译过长导致 chip/按钮文字换行撑高。业界国际版 APP 通用解法是布局层适配而非只靠缩短译文：① 规则编辑页周期 chip 与漂移 chip 从 `Row+weight(1f)` 等宽改为 **`FlowRow` + 自然宽度 + `maxLines=1`**——chip 按自身文字宽度排布，放不下整颗换行到下一行，不会把文字挤成两行撑高。② 设置页等宽按钮文字改短标签（Battery/Auto-start）+ `maxLines=1`，完整含义由卡片上方说明文字承担。③ 说明文字从过简版本恢复为完整可读（电池优化/精确闹钟/执行状态/结果通知/网络恢复/中国节假日等），兼顾看懂与不换行。
+
+---
+
+## 26. v1.3.0 第二次全面审查修复
+
+用户要求严谨复查、全做。两路独立审查交叉验证后系统修复：
+
+**P0（漏签/重复触发，已修）**：① token 缺失与仓库名无效路径原只写 FAILED 日志就 return，配合 catchUp"任何日志算已尝试"导致规则永久卡死——改为 `retryOrAdvance()` 挂重试闹钟。② 漂移窗口去重口径：syncAlarms/BootReceiver 原用旧 `schedule()`（plannedAt=effective），catchUp 用 base——统一为 `scheduleWithSlot(triggerAt=effective, plannedAt=base)`，catchUp 到期判断改用 effectiveFireAt（在漂移窗口内不补发），去重键仍用 base。③ 开机重启只重注册未来闹钟——BootReceiver 新增 `DispatchEngine.catchUpMissed()` 补关机期间错过的时隙；catchUp 逻辑抽到 DispatchEngine 供 BootReceiver 与 AppViewModel 共用，AppViewModel 启动改 `onAppReady()` 串行执行（时区重算→闹钟→补触发）。
+
+**P1（已修）**：runIds 精确匹配漏洞——对每个 workflow 有 runId 就精确查、404 清除后重新发现、没有 runId 的继续 list 发现，修多工作流晚创建 run 与 404 卡 3h；成功判定不再被无关错误污染。节假日兜底——12/17 策略加"次年数据未就绪就补拉一次"兜底（整个 12 月下旬不开 APP，1 月打开仍能拉），年度刷新失败不标记已拉取；refreshManaged 的 401 统一跳重登。规则启用重算——setRuleEnabled(true) 若存储时隙已过则从 now 重算。DispatchWorker 唯一名加 plannedAt + KEEP，手动触发不吞定时任务。
+
+**P2（已修）**：Composable 用 `t()` 替代 `tNow()`（随语言切换重组）；TokenStore Keystore 异常降级为内存态（不崩溃、不明文落盘）；通知 id 取模防溢出；DataIntegrity 日志覆盖 Flow；tFormat 单遍解析防参数 `{n}` 二次替换；finalizeLog 清 errorArgs；MAX_POLLS 注释改 3h；时区变化检测（持久化时区 ID，变化时重算所有规则）；网络判断加 VALIDATED；5xx 提示；清理死代码。
+
+**图标包（零依赖）**：material-icons-extended 官方设计为 R8 配套、不该直接依赖；material-icons-core 1.7.8 虽存在但 `Alarm/Folder/History/Settings/Delete` 不在 core。最终方案：5 个 Material 官方 outlined 图标的 VectorDrawable XML 内置到 `res/drawable/`，TabIcons 改用 `painterResource`，彻底移除图标库依赖——零体积开销、无需 R8、功能不变。
+
+**踩坑**：TokenStore 降级初版实现完整 SharedPreferences 接口漏 `getStringSet` 编译失败→简化为 nullable prefs + 内存变量；VectorDrawable 用 `?attr/colorControlNormal` 在纯 Material3 主题不存在→去掉 tint（Compose 的 `Icon(tint=)` 会覆盖）。
 
 ---
 
