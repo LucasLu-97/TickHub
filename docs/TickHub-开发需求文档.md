@@ -11,7 +11,7 @@
 | 仓库    | <https://github.com/LucasLu-97/TickHub> （公开）                                                                                                                      |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1>                                                                   |
 | 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35>                             |
-| 当前正式版 | v1.4.0；**v2.0.0（终极优化版）验证中**：P0原子性/时区DST/节假日兜底全修 + 轻量化(APK 2.35MB→2.13MB) + 死代码清理 |
+| 当前正式版 | v1.4.0；**v2.0.0（终极优化版）待实机验证**：追加修复C-1禁用残留签到/M1基础设施无限重试/M2的401与4xx/M3全量覆盖/M4撞车重复签/多语言10处残留，CI全绿33单测 |
 | 历史正式版 | v1.2.0（全面加固）、v1.1.5（立即触发耗时追踪）、v1.1.4（规则卡/失败重试/闹钟降级）、v1.1.3（历史页i18n+耗时）、v1.1.2（i18n布局）、v1.1.1（状态实时翻译）、v1.1.0（双语/节假日开关）、v1.0.3（登录页）、v1.0.2（关闭R8）、v1.0.1/v1.0.0（R8闪退） |
 | 真机验收  | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现）                                                                                                 |
 | 登录方式  | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16）                                                                                                                  |
@@ -1126,6 +1126,28 @@ Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: a
 **验证**：CI 全绿；v2.0.0-beta APK 2.13MB 已产出；待 adb 实机验证（设备暂时断开）。
 
 **已知债务（未修，已评估）**：AppContainer 仍偏宽、Repository 无接口抽象致核心逻辑难单测、finalizeLog 改FAILED 但规则已 advance、handleException 二次异常 runCatching 吞掉、logout 与在途 Worker 竞态、versionCode 用 GITHUB_RUN_NUMBER。均为低概率或设计取舍，不阻断。
+
+---
+
+## 33. 发布前第三轮全局审视（v2.0.0-beta2）
+
+用户要求再次审视全局并回答三个问题（ViewModel/多语言是否解决、未尽工作、是否还有改造点）。三路独立审视后修复：
+
+**回答**：①ViewModel 已彻底解决（517行→5个18-163行领域VM+共享容器）；多语言**未彻底**——字典key覆盖100%但残留10处（5处中文直接泄漏+5处中文标点），本轮已全修。②未尽工作：实机验证、README漂移、versionCode风险、若干债务（见下）。③新发现1个Critical+一批Medium，全修。
+
+**C-1（Critical，已修）**：禁用规则后残留retry仍触发签到——在途Worker失败后把retry状态写回已禁用规则并重注册闹钟。修：`commitDispatchOutcome` 非ENABLED规则不写retry；`postCommitSchedule` 把非ENABLED检查提到retry分支前；`execute` 入口校验 status（手动触发放行）。
+
+**Medium（已修）**：M1基础设施失败（token/网络）原本无限retry永不推进→`MAX_INFRA_RETRIES=3`独立上限；M2的401不触发重登且永久4xx仍走满5次→401清token、4xx直接advance（429/5xx保留重试）；M3的`setRuleEnabled`仍用全量updateRule→改updateRuleFields；M4手动触发与定时alarm撞车双重签到→execute入口20秒内成功日志去重；M7 /user失败仍覆盖用户名为占位符→不覆盖；M9 cancelled/skipped被判FAILED并发失败通知→新增SKIPPED三态；年份标记bug→只标记fetch成功的年份；TokenStore原子发布顺序修正。
+
+**多语言10处**：手动触发失败/日志读取失败/日志未初始化/暂无日志/GitHub用户兜底（走tNow/tFormat）+顿号×4/全角冒号×1（改 `t("、")` 与半角）。字典key覆盖检查0缺失。
+
+**发布工程**：versionCode从GITHUB_RUN_NUMBER改为语义化（v2.0.0→2000000，beta→1999999），避免本地构建140导致无法覆盖；CI加apksigner签名校验（防debug签名发布）；中英README同步到v2.0.0/2.13MB/新架构。
+
+**测试**：新增2个JVM单测覆盖基础设施重试上限与永久HTTP错误分类（共33个）。
+
+**仍存在的债务（不阻断）**：AppContainer偏宽、Repository无接口致核心逻辑难单测、catchUp只补最近slot、通知无点击跳转/权限拒绝无引导、RunTracker轮询未退避、`finalizeLog`改FAILED但规则已advance（设计取舍）、handleException二次异常runCatching吞掉、logout与在途Worker竞态。均为低概率或体验增强，排期处理。
+
+**验证状态**：CI全绿；v2.0.0-beta 已产出 APK 2.13MB；**adb设备仍断开，实机验证待完成**——这是R8瘦身后的必要防线，未通过前不发正式版。
 
 ---
 
