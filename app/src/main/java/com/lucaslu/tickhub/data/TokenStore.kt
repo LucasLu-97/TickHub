@@ -15,9 +15,38 @@ import androidx.security.crypto.MasterKey
  */
 class TokenStore(context: Context) {
 
-    private val prefs: SharedPreferences? get() = sharedPrefs
+    init { prefsFor(context) } // eagerly initialise the process-wide prefs once
+
+    fun getToken(): String? =
+        (sharedPrefs?.getString(KEY_TOKEN, null) ?: transientToken)?.takeIf { it.isNotBlank() }
+
+    /** Returns true if the token was securely persisted; false means Keystore is
+     *  unavailable and the token lives only in process memory (lost on restart). */
+    fun saveToken(token: String): Boolean {
+        val p = sharedPrefs
+        return if (p != null) {
+            p.edit().putString(KEY_TOKEN, token).apply()
+            true
+        } else {
+            transientToken = token
+            false
+        }
+    }
+
+    fun clear() {
+        sharedPrefs?.edit()?.remove(KEY_TOKEN)?.apply()
+        transientToken = null
+    }
+
+    /** Synchronous clear — guarantees the token is gone before logout returns. */
+    fun clearSync() {
+        sharedPrefs?.edit()?.remove(KEY_TOKEN)?.commit()
+        transientToken = null
+    }
 
     companion object {
+        private const val KEY_TOKEN = "github_access_token"
+
         // Keystore/EncryptedSharedPreferences setup is expensive; RunTrackerWorker
         // constructs a TokenStore every 5s poll. Cache ONE instance per process.
         @Volatile
@@ -25,6 +54,13 @@ class TokenStore(context: Context) {
         @Volatile
         private var sharedPrefs: SharedPreferences? = null
         private val prefsLock = Any()
+
+        // Keystore-unavailable fallback is PROCESS-WIDE, not per-instance:
+        // VMs / DispatchEngine / RunTrackerWorker / BootReceiver each construct
+        // their own TokenStore — an instance field lost the token for all
+        // background paths. Lost on process death (never written to disk).
+        @Volatile
+        private var transientToken: String? = null
 
         private fun prefsFor(context: Context): SharedPreferences? {
             cachedContext?.let { return sharedPrefs }
@@ -49,43 +85,5 @@ class TokenStore(context: Context) {
                 result
             }
         }
-    }
-
-    init { prefsFor(context) }
-
-    fun getToken(): String? =
-        (prefs?.getString(KEY_TOKEN, null) ?: transientToken)?.takeIf { it.isNotBlank() }
-
-    /** Returns true if the token was securely persisted; false means Keystore is
-     *  unavailable and the token lives only in process memory (lost on restart). */
-    fun saveToken(token: String): Boolean {
-        return if (prefs != null) {
-            prefs.edit().putString(KEY_TOKEN, token).apply()
-            true
-        } else {
-            transientToken = token
-            false
-        }
-    }
-
-    fun clear() {
-        prefs?.edit()?.remove(KEY_TOKEN)?.apply()
-        transientToken = null
-    }
-
-    /** Synchronous clear — guarantees the token is gone before logout returns. */
-    fun clearSync() {
-        prefs?.edit()?.remove(KEY_TOKEN)?.commit()
-        transientToken = null
-    }
-
-    companion object {
-        private const val KEY_TOKEN = "github_access_token"
-        // Keystore-unavailable fallback is PROCESS-WIDE, not per-instance:
-        // AuthViewModel/RepoViewModel, DispatchEngine, RunTrackerWorker and BootReceiver each
-        // construct their own TokenStore — an instance field lost the token for
-        // all background paths. Lost on process death (never written to disk).
-        @Volatile
-        private var transientToken: String? = null
     }
 }
