@@ -23,8 +23,9 @@
     *** Companion;
     kotlinx.serialization.KSerializer serializer(...);
 }
-# Keep every one of our own classes/members (cheap insurance; our code is small).
--keep class com.lucaslu.tickhub.** { *; }
+# Keep our data models (serialized by kotlinx.serialization); UI/domain/repository
+# are shrinkable — R8 can inline/strip dead code for a smaller dex.
+-keep class com.lucaslu.tickhub.data.** { *; }
 
 # Enums referenced by name from serialized state.
 -keepclassmembers enum * {
@@ -34,7 +35,6 @@
 
 # ---- DataStore / coroutines: reflectively constructed internals ----
 -keep class androidx.datastore.** { *; }
--keep class kotlinx.coroutines.** { *; }
 -dontwarn androidx.datastore.**
 -dontwarn kotlinx.coroutines.**
 
