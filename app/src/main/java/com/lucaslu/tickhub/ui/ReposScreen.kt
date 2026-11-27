@@ -141,6 +141,7 @@ fun ReposScreen(vm: AppViewModel) {
                             }
                         }
                         state.message?.let { Text(t(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        state.messageKey?.let { k -> Text(com.lucaslu.tickhub.util.L10n.tFormat(k, state.messageArgs), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         state.error?.let { Text(t(it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
                         Text(
                             t("已纳管 ") + "${snapshot.workflows.count { it.selected }}" + t(" 个工作流 / ") + "${snapshot.repos.size}" + t(" 个仓库（下拉可刷新头像与纳管项）"),

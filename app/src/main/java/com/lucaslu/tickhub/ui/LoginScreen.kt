@@ -108,7 +108,7 @@ fun LoginScreen(state: LoginUiState, vm: AppViewModel, configured: Boolean) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.padding(8.dp))
                         Text(
-                            t(state.status),
+                            if (state.statusKey != null) com.lucaslu.tickhub.util.L10n.tFormat(state.statusKey!!, state.statusArgs) else t(state.status),
                             style = MaterialTheme.typography.bodySmall,
                             textAlign = TextAlign.Center,
                             color = MaterialTheme.colorScheme.onSurfaceVariant

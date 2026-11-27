@@ -86,7 +86,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     val networkWaitMinutes: Flow<Int> = context.dataStore.data.map { it[networkWaitKey] ?: 3 }
 
     // fixed 3-minute cap per product decision; kept as a setting key for compatibility
-    suspend fun getNetworkWaitMinutesOnce(): Int = context.dataStore.data.first()[networkWaitKey] ?: 3
+    suspend fun getNetworkWaitMinutesOnce(): Int = runCatching { context.dataStore.data.first()[networkWaitKey] ?: 3 }.getOrDefault(3)
 
     suspend fun getSnapshotOnce(): com.lucaslu.tickhub.data.ScanSnapshot = snapshot.first()
 
@@ -128,12 +128,16 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         return rule
     }
 
-    suspend fun addLog(log: TriggerLog) {
+    /** Add a log. [tracking] is set atomically at insert time so a crash between
+     *  addLog and a separate markTracking cannot leave an untracked dispatched log. */
+    suspend fun addLog(log: TriggerLog, tracking: Boolean = false) {
         context.dataStore.edit { prefs ->
             val current = readLogs(prefs).toMutableList()
-            current.add(0, log) // newest first
-            val trimmed = current.take(200) // keep last 200
-            prefs[logsKey] = json.encodeToString(trimmed)
+            current.add(0, if (tracking) log.copy(tracking = true) else log) // newest first
+            // Keep tracking logs even if older than the 200-item cap.
+            val kept = current.take(200).toMutableList()
+            current.drop(200).filter { it.tracking }.forEach { kept.add(it) }
+            prefs[logsKey] = json.encodeToString(kept)
         }
     }
 
@@ -242,9 +246,9 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
 
     val showExecutionStatus: Flow<Boolean> = context.dataStore.data.map { it[showExecutionKey] ?: true }
 
-    suspend fun showExecutionStatusOnce(): Boolean = context.dataStore.data.first()[showExecutionKey] ?: true
-    suspend fun runTrackingOnce(): Boolean = context.dataStore.data.first()[runTrackingKey] ?: true
-    suspend fun hapticsOnce(): Boolean = context.dataStore.data.first()[hapticsKey] ?: true
+    suspend fun showExecutionStatusOnce(): Boolean = runCatching { context.dataStore.data.first()[showExecutionKey] ?: true }.getOrDefault(true)
+    suspend fun runTrackingOnce(): Boolean = runCatching { context.dataStore.data.first()[runTrackingKey] ?: true }.getOrDefault(true)
+    suspend fun hapticsOnce(): Boolean = runCatching { context.dataStore.data.first()[hapticsKey] ?: true }.getOrDefault(true)
 
     suspend fun setShowExecutionStatus(enabled: Boolean) {
         context.dataStore.edit { it[showExecutionKey] = enabled }
@@ -268,7 +272,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     private val holidayEnabledKey = androidx.datastore.preferences.core.booleanPreferencesKey("holiday_calendar_enabled")
 
     val holidayEnabled: Flow<Boolean> = context.dataStore.data.map { it[holidayEnabledKey] ?: false }
-    suspend fun holidayEnabledOnce(): Boolean = context.dataStore.data.first()[holidayEnabledKey] ?: false
+    suspend fun holidayEnabledOnce(): Boolean = runCatching { context.dataStore.data.first()[holidayEnabledKey] ?: false }.getOrDefault(false)
     suspend fun setHolidayEnabled(enabled: Boolean) {
         context.dataStore.edit { it[holidayEnabledKey] = enabled }
     }
@@ -536,8 +540,10 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     suspend fun setRuleEnabled(id: String, enabled: Boolean) {
         context.dataStore.edit { prefs ->
             val current = readRules(prefs).map {
-                if (it.id == id) it.copy(status = if (enabled) com.lucaslu.tickhub.data.RuleStatus.ENABLED else com.lucaslu.tickhub.data.RuleStatus.DISABLED)
-                else it
+                if (it.id == id) {
+                    if (enabled) it.copy(status = com.lucaslu.tickhub.data.RuleStatus.ENABLED)
+                    else it.copy(status = com.lucaslu.tickhub.data.RuleStatus.DISABLED, retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList())
+                } else it
             }
             prefs[rulesKey] = json.encodeToString(current)
         }

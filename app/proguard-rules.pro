@@ -2,7 +2,8 @@
 # Shrink unused code/dex/resources to cut APK/AAB size and ART (odex/vdex)
 # footprint. Obfuscation stays OFF: readable stack traces + safe reflection.
 -dontobfuscate
--dontwarn
+# No global -dontwarn: it hid the R8 warnings that caused three launch crashes.
+# Targeted -dontwarn lines below cover the known noisy libraries.
 
 # ---- kotlinx.serialization (CRITICAL: launch crash v1.0.0/v1.0.1/v1.3.1-beta) ----
 # AppViewModel reads serialized rules/logs synchronously at construction. If R8
@@ -43,6 +44,12 @@
 # before Application.onCreate. This is the official WorkManager+R8 keep rule.
 -keep class androidx.work.impl.** { *; }
 -keep class androidx.room.** { *; }
+# App Startup reflectively instantiates initializers (Class.forName via manifest).
+-keep class androidx.startup.** { *; }
+-keep class androidx.work.WorkManagerInitializer { *; }
+-keep class * extends androidx.startup.Initializer { *; }
+# WorkManager reflectively constructs InputMerger via no-arg ctor.
+-keep class * extends androidx.work.InputMerger { public <init>(); }
 -keep class * extends androidx.work.ListenableWorker { *; }
 -keepattributes InnerClasses, Signature, *Annotation*
 

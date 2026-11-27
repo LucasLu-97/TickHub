@@ -66,7 +66,12 @@ data class Rule(
     val nextFireAt: Long? = null,       // base time (before drift), epoch millis
     val effectiveFireAt: Long? = null,  // actual scheduled time with drift applied
     val lastFiredAt: Long? = null,
-    val createdAt: Long = 0L
+    val createdAt: Long = 0L,
+    // Persisted retry state — survives reboot/process death so a failed slot
+    // cannot be stranded when the in-memory AlarmManager retry alarm is lost.
+    val retryAt: Long? = null,              // next retry wake time (epoch millis)
+    val retryPlannedAt: Long? = null,       // the slot being retried (base time)
+    val retryFailedWfIds: List<Long> = emptyList() // only these workflows failed; avoid re-dispatch of successes
 ) {
     /** Resolve effective workflow ids, tolerant of legacy single-workflow rules. */
     fun resolvedWorkflowIds(): List<Long> =

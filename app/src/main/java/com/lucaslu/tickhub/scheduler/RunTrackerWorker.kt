@@ -83,7 +83,9 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
             }
         }
         // Persist the (possibly grown) run-id map for precise lookups next round.
-        if (knownRunIds.isNotEmpty() && knownRunIds.size != log?.runIds?.size) {
+        // Compare CONTENT, not size: a 404'd id replaced by a new one keeps the
+        // same size but must be persisted, else next poll rediscovers forever.
+        if (knownRunIds.isNotEmpty() && knownRunIds != log?.runIds?.toMap()) {
             repo.updateLogTracking(logId, knownRunIds)
         }
 

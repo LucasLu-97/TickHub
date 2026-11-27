@@ -27,8 +27,16 @@ class BootReceiver : BroadcastReceiver() {
                 val engine = DispatchEngine(context.applicationContext)
                 val enabled = repository.getRulesOnce().filter { it.status == RuleStatus.ENABLED }
                 AppLogger.i("Boot", "device rebooted, re-scheduling ${enabled.size} enabled rules")
+                val now = System.currentTimeMillis()
                 enabled.forEach { rule ->
                     val base = rule.nextFireAt ?: return@forEach
+                    // Restore a pending retry alarm (lost on reboot) if its wake
+                    // time is still in the future; catchUp handles overdue ones.
+                    if (rule.retryAt != null && rule.retryPlannedAt == base && rule.retryAt > now) {
+                        scheduler.scheduleRetry(rule.id, rule.workflowName, rule.retryAt, base)
+                        AppLogger.i("Boot", "restored retry rule=${rule.id.take(8)} at=${rule.retryAt}")
+                        return@forEach
+                    }
                     val trigger = rule.effectiveFireAt ?: base
                     scheduler.scheduleWithSlot(rule, triggerAt = trigger, plannedAt = base)
                 }

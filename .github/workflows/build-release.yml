@@ -51,8 +51,16 @@ jobs:
           chmod +x ./gradlew
           ./gradlew test
 
-      - name: Build release (APK + AAB with R8)
-        working-directory: .
+      - name: Verify R8 keep rules (crash prevention)
+        run: |
+          # Three launch crashes were caused by R8 stripping reflectively-created
+          # classes. Fail the build if any critical keep rule is missing.
+          for rule in "androidx.work.impl" "androidx.room" "androidx.startup" "InputMerger" "serializer"; do
+            grep -q "$rule" app/proguard-rules.pro || { echo "MISSING keep rule: $rule"; exit 1; }
+          done
+          echo "R8 keep rules present"
+
+      - name: Build signed release APK (R8)
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -61,28 +69,17 @@ jobs:
           KEYSTORE_TYPE: ${{ secrets.KEYSTORE_TYPE }}
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease bundleRelease \
+          ./gradlew assembleRelease \
             -PversionName="${{ steps.version.outputs.name }}" \
             -PversionCode=${{ steps.version.outputs.code }} \
             -PgithubClientId="${{ vars.GITHUB_CLIENT_ID }}"
 
-      - name: Rename APK + AAB
+      - name: Rename APK
         run: |
           APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
           if [ -z "$APK" ]; then echo "No APK produced"; exit 1; fi
           cp "$APK" "TickHub-v${{ steps.version.outputs.name }}.apk"
-          AAB=$(find app/build/outputs/bundle/release -name "*.aab" | head -1)
-          if [ -n "$AAB" ]; then
-            cp "$AAB" "TickHub-v${{ steps.version.outputs.name }}.aab"
-            echo "AAB produced: $AAB"
-          else
-            echo "WARNING: no AAB produced"
-          fi
-          MAPPING="app/build/outputs/mapping/release/mapping.txt"
-          if [ -f "$MAPPING" ]; then
-            cp "$MAPPING" "mapping-v${{ steps.version.outputs.name }}.txt"
-            echo "mapping.txt captured"
-          fi
+          ls -lh "TickHub-v${{ steps.version.outputs.name }}.apk"
 
       - name: Prepare release notes
         if: startsWith(github.ref, 'refs/tags/')
@@ -108,7 +105,7 @@ jobs:
           - 结果：追踪真实执行时长并通知，漏触发自动补跑
           - 架构：100% Kotlin + Compose + WorkManager，R8 瘦身，轻量级低功耗
 
-          签名 APK 可直接覆盖安装；AAB 用于上架应用商店。完整文档见仓库 README 与开发需求文档。
+          签名 APK 可直接覆盖安装。完整文档见仓库 README 与开发需求文档。
 
           > 国产 ROM 请务必开启自启动 + 电池无限制 + 精确闹钟，否则后台定时可能失效。
           EOF
@@ -118,10 +115,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            TickHub-v${{ steps.version.outputs.name }}.apk
-            TickHub-v${{ steps.version.outputs.name }}.aab
-            mapping-v${{ steps.version.outputs.name }}.txt
+          files: TickHub-v${{ steps.version.outputs.name }}.apk
           name: TickHub v${{ steps.version.outputs.name }}
           body_path: RELEASE_BODY.md
           prerelease: ${{ steps.version.outputs.is_beta == 'true' }}

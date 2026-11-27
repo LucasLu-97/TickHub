@@ -26,9 +26,22 @@ class TickHubApp : Application() {
                 val sw = java.io.StringWriter()
                 throwable.printStackTrace(java.io.PrintWriter(sw))
                 val text = "Thread: ${thread.name}\n${sw.toString()}\n"
-                java.io.File(filesDir, AppLogger.CRASH_FILE).writeText(text)
+                // Atomic write: temp + rename, so a concurrent read never sees a
+                // half-written stack trace.
+                val dir = filesDir
+                val tmp = java.io.File(dir, AppLogger.CRASH_FILE + ".tmp")
+                tmp.writeText(text)
+                tmp.renameTo(java.io.File(dir, AppLogger.CRASH_FILE))
             }
-            previous?.uncaughtException(thread, throwable)
+            if (previous != null) {
+                previous.uncaughtException(thread, throwable)
+            } else {
+                // No default handler: must kill the process ourselves, otherwise
+                // the crashing thread dies silently and the app limps on.
+                android.util.Log.e("TickHub", "uncaught exception (no previous handler)", throwable)
+                android.os.Process.killProcess(android.os.Process.myPid())
+                kotlin.system.exitProcess(1)
+            }
         }
     }
 }

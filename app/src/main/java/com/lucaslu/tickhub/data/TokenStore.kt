@@ -31,9 +31,6 @@ class TokenStore(context: Context) {
         null
     }
 
-    // Transient fallback: in-memory only, lost on process death.
-    private var transientToken: String? = null
-
     fun getToken(): String? =
         (prefs?.getString(KEY_TOKEN, null) ?: transientToken)?.takeIf { it.isNotBlank() }
 
@@ -55,5 +52,11 @@ class TokenStore(context: Context) {
 
     companion object {
         private const val KEY_TOKEN = "github_access_token"
+        // Keystore-unavailable fallback is PROCESS-WIDE, not per-instance:
+        // AppViewModel, DispatchEngine, RunTrackerWorker and BootReceiver each
+        // construct their own TokenStore — an instance field lost the token for
+        // all background paths. Lost on process death (never written to disk).
+        @Volatile
+        private var transientToken: String? = null
     }
 }

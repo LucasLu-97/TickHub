@@ -32,8 +32,8 @@ import kotlin.coroutines.resume
 class DispatchEngine(private val context: Context) {
 
     companion object {
-        const val MAX_RETRIES = 5        // per slot, then advance to avoid a stuck rule
-        const val RETRY_DELAY_MS = 15 * 60_000L // 15 min between retries
+        const val MAX_RETRIES = DispatchPolicy.MAX_RETRIES
+        const val RETRY_DELAY_MS = DispatchPolicy.RETRY_DELAY_MS
     }
 
     private val api = GitHubApi()
@@ -58,10 +58,16 @@ class DispatchEngine(private val context: Context) {
         for (rule in rules) {
             val base = rule.nextFireAt ?: continue
             val dueAt = rule.effectiveFireAt ?: base
-            if (dueAt > now) continue
-            val alreadyAttempted = logs.any { it.ruleId == rule.id && it.plannedAt == base }
-            if (alreadyAttempted) continue
-            AppLogger.w("Engine", "catchUp MAKEUP rule=${rule.id.take(8)} due=$dueAt base=$base")
+            val hasAnyLog = logs.any { it.ruleId == rule.id && it.plannedAt == base }
+            when (DispatchPolicy.catchUpAction(now, dueAt, base, rule.retryAt, rule.retryPlannedAt, hasAnyLog)) {
+                DispatchPolicy.CatchUpAction.SKIP_NOT_DUE,
+                DispatchPolicy.CatchUpAction.SKIP_RETRY_PENDING,
+                DispatchPolicy.CatchUpAction.SKIP_ALREADY_ATTEMPTED -> continue
+                DispatchPolicy.CatchUpAction.DISPATCH_RETRY_OVERDUE ->
+                    AppLogger.w("Engine", "catchUp RETRY overdue rule=${rule.id.take(8)} slot=$base retryAt=${rule.retryAt}")
+                DispatchPolicy.CatchUpAction.DISPATCH_MAKEUP ->
+                    AppLogger.w("Engine", "catchUp MAKEUP rule=${rule.id.take(8)} due=$dueAt base=$base")
+            }
             DispatchWorker.enqueue(context, rule.id, base, isMakeup = true)
             count++
         }
@@ -70,14 +76,19 @@ class DispatchEngine(private val context: Context) {
     }
 
     /** Execute a rule dispatch. Returns the resulting status. */
-    suspend fun execute(ruleId: String, isMakeup: Boolean, plannedAt: Long): TriggerStatus {
+    suspend fun execute(ruleId: String, isMakeup: Boolean, plannedAt: Long, advance: Boolean = true): TriggerStatus {
         val rule = repository.getRuleOnce(ruleId)
         if (rule == null) {
             AppLogger.e("Engine", "rule not found: ${ruleId.take(8)}")
             return TriggerStatus.FAILED
         }
-        val workflowIds = rule.resolvedWorkflowIds()
-        AppLogger.i("Engine", "execute rule=${ruleId.take(8)} wfs=${workflowIds.size} repo=${rule.repoFullName} makeup=$isMakeup")
+        // On a retry of a partially-failed slot, dispatch ONLY the workflows that
+        // failed — re-sending already-successful ones causes duplicate check-ins.
+        val isRetry = rule.retryPlannedAt == plannedAt && rule.retryFailedWfIds.isNotEmpty()
+        val workflowIds = DispatchPolicy.retryWorkflowSubset(
+            rule.resolvedWorkflowIds(), rule.retryFailedWfIds, isRetry
+        )
+        AppLogger.i("Engine", "execute rule=${ruleId.take(8)} wfs=${workflowIds.size} retry=$isRetry repo=${rule.repoFullName} makeup=$isMakeup")
         val token = tokenStore.getToken()
         if (token == null) {
             AppLogger.e("Engine", "token missing -> retry (user may re-login)")
@@ -140,22 +151,29 @@ class DispatchEngine(private val context: Context) {
             }.map { it.await() }
         }
 
-        val allSuccess = results.isNotEmpty() && results.all { it.second }
+        val failedWfIds = results.filter { !it.second }.map { it.first }
+        val allSuccess = results.isNotEmpty() && failedWfIds.isEmpty()
         val lastError = results.firstOrNull { !it.second }?.third
-        val httpCode = results.firstOrNull()?.third?.toIntOrNull()
+        // Read http code from the FAILED result (first result may be a success 204,
+        // mislabeling the failure). On success use 204.
+        val httpCode = if (allSuccess) 204 else results.firstOrNull { !it.second }?.third?.toIntOrNull()
         val status = if (allSuccess) {
             if (isMakeup) TriggerStatus.MAKEUP else TriggerStatus.SUCCESS
         } else TriggerStatus.FAILED
 
+        // On retry of a subset, "success" means all retried ones succeeded.
+        // Clear retry state so a later reboot does not re-run them.
+        val startTracking = allSuccess && parts.size == 2
         val logId = addLog(
             rule = rule,
             plannedAt = plannedAt,
             status = status,
-            httpCode = if (allSuccess) 204 else httpCode,
-            errorMessage = if (allSuccess) null else "工作流 ${results.filter { !it.second }.map { it.first }} 触发失败：$lastError",
+            httpCode = httpCode,
+            errorMessage = if (allSuccess) null else "工作流 $failedWfIds 触发失败：$lastError",
             errorKey = if (allSuccess) null else "工作流 {0} 触发失败：{1}",
-            errorArgs = if (allSuccess) emptyList() else listOf(results.filter { !it.second }.map { it.first }.joinToString(), lastError.orEmpty()),
-            isMakeup = isMakeup
+            errorArgs = if (allSuccess) emptyList() else listOf(failedWfIds.joinToString(), lastError.orEmpty()),
+            isMakeup = isMakeup,
+            tracking = startTracking
         )
 
         // Real-duration tracking: mark the log as tracking immediately and let the
@@ -165,32 +183,58 @@ class DispatchEngine(private val context: Context) {
         // history card showed no duration.
         // Duration tracking is always on — the history card needs it. The
         // "result notification" switch only controls the notification, not tracking.
-        if (allSuccess && parts.size == 2) {
-            repository.markTracking(logId)
+        if (startTracking) {
             RunTrackerWorker.enqueue(context, logId, rule.id)
             AppLogger.i("Engine", "tracking started log=${logId.take(8)}")
         }
 
-        // Success advances to the next slot; failure retries the SAME slot instead
-        // of consuming it (a transient network/API error must not silently lose a check-in).
-        if (allSuccess) advanceRule(rule) else retryOrAdvance(rule, plannedAt)
+        // Success advances to the next slot; failure retries ONLY the failed
+        // workflows of the SAME slot (never re-sends already-successful ones).
+        if (allSuccess) {
+            if (advance) advanceRule(rule)
+            else {
+                // Manual trigger: record only, never consume/reschedule the
+                // user's planned slot.
+                if (rule.retryAt != null) repository.updateRule(rule.copy(retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()))
+            }
+        } else retryOrAdvance(rule, plannedAt, failedWfIds)
         return status
     }
 
+    /** Called when execute() throws unexpectedly: log the failure and use the
+     *  same persisted retry path so the slot is not silently lost. */
+    suspend fun handleException(ruleId: String, plannedAt: Long, isMakeup: Boolean, e: Exception) {
+        val rule = repository.getRuleOnce(ruleId) ?: return
+        addLog(
+            rule, plannedAt, TriggerStatus.FAILED,
+            errorMessage = "执行异常：${e.message}", errorKey = "执行异常：{0}",
+            errorArgs = listOf(e.message.orEmpty()), isMakeup = isMakeup
+        )
+        retryOrAdvance(rule, plannedAt, rule.retryFailedWfIds)
+    }
+
     /** Retry a failed slot a few times (short delay, same plannedAt), then give up.
-     *  Keeps the slot alive so a transient failure cannot cause a missed check-in. */
-    private suspend fun retryOrAdvance(rule: Rule, plannedAt: Long) {
+     *  Persists retryAt/failed-wfIds to the Rule so a reboot can restore the retry
+     *  alarm — an in-memory AlarmManager alarm alone is lost on reboot/process death,
+     *  which used to strand the slot forever (missed check-in). */
+    private suspend fun retryOrAdvance(rule: Rule, plannedAt: Long, failedWfIds: List<Long> = emptyList()) {
         val failCount = repository.getLogsOnce().count {
             it.ruleId == rule.id && it.plannedAt == plannedAt && it.status == TriggerStatus.FAILED
         }
-        if (failCount >= MAX_RETRIES) {
+        if (!DispatchPolicy.shouldRetry(failCount)) {
             AppLogger.w("Engine", "rule=${rule.id.take(8)} slot=$plannedAt exhausted $failCount retries -> advance")
             advanceRule(rule)
             return
         }
         val retryAt = System.currentTimeMillis() + RETRY_DELAY_MS
+        // Persist BEFORE scheduling so a crash between the two still recovers.
+        repository.updateRule(rule.copy(
+            retryAt = retryAt,
+            retryPlannedAt = plannedAt,
+            retryFailedWfIds = failedWfIds
+        ))
         alarmScheduler.scheduleRetry(rule.id, rule.workflowName, retryAt, plannedAt)
-        AppLogger.i("Engine", "rule=${rule.id.take(8)} slot=$plannedAt retry #${failCount + 1} at=$retryAt")
+        AppLogger.i("Engine", "rule=${rule.id.take(8)} slot=$plannedAt retry #${failCount + 1} at=$retryAt failedWfs=${failedWfIds.size}")
     }
 
     /** Compute next fire time, persist, and re-register the alarm. */
@@ -203,7 +247,8 @@ class DispatchEngine(private val context: Context) {
                     status = RuleStatus.COMPLETED,
                     nextFireAt = null,
                     effectiveFireAt = null,
-                    lastFiredAt = System.currentTimeMillis()
+                    lastFiredAt = System.currentTimeMillis(),
+                    retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
                 )
             )
             alarmScheduler.cancel(rule.id)
@@ -215,7 +260,8 @@ class DispatchEngine(private val context: Context) {
             rule.copy(
                 nextFireAt = RuleEngine.toEpochMillis(next),
                 effectiveFireAt = effective,
-                lastFiredAt = System.currentTimeMillis()
+                lastFiredAt = System.currentTimeMillis(),
+                retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
             )
         )
         scheduleAt(updated, effective)
@@ -235,7 +281,8 @@ class DispatchEngine(private val context: Context) {
         errorMessage: String? = null,
         errorKey: String? = null,
         errorArgs: List<String> = emptyList(),
-        isMakeup: Boolean = false
+        isMakeup: Boolean = false,
+        tracking: Boolean = false
     ): String {
         val logId = UUID.randomUUID().toString()
         repository.addLog(
@@ -254,7 +301,8 @@ class DispatchEngine(private val context: Context) {
                 errorArgs = errorArgs,
                 isMakeup = isMakeup,
                 durationMs = System.currentTimeMillis() - (repository.runningStartOnce(rule.id) ?: System.currentTimeMillis())
-            )
+            ),
+            tracking = tracking
         )
         return logId
     }

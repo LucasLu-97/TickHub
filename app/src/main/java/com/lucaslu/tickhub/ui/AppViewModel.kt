@@ -28,13 +28,17 @@ data class LoginUiState(
     val verificationUri: String? = null,
     val status: String = "",
     val error: String? = null,
-    val loading: Boolean = false
+    val loading: Boolean = false,
+    val statusKey: String? = null,
+    val statusArgs: List<String> = emptyList()
 )
 
 data class RepoUiState(
     val scanning: Boolean = false,
     val message: String? = null,
-    val error: String? = null
+    val error: String? = null,
+    val messageKey: String? = null,   // translatable template with {0} placeholders
+    val messageArgs: List<String> = emptyList()
 )
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -60,27 +64,45 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val runTrackingEnabled = repository.runTrackingEnabled
     val hapticsEnabled = repository.hapticsEnabled
 
-    // Load persisted prefs SYNCHRONOUSLY at construction so the very first frame
-    // already shows the saved order / switch states (no "flash to default" on cold start).
-    private val _orders = MutableStateFlow<Map<String, List<String>>>(
+    // One synchronized read at construction so the first frame shows saved
+    // order/switch states without a "flash to default". A single runBlocking (not
+    // five) avoids repeated main-thread DataStore disk IO on cold start; the
+    // runCatching fallback keeps a corrupt DataStore from crashing startup.
+    private val initialPrefs = runCatching {
         kotlinx.coroutines.runBlocking {
-            listOf("repos", "rules", "logs").associateWith { repository.readOrder(it) }
+            PrefsSnapshot(
+                orders = listOf("repos", "rules", "logs").associateWith { repository.readOrder(it) },
+                showExecution = repository.showExecutionStatusOnce(),
+                runTracking = repository.runTrackingOnce(),
+                haptics = repository.hapticsOnce(),
+                holiday = repository.holidayEnabledOnce()
+            )
         }
+    }.getOrDefault(PrefsSnapshot())
+
+    private data class PrefsSnapshot(
+        val orders: Map<String, List<String>> = emptyMap(),
+        val showExecution: Boolean = true,
+        val runTracking: Boolean = true,
+        val haptics: Boolean = true,
+        val holiday: Boolean = false
     )
+
+    private val _orders = MutableStateFlow(initialPrefs.orders)
     val orders: StateFlow<Map<String, List<String>>> = _orders.asStateFlow()
 
-    private val _showExecutionStatus = MutableStateFlow(kotlinx.coroutines.runBlocking { repository.showExecutionStatusOnce() })
+    private val _showExecutionStatus = MutableStateFlow(initialPrefs.showExecution)
     val showExecutionStatusFlow: StateFlow<Boolean> = _showExecutionStatus.asStateFlow()
-    private val _runTrackingEnabled = MutableStateFlow(kotlinx.coroutines.runBlocking { repository.runTrackingOnce() })
+    private val _runTrackingEnabled = MutableStateFlow(initialPrefs.runTracking)
     val runTrackingFlow: StateFlow<Boolean> = _runTrackingEnabled.asStateFlow()
-    private val _hapticsEnabled = MutableStateFlow(kotlinx.coroutines.runBlocking { repository.hapticsOnce() })
+    private val _hapticsEnabled = MutableStateFlow(initialPrefs.haptics)
     val hapticsFlow: StateFlow<Boolean> = _hapticsEnabled.asStateFlow()
-    private val _holidayEnabled = MutableStateFlow(kotlinx.coroutines.runBlocking { repository.holidayEnabledOnce() })
+    private val _holidayEnabled = MutableStateFlow(initialPrefs.holiday)
     val holidayEnabledFlow: StateFlow<Boolean> = _holidayEnabled.asStateFlow()
 
     init {
-        // load app language preference (independent of system locale)
-        viewModelScope.launch { com.lucaslu.tickhub.util.L10n.load(getApplication()) }
+        // Language is already loaded synchronously in TickHubApp.onCreate — no
+        // need to re-read it here (avoids a redundant IO and a startup race).
         viewModelScope.launch {
             repository.hapticsEnabled.collect { com.lucaslu.tickhub.util.Haptics.enabled = it }
         }
@@ -157,7 +179,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             val avatarUrl = if (userResult is ApiResult.Success) userResult.data.avatarUrl else null
                             repository.saveUser(loginName, avatarUrl)
                             AppLogger.i("Auth", "LOGIN OK user=$loginName")
-                            _login.value = LoginUiState(isLoggedIn = true, status = "登录成功：" + loginName)
+                            _login.value = LoginUiState(isLoggedIn = true, status = "登录成功：" + loginName, statusKey = "登录成功：{0}", statusArgs = listOf(loginName))
                             return
                         }
                         TokenPoll.Pending -> {
@@ -224,8 +246,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 is ApiResult.Success -> {
-                    val msg = if (result.data == 0) "扫描完成" else "扫描完成，" + "${result.data}" + " 个仓库的工作流读取失败"
-                    _repo.value = RepoUiState(message = msg)
+                    _repo.value = if (result.data == 0) RepoUiState(messageKey = "扫描完成")
+                    else RepoUiState(
+                        messageKey = "扫描完成，{0} 个仓库的工作流读取失败",
+                        messageArgs = listOf("${result.data}")
+                    )
                 }
             }
         }
@@ -349,8 +374,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun syncAlarmsInternal() {
         val enabled = repository.getRulesOnce().filter { it.status == RuleStatus.ENABLED }
         AppLogger.i("App", "syncAlarms: ${enabled.size} enabled rules")
+        val now = System.currentTimeMillis()
         enabled.forEach { rule ->
             val base = rule.nextFireAt ?: return@forEach
+            // Restore a pending retry alarm if still in the future — the in-memory
+            // alarm is lost on process death; catchUp covers overdue retries.
+            if (rule.retryAt != null && rule.retryPlannedAt == base && rule.retryAt > now) {
+                alarmScheduler.scheduleRetry(rule.id, rule.workflowName, rule.retryAt, base)
+                return@forEach
+            }
             val trigger = rule.effectiveFireAt ?: base
             alarmScheduler.scheduleWithSlot(rule, triggerAt = trigger, plannedAt = base)
         }
@@ -364,9 +396,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Manually trigger a rule now. DispatchEngine handles logging and advancing next fire. */
+    /** Manually trigger a rule now: log + track, but do NOT advance/reschedule the
+     *  user's planned slot (a manual test or extra check-in must not consume it). */
     fun triggerNow(rule: Rule) {
-        DispatchWorker.enqueue(getApplication(), rule.id, System.currentTimeMillis(), isMakeup = false)
+        DispatchWorker.enqueue(getApplication(), rule.id, System.currentTimeMillis(), isMakeup = false, advance = false)
     }
 
     fun removeRepo(repoId: Long) {

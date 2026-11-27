@@ -37,6 +37,8 @@ object AppLogger {
     }
 
     private fun write(level: String, tag: String, message: String) {
+        // SimpleDateFormat is NOT thread-safe — format inside the lock.
+        synchronized(lock) {
         val line = "${fmt.format(Date())} $level/$tag: $message"
         when (level) {
             "D" -> Log.d(TAG, line)
@@ -44,7 +46,6 @@ object AppLogger {
             "W" -> Log.w(TAG, line)
             "E" -> Log.e(TAG, line)
         }
-        synchronized(lock) {
             val file = logFile ?: return
             try {
                 if (!file.exists()) file.createNewFile()

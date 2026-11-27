@@ -70,8 +70,10 @@ private fun TickHubApp() {
     }
 
     TickHubTheme(darkTheme = darkTheme) {
+        val startupDone = remember { mutableStateOf(false) }
         LaunchedEffect(loginState.isLoggedIn) {
-            if (loginState.isLoggedIn) {
+            if (loginState.isLoggedIn && !startupDone.value) {
+                startupDone.value = true // config change must not re-run startup maintenance
                 // Serialized: timezone resync -> alarms -> catch-up. Holiday fetch
                 // only on opt-in toggle or once per year (Dec 17 + catch-up fallback).
                 vm.onAppReady()
