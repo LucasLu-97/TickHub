@@ -11,7 +11,7 @@
 | 仓库    | <https://github.com/LucasLu-97/TickHub> （公开）                                                                                                                      |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1>                                                                   |
 | 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35>                             |
-| 当前正式版 | **v1.4.0（架构重构 + 最终审视全修基线版）**（AppContainer+5领域VM；审视修掉重复签到Critical/主题持久化/幽灵闹钟/封装/签名防线），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.4.0 |
+| 当前正式版 | v1.4.0；**v2.0.0（终极优化版）验证中**：P0原子性/时区DST/节假日兜底全修 + 轻量化(APK 2.35MB→2.13MB) + 死代码清理 |
 | 历史正式版 | v1.2.0（全面加固）、v1.1.5（立即触发耗时追踪）、v1.1.4（规则卡/失败重试/闹钟降级）、v1.1.3（历史页i18n+耗时）、v1.1.2（i18n布局）、v1.1.1（状态实时翻译）、v1.1.0（双语/节假日开关）、v1.0.3（登录页）、v1.0.2（关闭R8）、v1.0.1/v1.0.0（R8闪退） |
 | 真机验收  | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现）                                                                                                 |
 | 登录方式  | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16）                                                                                                                  |
@@ -1102,6 +1102,30 @@ Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: a
 **Medium（已修）**：themeMode 未持久化（重启丢失用户选择）→ Repository 加 theme key + container 首帧读取与 cycleTheme 持久化；取消勾选 workflow/repo 删除规则时未取消闹钟 → RepoViewModel 加 `cancelAlarmsForRemovedRules`；共享 StateFlow 对外可写 → AppContainer 改为内部 mutable + 对外只读 StateFlow + 明确写方法（setLogin/updateLogin/setRepo/saveOrder 等）；README 关于 AAB/mapping 的虚假声明纠正；release 签名密钥缺失改 task 级 fail-fast（不放配置阶段以免阻断 `gradlew test`）。
 
 **审视结论（诚实）**：架构是"可维护基线"但非最优（AppContainer 仍偏宽、Repository 无接口抽象致核心逻辑难单测）；功能核心状态机稳健但仍有 Medium 债务（早期失败计消耗重试额度、LEGAL_HOLIDAY 跨年数据缺失降级、DataStore 并发原子性）；上架准备按用户要求**刻意未做**（CI 只产 APK，无隐私政策/数据安全表单/AAB）。以上均标注为后续迭代项，不阻断基线发布。
+
+---
+
+## 32. 终极优化（v2.0.0，验证中）
+
+用户终极要求："应改尽可能改、应优化尽可能优化，给目前功能下的最优版本"。三路独立深度审视（资源/架构/逻辑）后执行：
+
+**P0 逻辑（4项，全修）**：
+- C1：成功 dispatch 与规则推进不在同一事务 → 进程被杀会"日志已写但slot未推进"永久卡死漏签；或 retry 时重复签。修复：新增 `DispatchTransition` + `AppRepository.commitDispatchOutcome()` 在**一次 dataStore.edit** 内写日志+patch规则；`handleException` 先查已有 SUCCESS 日志避免重复签。
+- C2：时区/DST 变化无条件重算 nextFireAt 丢弃当前 slot → 修：resync 前先 catchUp；检测 `ZoneId.id + offset`（含 DST）；用字段级 patch。
+- C3：`updateRule(rule)` 整体替换过期对象 → 并发下状态倒退。新增 `updateRuleFields(id, patch)` 在 edit 内基于最新对象 patch。
+- C4：LEGAL_HOLIDAY 节假日数据缺失 → computeNextFire 返回 null → 规则永久 COMPLETED。修：无数据时保持 ENABLED + 30天探测；加载 year-1..year+2 修跨年用错年份。
+
+**P1（已修）**：早期失败(token/网络)改 SKIPPED 日志不消耗重试额度、仓库名无效直接 advance；httpCode 保留失败真实码（原恒 null）；非瞬态 4xx 不再空转重试；空 workflow 直接 advance；tracking 日志 24h 过期+限10条；RunTracker 仅 404/410 才删 runId；手动触发失败写日志+用户可见提示；Keystore 降级登录时明确提示。
+
+**轻量化**：OkHttpClient 进程单例（原每处 new，RunTracker 每5秒 new）；TokenStore prefs 进程单例（原每轮重建 Keystore）；冷启动 8 次 DataStore 读合并为 1 次 `readInitialPrefsOnce()`；RunTracker elapsed 写盘从每5秒改每15秒；AppLogger trim 从每行改每50行；haptics 重复收集合并；AvatarImage 复用共享 client + 10s 超时。
+
+**R8 瘦身**：删 `kotlinx.coroutines.**` 整包 keep（官方无要求，库自带 consumer rules）；自有代码 keep 从全包收敛到 `data.**`（序列化模型）；`ui-tooling-preview` 改 debugImplementation。**APK 2.35MB → 2.13MB（-9.4%）**。WorkManager/Room/Startup/serializer 的 keep 保持不动（历史闪退区）。
+
+**代码清理**：删 ReorderController.kt 整文件死代码 + 5个死方法 + 死配置链(networkWait/lastCatchUp)；startupDone/tab/showLogs 改 rememberSaveable（配置变更不再重跑启动维护）；setHaptic 改名 setShowExecution；删无用 import。
+
+**验证**：CI 全绿；v2.0.0-beta APK 2.13MB 已产出；待 adb 实机验证（设备暂时断开）。
+
+**已知债务（未修，已评估）**：AppContainer 仍偏宽、Repository 无接口抽象致核心逻辑难单测、finalizeLog 改FAILED 但规则已 advance、handleException 二次异常 runCatching 吞掉、logout 与在途 Worker 竞态、versionCode 用 GITHUB_RUN_NUMBER。均为低概率或设计取舍，不阻断。
 
 ---
 
