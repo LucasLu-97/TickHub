@@ -75,7 +75,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
                                     c.repository.saveUser(name, userResult.data.avatarUrl)
                                 }
                             } else {
-                                c.repository.loggedInUser.value.ifBlank { com.lucaslu.tickhub.util.L10n.tNow("GitHub 用户") }
+                                com.lucaslu.tickhub.util.L10n.tNow("GitHub 用户")
                             }
                             AppLogger.i("Auth", "LOGIN OK user=$loginName persisted=$persisted")
                             // If Keystore is unavailable the token is process-only —
