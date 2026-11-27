@@ -39,9 +39,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { c.repository.setHapticsEnabled(enabled) }
     }
 
-    fun setLanguage(lang: L10n.Lang) {
-        viewModelScope.launch { L10n.set(getApplication(), lang) }
-    }
+    fun setLanguage(lang: L10n.Lang) = c.setLanguage(lang)
 
     /** China-only statutory calendar opt-in. Turning it on immediately fetches
      *  current + next year data (cached thereafter); turning off stops refreshes. */

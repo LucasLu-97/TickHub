@@ -23,9 +23,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clientConfigured(): Boolean = c.api.isClientConfigured()
 
-    fun setLanguage(lang: com.lucaslu.tickhub.util.L10n.Lang) {
-        viewModelScope.launch { com.lucaslu.tickhub.util.L10n.set(getApplication(), lang) }
-    }
+    fun setLanguage(lang: com.lucaslu.tickhub.util.L10n.Lang) = c.setLanguage(lang)
 
     fun startDeviceFlow() {
         // Cancel any in-flight poll so "retry / new code" cannot leave two

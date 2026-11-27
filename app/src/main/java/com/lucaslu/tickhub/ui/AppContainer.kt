@@ -9,10 +9,7 @@ import com.lucaslu.tickhub.scheduler.DispatchEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 
 data class LoginUiState(
     val isLoggedIn: Boolean = false,
@@ -50,25 +47,24 @@ class AppContainer private constructor(val app: Application) {
     val alarmScheduler = AlarmScheduler(app)
     val dispatchEngine = DispatchEngine(app)
 
-    // ---- Shared UI state (was in AppViewModel) ----
-    private val _login = MutableStateFlow(LoginUiState(isLoggedIn = tokenStore.getToken() != null))
-    val login: StateFlow<LoginUiState> = _login.asStateFlow()
-    fun setLogin(value: LoginUiState) { _login.value = value }
-    fun updateLogin(transform: (LoginUiState) -> LoginUiState) { _login.value = transform(_login.value) }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    private val _repo = MutableStateFlow(RepoUiState())
-    val repo: StateFlow<RepoUiState> = _repo.asStateFlow()
-    fun setRepo(value: RepoUiState) { _repo.value = value }
-    fun updateRepo(transform: (RepoUiState) -> RepoUiState) { _repo.value = transform(_repo.value) }
-
-    private val _refreshing = MutableStateFlow(false)
-    val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
-    fun setRefreshing(value: Boolean) { _refreshing.value = value }
-
-    // ---- Settings state: DataStore is the single source of truth (no runBlocking,
-    //      no manual mirrors). SettingsState derives each StateFlow via stateIn. ----
+    // ---- Composition only: state holders + use cases own the behaviour. ----
+    private val authState = AuthState(tokenStore)
     private val settings = SettingsState(repository)
+    private val useCases = AppUseCases(app, repository, tokenStore, alarmScheduler, scope, authState)
 
+    // Ephemeral UI state (auth / repo screen)
+    val login: StateFlow<LoginUiState> get() = authState.login
+    val repo: StateFlow<RepoUiState> get() = authState.repo
+    val refreshing: StateFlow<Boolean> get() = authState.refreshing
+    fun setLogin(value: LoginUiState) = authState.setLogin(value)
+    fun updateLogin(t: (LoginUiState) -> LoginUiState) = authState.updateLogin(t)
+    fun setRepo(value: RepoUiState) = authState.setRepo(value)
+    fun updateRepo(t: (RepoUiState) -> RepoUiState) = authState.updateRepo(t)
+    fun setRefreshing(value: Boolean) = authState.setRefreshing(value)
+
+    // Settings state: DataStore single source of truth (stateIn, no mirrors)
     val themeMode: StateFlow<Int> get() = settings.themeMode
     val orders: StateFlow<Map<String, List<String>>> get() = settings.orders
     val showExecutionStatusFlow: StateFlow<Boolean> get() = settings.showExecutionStatus
@@ -81,7 +77,9 @@ class AppContainer private constructor(val app: Application) {
     /** No-op: stateIn already mirrors the DataStore write back to holidayEnabledFlow. */
     fun setHolidayEnabledState(@Suppress("UNUSED_PARAMETER") value: Boolean) = Unit
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    // Cross-cutting business actions
+    fun logout() = useCases.logout()
+    fun setLanguage(lang: com.lucaslu.tickhub.util.L10n.Lang) = useCases.setLanguage(lang)
 
     // ---- Repository-backed observable data ----
     val snapshot = repository.snapshot
@@ -90,22 +88,6 @@ class AppContainer private constructor(val app: Application) {
     val loggedInUser = repository.loggedInUser
     val avatarUrl = repository.avatarUrl
     val runningExecutions = repository.runningExecutions
-
-    /** Single logout implementation shared by AuthViewModel and SettingsViewModel. */
-    fun logout() {
-        tokenStore.clearSync() // synchronous so token cannot survive a kill before write
-        scope.launch {
-            // Cancel alarms/work BEFORE clearing rules — need the rule ids first.
-            repository.getRulesOnce().forEach { alarmScheduler.cancel(it.id) }
-            com.lucaslu.tickhub.scheduler.RunTrackerWorker.cancelAll(app)
-            // Cancel ALL queued dispatch work (scheduled + manual). Previously
-            // this targeted a "manual" tag that no WorkRequest ever carried —
-            // a silent no-op leaving in-flight work to write back after logout.
-            androidx.work.WorkManager.getInstance(app).cancelAllWorkByTag("tickhub_dispatch_all")
-            repository.clearAllUserData()
-            setLogin(LoginUiState())
-        }
-    }
 
     companion object {
         const val MANUAL_RULE_ID = "manual" // pseudo rule id for Repos-tab triggers
