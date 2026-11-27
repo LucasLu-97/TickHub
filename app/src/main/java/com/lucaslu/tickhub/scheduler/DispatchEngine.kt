@@ -21,7 +21,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.time.LocalDateTime
-import java.util.UUID
 import kotlin.coroutines.resume
 
 /**
@@ -92,8 +91,8 @@ class DispatchEngine(private val context: Context) {
         val token = tokenStore.getToken()
         if (token == null) {
             AppLogger.e("Engine", "token missing -> retry (user may re-login)")
-            addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "未登录，token 缺失", errorKey = "未登录，token 缺失", isMakeup = isMakeup)
-            retryOrAdvance(rule, plannedAt, rule.retryFailedWfIds) // preserve retry subset
+            commitInfraFailure(rule, plannedAt, isMakeup, TriggerStatus.SKIPPED,
+                "未登录，token 缺失", "未登录，token 缺失", emptyList(), advance = false)
             return TriggerStatus.FAILED
         }
 
@@ -102,8 +101,8 @@ class DispatchEngine(private val context: Context) {
         val networkOk = waitForNetwork(waitMinutes)
         AppLogger.i("Engine", "network ready=$networkOk")
         if (!networkOk) {
-            addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "等待网络超时（${waitMinutes}分钟）", errorKey = "等待网络超时（{0}分钟）", errorArgs = listOf("$waitMinutes"), isMakeup = isMakeup)
-            retryOrAdvance(rule, plannedAt, rule.retryFailedWfIds) // preserve retry subset
+            commitInfraFailure(rule, plannedAt, isMakeup, TriggerStatus.SKIPPED,
+                "等待网络超时（${waitMinutes}分钟）", "等待网络超时（{0}分钟）", listOf("$waitMinutes"), advance = false)
             return TriggerStatus.FAILED
         }
 
@@ -114,8 +113,8 @@ class DispatchEngine(private val context: Context) {
         val parts = rule.repoFullName.split("/")
         if (parts.size != 2) {
             AppLogger.e("Engine", "invalid repo name: ${rule.repoFullName}")
-            addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "仓库名无效：${rule.repoFullName}", errorKey = "仓库名无效：{0}", errorArgs = listOf(rule.repoFullName), isMakeup = isMakeup)
-            retryOrAdvance(rule, plannedAt, rule.retryFailedWfIds) // preserve retry subset
+            commitInfraFailure(rule, plannedAt, isMakeup, TriggerStatus.FAILED,
+                "仓库名无效：${rule.repoFullName}", "仓库名无效：{0}", listOf(rule.repoFullName), advance = true)
             return TriggerStatus.FAILED
         }
 
@@ -161,150 +160,188 @@ class DispatchEngine(private val context: Context) {
             if (isMakeup) TriggerStatus.MAKEUP else TriggerStatus.SUCCESS
         } else TriggerStatus.FAILED
 
-        // On retry of a subset, "success" means all retried ones succeeded.
-        // Clear retry state so a later reboot does not re-run them.
         val startTracking = allSuccess && parts.size == 2
-        val logId = addLog(
-            rule = rule,
+        val logId = java.util.UUID.randomUUID().toString()
+        val log = com.lucaslu.tickhub.data.TriggerLog(
+            id = logId,
+            ruleId = rule.id,
+            workflowName = rule.workflowName,
+            workflowNames = rule.workflowNames.ifEmpty { listOfNotNull(rule.workflowName.takeIf { it.isNotBlank() }) },
+            repoFullName = rule.repoFullName,
             plannedAt = plannedAt,
+            firedAt = System.currentTimeMillis(),
             status = status,
             httpCode = httpCode,
             errorMessage = if (allSuccess) null else "工作流 $failedWfIds 触发失败：$lastError",
             errorKey = if (allSuccess) null else "工作流 {0} 触发失败：{1}",
             errorArgs = if (allSuccess) emptyList() else listOf(failedWfIds.joinToString(), lastError.orEmpty()),
             isMakeup = isMakeup,
-            tracking = startTracking
+            durationMs = System.currentTimeMillis() - (repository.runningStartOnce(rule.id) ?: System.currentTimeMillis())
         )
 
-        // Real-duration tracking: mark the log as tracking immediately and let the
-        // Worker discover the GitHub run itself on its first poll (~20s later).
-        // Previously we queried runs here, but GitHub often hasn't created the run
-        // yet right after dispatch, so tracking silently never started and the
-        // history card showed no duration.
-        // Duration tracking is always on — the history card needs it. The
-        // "result notification" switch only controls the notification, not tracking.
+        // CRITICAL: compute the rule transition BEFORE the atomic commit, then write
+        // log + rule state in ONE transaction. No "log written but slot stranded" window.
+        val transition = buildTransition(rule, plannedAt, allSuccess, advance, failedWfIds)
+        val updated = repository.commitDispatchOutcome(log, startTracking, rule.id, transition)
+
         if (startTracking) {
             RunTrackerWorker.enqueue(context, logId, rule.id)
             AppLogger.i("Engine", "tracking started log=${logId.take(8)}")
         }
 
-        // Success advances to the next slot; failure retries ONLY the failed
-        // workflows of the SAME slot (never re-sends already-successful ones).
-        if (allSuccess) {
-            if (advance) advanceRule(rule)
-            else {
-                // Manual trigger: record only, never consume/reschedule the
-                // user's planned slot.
-                if (rule.retryAt != null) repository.updateRule(rule.copy(retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()))
-            }
-        } else retryOrAdvance(rule, plannedAt, failedWfIds)
+        // Re-register alarm from the COMMITTED rule (not the stale input object).
+        updated?.let { postCommitSchedule(it, transition) }
         return status
+    }
+
+    /**
+     * Infrastructure failure (no token / no network / bad config): the dispatch
+     * was never attempted, so it must NOT consume the retry budget (MAX_RETRIES).
+     * Write a SKIPPED log (not FAILED) and keep the slot alive via a persisted
+     * retry — atomically. A config error (bad repo name) cannot self-heal, so it
+     * advances directly instead of retrying pointlessly.
+     */
+    private suspend fun commitInfraFailure(
+        rule: Rule, plannedAt: Long, isMakeup: Boolean,
+        status: TriggerStatus, errorMessage: String, errorKey: String, errorArgs: List<String>,
+        advance: Boolean
+    ) {
+        val log = com.lucaslu.tickhub.data.TriggerLog(
+            id = java.util.UUID.randomUUID().toString(), ruleId = rule.id,
+            workflowName = rule.workflowName, workflowNames = rule.workflowNames,
+            repoFullName = rule.repoFullName, plannedAt = plannedAt,
+            firedAt = System.currentTimeMillis(), status = status,
+            errorMessage = errorMessage, errorKey = errorKey, errorArgs = errorArgs,
+            isMakeup = isMakeup
+        )
+        val transition = if (advance) {
+            // Permanent config error: give up this slot cleanly.
+            val (next, effective) = repository.computeNextFire(rule, LocalDateTime.now())
+            if (next == null || effective == null) {
+                com.lucaslu.tickhub.repository.DispatchTransition(completed = true, lastFiredAt = System.currentTimeMillis())
+            } else com.lucaslu.tickhub.repository.DispatchTransition(
+                nextFireAt = RuleEngine.toEpochMillis(next), effectiveFireAt = effective,
+                lastFiredAt = System.currentTimeMillis(),
+                retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
+            )
+        } else {
+            // Transient infra: retry without touching the FAIL budget.
+            com.lucaslu.tickhub.repository.DispatchTransition(
+                nextFireAt = rule.nextFireAt, effectiveFireAt = rule.effectiveFireAt,
+                lastFiredAt = rule.lastFiredAt,
+                retryAt = System.currentTimeMillis() + RETRY_DELAY_MS,
+                retryPlannedAt = plannedAt, retryFailedWfIds = rule.retryFailedWfIds
+            )
+        }
+        val updated = repository.commitDispatchOutcome(log, false, rule.id, transition)
+        updated?.let { postCommitSchedule(it, transition) }
+    }
+
+    /** Build the rule-state transition from pure decisions. Called before the
+     *  atomic commit so log + rule update happen in one DataStore transaction. */
+    private suspend fun buildTransition(
+        rule: Rule, plannedAt: Long, allSuccess: Boolean, advance: Boolean, failedWfIds: List<Long>
+    ): com.lucaslu.tickhub.repository.DispatchTransition {
+        if (allSuccess) {
+            if (!advance) {
+                // Manual trigger: never consume the planned slot; just clear retry state.
+                return com.lucaslu.tickhub.repository.DispatchTransition(
+                    nextFireAt = rule.nextFireAt, effectiveFireAt = rule.effectiveFireAt,
+                    lastFiredAt = rule.lastFiredAt, retryAt = null, retryPlannedAt = null,
+                    retryFailedWfIds = emptyList()
+                )
+            }
+            val (next, effective) = repository.computeNextFire(rule, LocalDateTime.now())
+            if (next == null || effective == null) {
+                AppLogger.i("Engine", "rule=${rule.id.take(8)} COMPLETED (no next fire)")
+                return com.lucaslu.tickhub.repository.DispatchTransition(completed = true, lastFiredAt = System.currentTimeMillis())
+            }
+            val drift = (effective - RuleEngine.toEpochMillis(next)) / 60_000
+            AppLogger.i("Engine", "rule=${rule.id.take(8)} next base=$next drift=${drift}min")
+            return com.lucaslu.tickhub.repository.DispatchTransition(
+                nextFireAt = RuleEngine.toEpochMillis(next), effectiveFireAt = effective,
+                lastFiredAt = System.currentTimeMillis(),
+                retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
+            )
+        }
+        // Failure: retry ONLY the failed workflows of the same slot.
+        return buildRetryTransition(rule, plannedAt, failedWfIds)
+    }
+
+    private suspend fun buildRetryTransition(
+        rule: Rule, plannedAt: Long, failedWfIds: List<Long>
+    ): com.lucaslu.tickhub.repository.DispatchTransition {
+        val failCount = repository.getLogsOnce().count {
+            it.ruleId == rule.id && it.plannedAt == plannedAt && it.status == TriggerStatus.FAILED
+        }
+        if (!DispatchPolicy.shouldRetry(failCount)) {
+            AppLogger.w("Engine", "rule=${rule.id.take(8)} slot=$plannedAt exhausted $failCount retries -> advance")
+            val (next, effective) = repository.computeNextFire(rule, LocalDateTime.now())
+            if (next == null || effective == null) {
+                return com.lucaslu.tickhub.repository.DispatchTransition(completed = true, lastFiredAt = System.currentTimeMillis())
+            }
+            return com.lucaslu.tickhub.repository.DispatchTransition(
+                nextFireAt = RuleEngine.toEpochMillis(next), effectiveFireAt = effective,
+                lastFiredAt = System.currentTimeMillis(),
+                retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
+            )
+        }
+        val retryAt = System.currentTimeMillis() + RETRY_DELAY_MS
+        AppLogger.i("Engine", "rule=${rule.id.take(8)} slot=$plannedAt retry #${failCount + 1} at=$retryAt failedWfs=${failedWfIds.size}")
+        return com.lucaslu.tickhub.repository.DispatchTransition(
+            nextFireAt = rule.nextFireAt, effectiveFireAt = rule.effectiveFireAt,
+            lastFiredAt = rule.lastFiredAt,
+            retryAt = retryAt, retryPlannedAt = plannedAt, retryFailedWfIds = failedWfIds
+        )
+    }
+
+    /** Register the alarm from the committed rule state. */
+    private fun postCommitSchedule(
+        updated: Rule, transition: com.lucaslu.tickhub.repository.DispatchTransition
+    ) {
+        if (updated.status == RuleStatus.COMPLETED) {
+            alarmScheduler.cancel(updated.id)
+            return
+        }
+        if (transition.retryAt != null && transition.retryPlannedAt != null) {
+            alarmScheduler.scheduleRetry(updated.id, updated.workflowName, transition.retryAt, transition.retryPlannedAt)
+            return
+        }
+        if (updated.status == RuleStatus.ENABLED) scheduleAt(updated, updated.effectiveFireAt ?: updated.nextFireAt ?: return)
     }
 
     /** Called when execute() throws unexpectedly: log the failure and use the
      *  same persisted retry path so the slot is not silently lost. */
     suspend fun handleException(ruleId: String, plannedAt: Long, isMakeup: Boolean, e: Exception) {
         val rule = repository.getRuleOnce(ruleId) ?: return
-        addLog(
-            rule, plannedAt, TriggerStatus.FAILED,
+        // If the outcome was already committed (log+rule) before the exception
+        // (e.g. tracker enqueue failed), do NOT re-dispatch — that would be a
+        // duplicate check-in. The atomic commit guarantees consistency already.
+        val alreadyCommitted = repository.getLogsOnce().any {
+            it.ruleId == ruleId && it.plannedAt == plannedAt &&
+                (it.status == TriggerStatus.SUCCESS || it.status == TriggerStatus.MAKEUP)
+        }
+        if (alreadyCommitted) {
+            AppLogger.w("Engine", "exception after committed success, skip retry to avoid duplicate rule=${ruleId.take(8)}")
+            return
+        }
+        val log = com.lucaslu.tickhub.data.TriggerLog(
+            id = java.util.UUID.randomUUID().toString(), ruleId = ruleId,
+            workflowName = rule.workflowName, workflowNames = rule.workflowNames,
+            repoFullName = rule.repoFullName, plannedAt = plannedAt,
+            firedAt = System.currentTimeMillis(), status = TriggerStatus.FAILED,
             errorMessage = "执行异常：${e.message}", errorKey = "执行异常：{0}",
             errorArgs = listOf(e.message.orEmpty()), isMakeup = isMakeup
         )
-        retryOrAdvance(rule, plannedAt, rule.retryFailedWfIds)
-    }
-
-    /** Retry a failed slot a few times (short delay, same plannedAt), then give up.
-     *  Persists retryAt/failed-wfIds to the Rule so a reboot can restore the retry
-     *  alarm — an in-memory AlarmManager alarm alone is lost on reboot/process death,
-     *  which used to strand the slot forever (missed check-in). */
-    private suspend fun retryOrAdvance(rule: Rule, plannedAt: Long, failedWfIds: List<Long> = emptyList()) {
-        val failCount = repository.getLogsOnce().count {
-            it.ruleId == rule.id && it.plannedAt == plannedAt && it.status == TriggerStatus.FAILED
-        }
-        if (!DispatchPolicy.shouldRetry(failCount)) {
-            AppLogger.w("Engine", "rule=${rule.id.take(8)} slot=$plannedAt exhausted $failCount retries -> advance")
-            advanceRule(rule)
-            return
-        }
-        val retryAt = System.currentTimeMillis() + RETRY_DELAY_MS
-        // Persist BEFORE scheduling so a crash between the two still recovers.
-        repository.updateRule(rule.copy(
-            retryAt = retryAt,
-            retryPlannedAt = plannedAt,
-            retryFailedWfIds = failedWfIds
-        ))
-        alarmScheduler.scheduleRetry(rule.id, rule.workflowName, retryAt, plannedAt)
-        AppLogger.i("Engine", "rule=${rule.id.take(8)} slot=$plannedAt retry #${failCount + 1} at=$retryAt failedWfs=${failedWfIds.size}")
-    }
-
-    /** Compute next fire time, persist, and re-register the alarm. */
-    private suspend fun advanceRule(rule: Rule) {
-        val (next, effective) = repository.computeNextFire(rule, LocalDateTime.now())
-        if (next == null || effective == null) {
-            AppLogger.i("Engine", "rule=${rule.id.take(8)} COMPLETED (no next fire)")
-            repository.updateRule(
-                rule.copy(
-                    status = RuleStatus.COMPLETED,
-                    nextFireAt = null,
-                    effectiveFireAt = null,
-                    lastFiredAt = System.currentTimeMillis(),
-                    retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
-                )
-            )
-            alarmScheduler.cancel(rule.id)
-            return
-        }
-        val drift = (effective - RuleEngine.toEpochMillis(next)) / 60_000
-        AppLogger.i("Engine", "rule=${rule.id.take(8)} next base=$next drift=${drift}min")
-        val updated = repository.updateRule(
-            rule.copy(
-                nextFireAt = RuleEngine.toEpochMillis(next),
-                effectiveFireAt = effective,
-                lastFiredAt = System.currentTimeMillis(),
-                retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
-            )
-        )
-        scheduleAt(updated, effective)
+        val transition = buildRetryTransition(rule, plannedAt, rule.retryFailedWfIds)
+        val updated = repository.commitDispatchOutcome(log, false, ruleId, transition)
+        updated?.let { postCommitSchedule(it, transition) }
     }
 
     /** Schedule at the effective (drifted) time, but keep logs keyed to the base slot. */
     private fun scheduleAt(rule: Rule, effectiveAt: Long) {
         val baseSlot = rule.nextFireAt ?: effectiveAt
         alarmScheduler.scheduleWithSlot(rule, triggerAt = effectiveAt, plannedAt = baseSlot)
-    }
-
-    private suspend fun addLog(
-        rule: Rule,
-        plannedAt: Long,
-        status: TriggerStatus,
-        httpCode: Int? = null,
-        errorMessage: String? = null,
-        errorKey: String? = null,
-        errorArgs: List<String> = emptyList(),
-        isMakeup: Boolean = false,
-        tracking: Boolean = false
-    ): String {
-        val logId = UUID.randomUUID().toString()
-        repository.addLog(
-            TriggerLog(
-                id = logId,
-                ruleId = rule.id,
-                workflowName = rule.workflowName,
-                workflowNames = rule.workflowNames.ifEmpty { listOfNotNull(rule.workflowName.takeIf { it.isNotBlank() }) },
-                repoFullName = rule.repoFullName,
-                plannedAt = plannedAt,
-                firedAt = System.currentTimeMillis(),
-                status = status,
-                httpCode = httpCode,
-                errorMessage = errorMessage,
-                errorKey = errorKey,
-                errorArgs = errorArgs,
-                isMakeup = isMakeup,
-                durationMs = System.currentTimeMillis() - (repository.runningStartOnce(rule.id) ?: System.currentTimeMillis())
-            ),
-            tracking = tracking
-        )
-        return logId
     }
 
     /** Wait for an available network connection, up to timeoutMinutes. */

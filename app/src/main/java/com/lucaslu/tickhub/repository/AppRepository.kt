@@ -118,15 +118,76 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
 
     suspend fun getRuleOnce(id: String): Rule? = getRulesOnce().firstOrNull { it.id == id }
 
-    /** Atomically update a rule. Returns the updated rule. */
-    suspend fun updateRule(rule: Rule): Rule {
+    /** Atomically update a rule from the LATEST stored object via a patch lambda.
+     *  Prevents stale-object overwrites when multiple workers/VMs touch one rule.
+     *  Returns the updated rule (or null if the rule no longer exists). */
+    suspend fun updateRuleFields(id: String, patch: (Rule) -> Rule): Rule? {
+        var result: Rule? = null
         context.dataStore.edit { prefs ->
             val current = readRules(prefs).toMutableList()
-            val idx = current.indexOfFirst { it.id == rule.id }
-            if (idx >= 0) current[idx] = rule else current.add(rule)
-            prefs[rulesKey] = json.encodeToString(current)
+            val idx = current.indexOfFirst { it.id == id }
+            if (idx >= 0) {
+                val updated = patch(current[idx]) // patch the LATEST object, not a stale snapshot
+                current[idx] = updated
+                result = updated
+                prefs[rulesKey] = json.encodeToString(current)
+            }
         }
-        return rule
+        return result
+    }
+
+    /** Legacy full-object update — prefer [updateRuleFields] to avoid stale writes. */
+    suspend fun updateRule(rule: Rule): Rule = updateRuleFields(rule.id) { rule } ?: rule
+
+    /**
+     * CRITICAL atomicity: write the outcome log and apply the rule transition in
+     * ONE dataStore.edit. A process kill between the two can no longer leave a
+     * SUCCESS log with an un-advanced rule (slot stranded forever) or vice versa.
+     * Returns the updated rule so the caller can re-register the alarm.
+     */
+    suspend fun commitDispatchOutcome(
+        log: TriggerLog,
+        tracking: Boolean,
+        ruleId: String,
+        transition: DispatchTransition
+    ): Rule? {
+        var result: Rule? = null
+        context.dataStore.edit { prefs ->
+            // 1) append log (newest first, 200-cap with tracking protection)
+            val logs = readLogs(prefs).toMutableList()
+            logs.add(0, if (tracking) log.copy(tracking = true) else log)
+            val keptLogs = logs.take(200).toMutableList()
+            logs.drop(200).filter { it.tracking }.forEach { keptLogs.add(it) }
+            prefs[logsKey] = json.encodeToString(keptLogs)
+
+            // 2) patch rule from the LATEST stored object
+            val rules = readRules(prefs).toMutableList()
+            val idx = rules.indexOfFirst { it.id == ruleId }
+            if (idx >= 0) {
+                val cur = rules[idx]
+                val updated = if (transition.completed) {
+                    cur.copy(
+                        status = com.lucaslu.tickhub.data.RuleStatus.COMPLETED,
+                        nextFireAt = null, effectiveFireAt = null,
+                        lastFiredAt = transition.lastFiredAt ?: System.currentTimeMillis(),
+                        retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
+                    )
+                } else {
+                    cur.copy(
+                        nextFireAt = transition.nextFireAt ?: cur.nextFireAt,
+                        effectiveFireAt = transition.effectiveFireAt ?: cur.effectiveFireAt,
+                        lastFiredAt = transition.lastFiredAt ?: cur.lastFiredAt,
+                        retryAt = transition.retryAt,
+                        retryPlannedAt = transition.retryPlannedAt,
+                        retryFailedWfIds = transition.retryFailedWfIds
+                    )
+                }
+                rules[idx] = updated
+                result = updated
+                prefs[rulesKey] = json.encodeToString(rules)
+            }
+        }
+        return result
     }
 
     /** Add a log. [tracking] is set atomically at insert time so a crash between
