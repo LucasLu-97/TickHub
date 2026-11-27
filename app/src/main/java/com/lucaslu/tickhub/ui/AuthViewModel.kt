@@ -18,8 +18,6 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     val login: StateFlow<LoginUiState> get() = c.login
     val themeMode: StateFlow<Int> get() = c.themeMode
 
-    fun cycleTheme() = c.cycleTheme()
-
     fun clientConfigured(): Boolean = c.api.isClientConfigured()
 
     fun setLanguage(lang: com.lucaslu.tickhub.util.L10n.Lang) {

@@ -115,7 +115,6 @@ class AppContainer private constructor(val app: Application) {
     val snapshot = repository.snapshot
     val rules = repository.rules
     val logs = repository.logs
-    val networkWaitMinutes = repository.networkWaitMinutes
     val loggedInUser = repository.loggedInUser
     val avatarUrl = repository.avatarUrl
     val runningExecutions = repository.runningExecutions

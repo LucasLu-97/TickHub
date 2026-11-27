@@ -81,14 +81,6 @@ class RuleViewModel(app: Application) : AndroidViewModel(app) {
         DispatchWorker.enqueue(getApplication(), rule.id, System.currentTimeMillis(), isMakeup = false, advance = false)
     }
 
-    /** Catch up any rules whose scheduled time has passed but were not fired. */
-    fun catchUpMissedRules() {
-        viewModelScope.launch {
-            val count = c.dispatchEngine.catchUpMissed()
-            AppLogger.i("App", "catchUp done: $count makeup dispatched")
-        }
-    }
-
     fun saveOrder(kind: String, ids: List<String>) {
         c.saveOrder(kind, ids)
     }

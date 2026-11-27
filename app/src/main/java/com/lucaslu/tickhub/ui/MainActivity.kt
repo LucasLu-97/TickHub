@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,8 +66,8 @@ private fun TickHubApp() {
     val loginState by authVm.login.collectAsState()
     val themeMode by authVm.themeMode.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
-    var tab by remember { mutableIntStateOf(0) }
-    var showLogs by remember { mutableStateOf(false) }
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    var showLogs by rememberSaveable { mutableStateOf(false) }
 
     val darkTheme = when (themeMode) {
         0 -> false
@@ -75,7 +76,7 @@ private fun TickHubApp() {
     }
 
     TickHubTheme(darkTheme = darkTheme) {
-        val startupDone = remember { mutableStateOf(false) }
+        val startupDone = rememberSaveable { mutableStateOf(false) }
         LaunchedEffect(loginState.isLoggedIn) {
             if (loginState.isLoggedIn && !startupDone.value) {
                 startupDone.value = true // config change must not re-run startup maintenance

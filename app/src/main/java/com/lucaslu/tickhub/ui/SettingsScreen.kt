@@ -77,7 +77,7 @@ fun SettingsScreen(vm: SettingsViewModel, onOpenLogs: (() -> Unit)? = null) {
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp).padding(top = 4.dp, bottom = 88.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
-            fun setHaptic(enabled: Boolean) { vm.setShowExecutionStatus(enabled); com.lucaslu.tickhub.util.Haptics.tick(context) }
+            fun setShowExecution(enabled: Boolean) { vm.setShowExecutionStatus(enabled); com.lucaslu.tickhub.util.Haptics.tick(context) }
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(t("后台运行"), style = MaterialTheme.typography.titleMedium)
@@ -132,7 +132,7 @@ fun SettingsScreen(vm: SettingsViewModel, onOpenLogs: (() -> Unit)? = null) {
                             Text(t("执行状态监测"), style = MaterialTheme.typography.titleMedium)
                             Text(t("触发时显示进度与用时，仅前台刷新"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        MiuixSwitch(checked = showExec, onCheckedChange = { setHaptic(it) })
+                        MiuixSwitch(checked = showExec, onCheckedChange = { setShowExecution(it) })
                     }
                 }
             }

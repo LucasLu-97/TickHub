@@ -70,7 +70,6 @@ class DispatchEngine(private val context: Context) {
             DispatchWorker.enqueue(context, rule.id, base, isMakeup = true)
             count++
         }
-        repository.setLastCatchUpAt(now)
         return count
     }
 

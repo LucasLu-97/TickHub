@@ -27,8 +27,6 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun logout() = c.logout()
 
-    fun holidayEnabledOnce(): Boolean = c.holidayEnabledFlow.value
-
     fun setShowExecutionStatus(enabled: Boolean) {
         viewModelScope.launch { c.repository.setShowExecutionStatus(enabled) }
     }

@@ -51,8 +51,6 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     private val tokenUserKey = stringPreferencesKey("logged_in_user")
     private val avatarKey = stringPreferencesKey("avatar_url")
     private val lastScanKey = longPreferencesKey("last_scan_at")
-    private val networkWaitKey = androidx.datastore.preferences.core.intPreferencesKey("network_wait_minutes")
-    private val lastCatchUpKey = longPreferencesKey("last_catchup_at")
     private val runningKey = stringPreferencesKey("running_executions_json") // ruleId -> startTime
     private val showExecutionKey = androidx.datastore.preferences.core.booleanPreferencesKey("show_execution_status")
     private val runTrackingKey = androidx.datastore.preferences.core.booleanPreferencesKey("run_tracking_enabled")
@@ -94,10 +92,13 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         }
     }
 
-    val networkWaitMinutes: Flow<Int> = context.dataStore.data.map { it[networkWaitKey] ?: 3 }
 
     // fixed 3-minute cap per product decision; kept as a setting key for compatibility
-    suspend fun getNetworkWaitMinutesOnce(): Int = runCatching { context.dataStore.data.first()[networkWaitKey] ?: 3 }.getOrDefault(3)
+    companion object {
+        /** Fixed 3-minute network wait cap (was a never-written preference). */
+        const val NETWORK_WAIT_MINUTES = 3
+    }
+    suspend fun getNetworkWaitMinutesOnce(): Int = NETWORK_WAIT_MINUTES
 
     suspend fun getSnapshotOnce(): com.lucaslu.tickhub.data.ScanSnapshot = snapshot.first()
 
@@ -313,10 +314,6 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         }
     }
 
-    suspend fun clearLogs() {
-        context.dataStore.edit { it.remove(logsKey) }
-    }
-
     // ---- execution status (running tasks) ----
     // Includes BOTH the short-lived dispatch Worker window AND logs still being
     // tracked against GitHub. So the spinner keeps running for the whole real
@@ -456,10 +453,6 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         return try { json.decodeFromString(raw) } catch (e: Exception) { emptyMap() }
     }
 
-    suspend fun setLastCatchUpAt(ts: Long) {
-        context.dataStore.edit { it[lastCatchUpKey] = ts }
-    }
-
     suspend fun saveUser(login: String, avatarUrl: String? = null) {
         context.dataStore.edit { p ->
             p[tokenUserKey] = login
@@ -482,7 +475,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         context.dataStore.edit { p ->
             listOf(
                 tokenUserKey, avatarKey, snapshotKey, rulesKey, logsKey,
-                lastScanKey, lastCatchUpKey, runningKey
+                lastScanKey, runningKey
             ).forEach { p.remove(it) }
             listOf("repos", "rules", "logs").forEach { p.remove(orderKey(it)) }
         }
@@ -532,11 +525,6 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
                 prefs[rulesKey] = json.encodeToString(kept)
             }
         }
-    }
-
-    /** Set selection for all workflows of a repo, and sync the managed flag. */
-    suspend fun setRepoWorkflowsSelected(repoId: Long, selected: Boolean) {
-        setManaged(repoId, selected)
     }
 
     /**
@@ -680,12 +668,6 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         }
     }
 
-    suspend fun clearSnapshot() {
-        context.dataStore.edit { prefs ->
-            prefs.remove(snapshotKey)
-            prefs.remove(lastScanKey)
-        }
-    }
 
     private fun readSnapshot(prefs: Preferences): ScanSnapshot {
         val raw = prefs[snapshotKey] ?: return ScanSnapshot()
