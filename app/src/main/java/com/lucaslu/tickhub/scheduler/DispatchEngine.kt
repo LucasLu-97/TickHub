@@ -74,7 +74,7 @@ class DispatchEngine(private val context: Context) {
     }
 
     /** Execute a rule dispatch. Returns the resulting status. */
-    suspend fun execute(ruleId: String, isMakeup: Boolean, plannedAt: Long, advance: Boolean = true): TriggerStatus {
+    suspend fun execute(ruleId: String, isMakeup: Boolean, plannedAt: Long, advance: Boolean = true, chainDepth: Int = 0): TriggerStatus {
         val rule = repository.getRuleOnce(ruleId)
         if (rule == null) {
             AppLogger.e("Engine", "rule not found: ${ruleId.take(8)}")
@@ -111,7 +111,7 @@ class DispatchEngine(private val context: Context) {
             AppLogger.w("Engine", "rule=${ruleId.take(8)} has no workflows -> advance directly")
             // Respect the caller's advance flag: a manual trigger on a rule with
             // no workflows must not consume the planned slot either.
-            val transition = buildTransition(rule, plannedAt, allSuccess = true, advance = advance, emptyList(), null, if (isMakeup) plannedAt + 60_000L else null)
+            val transition = buildTransition(rule, plannedAt, allSuccess = true, advance = advance, emptyList(), null, if (isMakeup) plannedAt else null)
             val log = com.lucaslu.tickhub.data.TriggerLog(
                 id = java.util.UUID.randomUUID().toString(), ruleId = rule.id,
                 workflowName = rule.workflowName, workflowNames = rule.workflowNames,
@@ -219,7 +219,7 @@ class DispatchEngine(private val context: Context) {
 
         // CRITICAL: compute the rule transition BEFORE the atomic commit, then write
         // log + rule state in ONE transaction. No "log written but slot stranded" window.
-        val transition = buildTransition(rule, plannedAt, allSuccess, advance, failedWfIds, httpCode, if (isMakeup) plannedAt + 60_000L else null)
+        val transition = buildTransition(rule, plannedAt, allSuccess, advance, failedWfIds, httpCode, if (isMakeup) plannedAt else null)
         val updated = repository.commitDispatchOutcome(log, startTracking, rule.id, transition)
 
         if (startTracking) {
@@ -237,14 +237,13 @@ class DispatchEngine(private val context: Context) {
         if (isMakeup && allSuccess && advance && updated?.status == RuleStatus.ENABLED) {
             val nextBase = updated.nextFireAt
             if (nextBase != null && nextBase < System.currentTimeMillis() - 60_000L) {
-                val makeupCount = repository.getLogsOnce().count {
-                    it.ruleId == rule.id && it.isMakeup && it.status != TriggerStatus.FAILED
-                }
-                if (makeupCount < DispatchPolicy.MAX_SERIAL_CATCHUP) {
-                    AppLogger.w("Engine", "catchUp chain rule=${rule.id.take(8)} nextOverdue=$nextBase (#$makeupCount)")
-                    DispatchWorker.enqueue(context, rule.id, nextBase, isMakeup = true)
+                // Depth is passed per-batch (not counted from history): a rule with
+                // old MAKEUP logs must still be able to catch up fully next time.
+                if (chainDepth < DispatchPolicy.MAX_SERIAL_CATCHUP - 1) {
+                    AppLogger.w("Engine", "catchUp chain rule=${rule.id.take(8)} nextOverdue=$nextBase (depth=$chainDepth)")
+                    DispatchWorker.enqueue(context, rule.id, nextBase, isMakeup = true, chainDepth = chainDepth + 1)
                 } else {
-                    AppLogger.w("Engine", "catchUp chain capped rule=${rule.id.take(8)} at $makeupCount slots")
+                    AppLogger.w("Engine", "catchUp chain capped rule=${rule.id.take(8)} at depth=$chainDepth")
                 }
             }
         }

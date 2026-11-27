@@ -26,13 +26,14 @@ class DispatchWorker(appContext: Context, params: WorkerParameters) : CoroutineW
         val plannedAt = inputData.getLong(KEY_PLANNED_AT, System.currentTimeMillis())
         val isMakeup = inputData.getBoolean(KEY_IS_MAKEUP, false)
         val advance = inputData.getBoolean(KEY_ADVANCE, true)
+        val chainDepth = inputData.getInt(KEY_CHAIN_DEPTH, 0)
         AppLogger.i("Worker", "START rule=${ruleId.take(8)} makeup=$isMakeup attempt=$runAttemptCount")
 
         val engine = DispatchEngine(applicationContext)
         val wakeLock = engine.acquireWakeLock("dispatch-$ruleId")
         return try {
             engine.markRunning(ruleId, System.currentTimeMillis()) // inside try: no wake-lock leak if it throws
-            val status = engine.execute(ruleId, isMakeup, plannedAt, advance)
+            val status = engine.execute(ruleId, isMakeup, plannedAt, advance, chainDepth)
             AppLogger.i("Worker", "DONE rule=${ruleId.take(8)} status=$status")
             Result.success()
         } catch (e: Exception) {
@@ -58,14 +59,16 @@ class DispatchWorker(appContext: Context, params: WorkerParameters) : CoroutineW
         const val KEY_PLANNED_AT = "planned_at"
         const val KEY_IS_MAKEUP = "is_makeup"
         const val KEY_ADVANCE = "advance" // false for manual trigger: don't consume the planned slot
+        const val KEY_CHAIN_DEPTH = "chain_depth" // catch-up chain depth (per-batch, not historical)
         const val UNIQUE_NAME = "tickhub_dispatch"
 
-        fun enqueue(context: Context, ruleId: String, plannedAt: Long, isMakeup: Boolean, advance: Boolean = true) {
+        fun enqueue(context: Context, ruleId: String, plannedAt: Long, isMakeup: Boolean, advance: Boolean = true, chainDepth: Int = 0) {
             val data = workDataOf(
                 KEY_RULE_ID to ruleId,
                 KEY_PLANNED_AT to plannedAt,
                 KEY_IS_MAKEUP to isMakeup,
-                KEY_ADVANCE to advance
+                KEY_ADVANCE to advance,
+                KEY_CHAIN_DEPTH to chainDepth
             )
             val request = OneTimeWorkRequestBuilder<DispatchWorker>()
                 .setInputData(data)
