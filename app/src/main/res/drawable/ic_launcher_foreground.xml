@@ -4,7 +4,8 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- white clock disc + dark hands, scaled 1.6 about center; background color from @color/ic_launcher_background -->
+    <!-- MIUI blue/white: white clock disc + blue hands on the blue background
+         (@color/ic_launcher_background = #3B7CFF). Scaled 1.6 about center. -->
     <group
         android:pivotX="54"
         android:pivotY="54"
@@ -14,7 +15,7 @@
             android:fillColor="#FFFFFFFF"
             android:pathData="M54,28a26,26 0 1,0 0,52a26,26 0 1,0 0,-52z" />
         <path
-            android:fillColor="#181717"
+            android:fillColor="#3B7CFF"
             android:pathData="M54,36a2,2 0 0,1 2,2v16l12,7a2,2 0 1,1 -2,3.5l-13,-7.5a2,2 0 0,1 -1,-1.7V38a2,2 0 0,1 2,-2z" />
     </group>
 </vector>

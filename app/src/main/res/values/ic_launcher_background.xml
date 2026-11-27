@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#181717</color>
+    <!-- MIUI/Miuix blue — same as the app primary color (Theme.kt #3B7CFF). -->
+    <color name="ic_launcher_background">#3B7CFF</color>
 </resources>

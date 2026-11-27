@@ -13,6 +13,8 @@ object NotificationHelper {
     private const val CHANNEL_ID = "tickhub_run_result"
     private val CHANNEL_NAME get() = com.lucaslu.tickhub.util.L10n.tNow("触发结果通知")
     private const val NOTIF_ID_BASE = 2000
+    // MIUI/Miuix blue accent — tints the notification small-icon background.
+    private const val ACCENT_COLOR = 0xFF3B7CFF.toInt()
 
     /** Tap a notification to return to the app (with a clean back stack). */
     private fun contentIntent(context: Context): android.app.PendingIntent {
@@ -44,6 +46,7 @@ object NotificationHelper {
             val nm = context.getSystemService(NotificationManager::class.java)
             val notif = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notif_small)
+                .setColor(ACCENT_COLOR)
                 .setContentIntent(contentIntent(context))
                 .setContentTitle(L10n.tNow("TickHub · 登录已失效"))
                 .setContentText(L10n.tNow("请重新登录以恢复定时触发"))
@@ -61,6 +64,7 @@ object NotificationHelper {
             val nm = context.getSystemService(NotificationManager::class.java)
             val notif = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notif_small)
+                .setColor(ACCENT_COLOR)
                 .setContentIntent(contentIntent(context))
                 .setContentTitle(L10n.tNow("TickHub · 精确闹钟未开启"))
                 .setContentText(L10n.tNow("请在设置开启精确闹钟，否则定时可能延迟数分钟"))
@@ -76,6 +80,7 @@ object NotificationHelper {
             val nm = context.getSystemService(NotificationManager::class.java)
             val notif = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notif_small)
+                .setColor(ACCENT_COLOR)
                 .setContentIntent(contentIntent(context))
                 .setContentTitle(title)
                 .setContentText(message)
