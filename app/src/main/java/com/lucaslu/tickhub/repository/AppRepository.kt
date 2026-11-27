@@ -405,13 +405,6 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     }.getOrDefault(InitialPrefs())
 
     /** All saved orders as a flow, so the UI renders the persisted order on the first frame. */
-    val allOrders: Flow<Map<String, List<String>>> = context.dataStore.data.map { prefs ->
-        listOf("repos", "rules", "logs").associateWith { kind ->
-            val raw = prefs[orderKey(kind)] ?: return@associateWith emptyList()
-            try { json.decodeFromString<List<String>>(raw) } catch (e: Exception) { emptyList() }
-        }
-    }
-
     /** Apply a saved id order to a list, keeping any new items at the end. */
     fun <T> applyOrder(list: List<T>, order: List<String>, idOf: (T) -> String): List<T> {
         if (order.isEmpty()) return list

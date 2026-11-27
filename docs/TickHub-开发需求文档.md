@@ -1080,10 +1080,10 @@ Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: a
 **重构前**：AppViewModel 单类 517 行 / 27 个公开方法 / 5 个依赖组件，承担认证、扫描、规则、调度、设置、节假日全部职责。前几轮"改去重口径漏改两条路径"正是职责过集中的症状。
 
 **重构后**：
-- `AppContainer`（进程级单例）：持有唯一的 api/tokenStore/repository/alarmScheduler/dispatchEngine 实例 + 所有共享 StateFlow（login/repo/theme/refreshing/prefs）+ 首帧预读 + logout 唯一实现。保证拆分后状态仍共享、行为不变。
+- `AppGraph`（进程级单例）：持有唯一的 api/tokenStore/repository/alarmScheduler/dispatchEngine 实例 + 所有共享 StateFlow（login/repo/theme/refreshing/prefs）+ 首帧预读 + logout 唯一实现。保证拆分后状态仍共享、行为不变。
 - 5 个领域 ViewModel：`AuthViewModel`（登录/登出/语言/主题）、`RepoViewModel`（扫描/纳管/手动触发/排序）、`RuleViewModel`（规则CRUD/闹钟/catchUp）、`HistoryViewModel`（历史/删日志）、`SettingsViewModel`（设置开关/启动维护/节假日）。
 - 各 Screen 参数类型改为对应领域 VM，方法名不变；MainActivity 用 `viewModel()` 创建 5 个 VM 并分发。
-- 27 个方法全部核对覆盖，无遗漏；logout 下沉到 AppContainer 单一实现（Auth/Settings 两个 VM 都转发）。
+- 27 个方法全部核对覆盖，无遗漏；logout 下沉到 AppGraph 单一实现（Auth/Settings 两个 VM 都转发）。
 
 **验证**：CI 全绿（含单测）；打 v1.4.0-beta 用 adb 实机安装，逐页点击验证——仓库页（10仓库列表）、规则页（空态引导）、历史页（真实记录+耗时23s）、设置页（全部开关与状态）均正常，无崩溃，行为与 v1.3.4 等价。
 
@@ -1099,9 +1099,9 @@ Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: a
 
 **Critical（重复签到，已修）**：`DispatchEngine.execute` 三处早期失败分支（token缺失/网络超时/仓库名无效）调用 `retryOrAdvance` 时未传 `retryFailedWfIds`，重试中途失败会把"失败工作流子集"清空为全部 → 已成功的 workflow 被重复 dispatch。修复：三处均传 `rule.retryFailedWfIds` 保留子集。
 
-**Medium（已修）**：themeMode 未持久化（重启丢失用户选择）→ Repository 加 theme key + container 首帧读取与 cycleTheme 持久化；取消勾选 workflow/repo 删除规则时未取消闹钟 → RepoViewModel 加 `cancelAlarmsForRemovedRules`；共享 StateFlow 对外可写 → AppContainer 改为内部 mutable + 对外只读 StateFlow + 明确写方法（setLogin/updateLogin/setRepo/saveOrder 等）；README 关于 AAB/mapping 的虚假声明纠正；release 签名密钥缺失改 task 级 fail-fast（不放配置阶段以免阻断 `gradlew test`）。
+**Medium（已修）**：themeMode 未持久化（重启丢失用户选择）→ Repository 加 theme key + container 首帧读取与 cycleTheme 持久化；取消勾选 workflow/repo 删除规则时未取消闹钟 → RepoViewModel 加 `cancelAlarmsForRemovedRules`；共享 StateFlow 对外可写 → AppGraph 改为内部 mutable + 对外只读 StateFlow + 明确写方法（setLogin/updateLogin/setRepo/saveOrder 等）；README 关于 AAB/mapping 的虚假声明纠正；release 签名密钥缺失改 task 级 fail-fast（不放配置阶段以免阻断 `gradlew test`）。
 
-**审视结论（诚实）**：架构是"可维护基线"但非最优（AppContainer 仍偏宽、Repository 无接口抽象致核心逻辑难单测）；功能核心状态机稳健但仍有 Medium 债务（早期失败计消耗重试额度、LEGAL_HOLIDAY 跨年数据缺失降级、DataStore 并发原子性）；上架准备按用户要求**刻意未做**（CI 只产 APK，无隐私政策/数据安全表单/AAB）。以上均标注为后续迭代项，不阻断基线发布。
+**审视结论（诚实）**：架构是"可维护基线"但非最优（AppGraph 仍偏宽、Repository 无接口抽象致核心逻辑难单测）；功能核心状态机稳健但仍有 Medium 债务（早期失败计消耗重试额度、LEGAL_HOLIDAY 跨年数据缺失降级、DataStore 并发原子性）；上架准备按用户要求**刻意未做**（CI 只产 APK，无隐私政策/数据安全表单/AAB）。以上均标注为后续迭代项，不阻断基线发布。
 
 ---
 
@@ -1125,7 +1125,7 @@ Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: a
 
 **验证**：CI 全绿；v2.0.0-beta APK 2.13MB 已产出；待 adb 实机验证（设备暂时断开）。
 
-**已知债务（未修，已评估）**：AppContainer 仍偏宽、Repository 无接口抽象致核心逻辑难单测、finalizeLog 改FAILED 但规则已 advance、handleException 二次异常 runCatching 吞掉、logout 与在途 Worker 竞态、versionCode 用 GITHUB_RUN_NUMBER。均为低概率或设计取舍，不阻断。
+**已知债务（未修，已评估）**：AppGraph 仍偏宽、Repository 无接口抽象致核心逻辑难单测、finalizeLog 改FAILED 但规则已 advance、handleException 二次异常 runCatching 吞掉、logout 与在途 Worker 竞态、versionCode 用 GITHUB_RUN_NUMBER。均为低概率或设计取舍，不阻断。
 
 ---
 
@@ -1145,7 +1145,7 @@ Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: a
 
 **测试**：新增2个JVM单测覆盖基础设施重试上限与永久HTTP错误分类（共33个）。
 
-**仍存在的债务（不阻断）**：AppContainer偏宽、Repository无接口致核心逻辑难单测、catchUp只补最近slot、通知无点击跳转/权限拒绝无引导、RunTracker轮询未退避、`finalizeLog`改FAILED但规则已advance（设计取舍）、handleException二次异常runCatching吞掉、logout与在途Worker竞态。均为低概率或体验增强，排期处理。
+**仍存在的债务（不阻断）**：AppGraph偏宽、Repository无接口致核心逻辑难单测、catchUp只补最近slot、通知无点击跳转/权限拒绝无引导、RunTracker轮询未退避、`finalizeLog`改FAILED但规则已advance（设计取舍）、handleException二次异常runCatching吞掉、logout与在途Worker竞态。均为低概率或体验增强，排期处理。
 
 **验证状态**：CI全绿；v2.0.0-beta 已产出 APK 2.13MB；**adb设备仍断开，实机验证待完成**——这是R8瘦身后的必要防线，未通过前不发正式版。
 
@@ -1174,7 +1174,7 @@ Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: a
 
 **CI 全绿**（34个单测）。**待办**：用户手机已实测无闪退但当前未连接，正式版发布待用户确认。
 
-**仍存在（已评估不阻断）**：AppContainer 偏宽、Repository 无接口致核心逻辑难单测、catchUp 只补最近 slot、通知无点击跳转、RunTracker 轮询未退避、finalizeLog 改 FAILED 但规则已 advance、logout 与在途 Worker 竞态、MiuixSwitch stateDescription 硬编码中文。
+**仍存在（已评估不阻断）**：AppGraph 偏宽、Repository 无接口致核心逻辑难单测、catchUp 只补最近 slot、通知无点击跳转、RunTracker 轮询未退避、finalizeLog 改 FAILED 但规则已 advance、logout 与在途 Worker 竞态、MiuixSwitch stateDescription 硬编码中文。
 
 ---
 
@@ -1192,7 +1192,24 @@ Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: a
 
 **验证**：CI 全绿，39 单测；v2.0.0 tag 发布。
 
-**仍保留的取舍（明确记录）**：AppContainer 偏宽、Repository 无接口（已用纯函数缓解核心可测性）、通知渠道名不随语言更新、logout 与在途 Worker 竞态（低概率）、时钟大幅回拨保护。
+**仍保留的取舍（明确记录）**：AppGraph 偏宽、Repository 无接口（已用纯函数缓解核心可测性）、通知渠道名不随语言更新、logout 与在途 Worker 竞态（低概率）、时钟大幅回拨保护。
+
+---
+## 36. AppContainer 架构重构 + 图标蓝白配色（v2.1.0）
+
+用户要求提前解决 AppContainer 偏宽问题，并改蓝白图标。三阶段重构，每阶段 CI 验证：
+
+**阶段A 单一数据源**：Repository 新增 themeMode/orders 两个 Flow；新建 `SettingsState.kt` 用 stateIn 派生 6 个设置 StateFlow，替代 AppContainer 的 runBlocking 冷启动读取 + 4 个手工镜像协程，消除内存/DataStore 双写漂移。
+
+**阶段B 职责拆分**：新建 `AuthState.kt`（login/repo/refreshing 临时态）、`AppUseCases.kt`（logout/setLanguage 统一实现，消除两个 VM 的 setLanguage 重复）、`UiStates.kt`。AppContainer 退化为纯组装。
+
+**阶段C 组合根**：AppContainer 改名 `AppGraph` 并移到 `di/` 包（纯依赖图/组合根，无业务逻辑）。5 个 VM 改 `AppGraph.get(app)`。旧 AppContainer.kt 因 push 脚本不删远程文件而保留为空壳。
+
+**审视发现的回归并修复**：stateIn 用硬编码 initialValue 导致首帧主题闪烁/排序跳变/早期 cycleTheme 写错值/Haptics 初值覆盖误震动 → SettingsState 构造时一次性预读 `readInitialPrefsOnce()` 作为 initialValue（保留一次同步读，仍比旧方案干净）。
+
+**图标**：launcher 背景 #3B7CFF（主题蓝）、前景白盘+蓝针；通知 small icon 改时钟 evenOdd 镂空 + setColor 品牌蓝；用纯 Python 重生成 5 档 mipmap PNG（蓝底白盘蓝针），覆盖 API<26 设备。
+
+**验证**：每阶段 CI 全绿，39 单测；审视复核单例/状态流/登出/图标均无回归。
 
 ---
 > 文档结束。任何与实现不一致之处，以「实际代码 + 本文档更新」为准；请接手人持续维护本文档。

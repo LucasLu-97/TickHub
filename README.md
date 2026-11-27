@@ -29,7 +29,7 @@ GitHub Actions 的 `on.schedule` 在免费额度下常被延迟甚至跳过（�
 
 - **语言**：Kotlin 2.4（100% Kotlin，无 Java 遗留）
 - **UI**：Jetpack Compose + Material 3，MIUI 风格字体与配色
-- **架构**：单 Activity + Compose 状态驱动；共享 `AppContainer`（进程单例）持有基础设施与状态，5 个领域 ViewModel（Auth/Repo/Rule/History/Settings）分治；Repository 层统一数据访问
+- **架构**：单 Activity + Compose 状态驱动；共享 `AppGraph`（进程单例）持有基础设施与状态，5 个领域 ViewModel（Auth/Repo/Rule/History/Settings）分治；Repository 层统一数据访问
 - **调度**：`AlarmManager.setExactAndAllowWhileIdle` + `BroadcastReceiver` + `WorkManager`（执行与结果追踪）
 - **存储**：DataStore Preferences（配置 / 顺序 / 规则）+ Android Keystore（token 加密）
 - **网络**：OkHttp + kotlinx.serialization（无 Retrofit 冗余依赖）
