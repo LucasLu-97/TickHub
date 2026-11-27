@@ -23,26 +23,37 @@ class SettingsState(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
+    // ONE synchronous read at construction seeds the stateIn initial values.
+    // Without this the first frame uses hardcoded defaults (theme flashes,
+    // early cycleTheme() writes from the wrong base, disabled haptics vibrate).
+    // Still far cleaner than the old runBlocking + 4 hand-written mirrors:
+    // one read here, then stateIn mirrors every later DataStore change.
+    private val initial = runCatching {
+        kotlinx.coroutines.runBlocking { repository.readInitialPrefsOnce() }
+    }.getOrDefault(com.lucaslu.tickhub.repository.InitialPrefs())
+
+    init { Haptics.enabled = initial.haptics } // correct value before first compose/click
+
     val themeMode: StateFlow<Int> = repository.themeMode.stateIn(
-        scope, SharingStarted.Eagerly, initialValue = 2 // 2 = system
+        scope, SharingStarted.Eagerly, initialValue = initial.themeMode
     )
     val orders: StateFlow<Map<String, List<String>>> = repository.orders.stateIn(
-        scope, SharingStarted.Eagerly, initialValue = emptyMap()
+        scope, SharingStarted.Eagerly, initialValue = initial.orders
     )
     val showExecutionStatus: StateFlow<Boolean> = repository.showExecutionStatus.stateIn(
-        scope, SharingStarted.Eagerly, initialValue = true
+        scope, SharingStarted.Eagerly, initialValue = initial.showExecution
     )
     val runTracking: StateFlow<Boolean> = repository.runTrackingEnabled.stateIn(
-        scope, SharingStarted.Eagerly, initialValue = true
+        scope, SharingStarted.Eagerly, initialValue = initial.runTracking
     )
     val hapticsEnabled: StateFlow<Boolean> = repository.hapticsEnabled.stateIn(
-        scope, SharingStarted.Eagerly, initialValue = true
+        scope, SharingStarted.Eagerly, initialValue = initial.haptics
     ).also { flow ->
-        // Haptics is consumed from non-Compose code; mirror its enabled flag.
+        // Haptics is consumed from non-Compose code; keep its flag in sync.
         scope.launch { flow.collect { Haptics.enabled = it } }
     }
     val holidayEnabled: StateFlow<Boolean> = repository.holidayEnabled.stateIn(
-        scope, SharingStarted.Eagerly, initialValue = false
+        scope, SharingStarted.Eagerly, initialValue = initial.holiday
     )
 
     /** Cycle 0=light, 1=dark, 2=system. Write only to DataStore; stateIn mirrors back. */
