@@ -324,6 +324,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     suspend fun hapticsOnce(): Boolean = runCatching { context.dataStore.data.first()[hapticsKey] ?: true }.getOrDefault(true)
 
     /** Theme mode: 0=light, 1=dark, 2=system. Defaults to system (2). */
+    val themeMode: Flow<Int> = context.dataStore.data.map { it[themeModeKey] ?: 2 }
     suspend fun themeModeOnce(): Int = runCatching { context.dataStore.data.first()[themeModeKey] ?: 2 }.getOrDefault(2)
     suspend fun setThemeMode(mode: Int) { context.dataStore.edit { it[themeModeKey] = mode } }
 
@@ -366,6 +367,14 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
 
     // ---- card ordering (reorder by long-press drag) ----
     private fun orderKey(kind: String) = androidx.datastore.preferences.core.stringPreferencesKey("order_$kind")
+
+    /** Card orders as a single Flow (single source of truth for UI state). */
+    val orders: Flow<Map<String, List<String>>> = context.dataStore.data.map { p ->
+        listOf("repos", "rules", "logs").associateWith { kind ->
+            val raw = p[orderKey(kind)] ?: return@associateWith emptyList()
+            try { json.decodeFromString(raw) } catch (e: Exception) { emptyList() }
+        }
+    }
 
     suspend fun saveOrder(kind: String, ids: List<String>) {
         context.dataStore.edit { it[orderKey(kind)] = json.encodeToString(ids) }
