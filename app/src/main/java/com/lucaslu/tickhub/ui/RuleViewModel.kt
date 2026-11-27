@@ -90,8 +90,7 @@ class RuleViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun saveOrder(kind: String, ids: List<String>) {
-        c.orders.value = c.orders.value.toMutableMap().apply { put(kind, ids) }
-        viewModelScope.launch { c.repository.saveOrder(kind, ids) }
+        c.saveOrder(kind, ids)
     }
 
     suspend fun readOrder(kind: String): List<String> = c.orders.value[kind] ?: c.repository.readOrder(kind)

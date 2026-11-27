@@ -11,7 +11,7 @@
 | 仓库    | <https://github.com/LucasLu-97/TickHub> （公开）                                                                                                                      |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1>                                                                   |
 | 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35>                             |
-| 当前正式版 | **v1.3.4（最终正式版）**（全局审视全修：失败重试持久化/部分成功去重/CI只产APK/状态机单测；adb 实机验证已登录主页正常），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.3.4 |
+| 当前正式版 | **v1.4.0（架构重构版）**（AppViewModel 517行拆为共享AppContainer + 5个领域ViewModel；等价重构，adb逐页验证无回归），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.4.0 |
 | 历史正式版 | v1.2.0（全面加固）、v1.1.5（立即触发耗时追踪）、v1.1.4（规则卡/失败重试/闹钟降级）、v1.1.3（历史页i18n+耗时）、v1.1.2（i18n布局）、v1.1.1（状态实时翻译）、v1.1.0（双语/节假日开关）、v1.0.3（登录页）、v1.0.2（关闭R8）、v1.0.1/v1.0.0（R8闪退） |
 | 真机验收  | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现）                                                                                                 |
 | 登录方式  | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16）                                                                                                                  |
@@ -1070,6 +1070,26 @@ Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: a
 **测试**：新增 `DispatchPolicyTest` 7 个 JVM 单测，覆盖重试计数、部分成功子集、C1 重启卡死、未来重试去重、已尝试跳过、漂移窗口、跨 slot 干扰。状态机关键决策从 DispatchEngine 抽到纯 Kotlin `DispatchPolicy`，测试与线上使用同一套逻辑。
 
 **验证**：CI 全绿（单测+R8 APK）；adb 实机安装 v1.3.4，启动后 MainActivity 前台、无崩溃、已登录主页（仓库列表+头像+底部标签栏）正常渲染。APK 2.35MB。
+
+---
+
+## 30. AppViewModel 架构重构（v1.4.0）
+
+用户要求趁基线稳定重构 ViewModel 债务，为后续发展打基础。采用**等价重构**原则——只搬代码、不改行为。
+
+**重构前**：AppViewModel 单类 517 行 / 27 个公开方法 / 5 个依赖组件，承担认证、扫描、规则、调度、设置、节假日全部职责。前几轮"改去重口径漏改两条路径"正是职责过集中的症状。
+
+**重构后**：
+- `AppContainer`（进程级单例）：持有唯一的 api/tokenStore/repository/alarmScheduler/dispatchEngine 实例 + 所有共享 StateFlow（login/repo/theme/refreshing/prefs）+ 首帧预读 + logout 唯一实现。保证拆分后状态仍共享、行为不变。
+- 5 个领域 ViewModel：`AuthViewModel`（登录/登出/语言/主题）、`RepoViewModel`（扫描/纳管/手动触发/排序）、`RuleViewModel`（规则CRUD/闹钟/catchUp）、`HistoryViewModel`（历史/删日志）、`SettingsViewModel`（设置开关/启动维护/节假日）。
+- 各 Screen 参数类型改为对应领域 VM，方法名不变；MainActivity 用 `viewModel()` 创建 5 个 VM 并分发。
+- 27 个方法全部核对覆盖，无遗漏；logout 下沉到 AppContainer 单一实现（Auth/Settings 两个 VM 都转发）。
+
+**验证**：CI 全绿（含单测）；打 v1.4.0-beta 用 adb 实机安装，逐页点击验证——仓库页（10仓库列表）、规则页（空态引导）、历史页（真实记录+耗时23s）、设置页（全部开关与状态）均正常，无崩溃，行为与 v1.3.4 等价。
+
+**踩坑**：推送脚本不处理文件删除，本地删的 AppViewModel.kt 在 GitHub 仍在导致重复定义编译失败 → 用 GitHub Contents API 显式删除。SettingsScreen 还用 themeMode/cycleTheme/logout → 在 SettingsViewModel 加转发（共享 container）。
+
+**APK 2.35MB**（与 v1.3.4 一致，纯结构重构无体积变化）。
 
 ---
 

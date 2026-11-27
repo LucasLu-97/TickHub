@@ -26,30 +26,30 @@ class RepoViewModel(app: Application) : AndroidViewModel(app) {
     fun scanRepos() {
         val token = c.tokenStore.getToken()
         if (token == null) {
-            c.repo.value = RepoUiState(error = "未登录")
+            c.setRepo(RepoUiState(error = "未登录"))
             return
         }
-        c.repo.value = RepoUiState(scanning = true, message = "正在扫描仓库与工作流…")
+        c.setRepo(RepoUiState(scanning = true, message = "正在扫描仓库与工作流…"))
         viewModelScope.launch {
             when (val result = c.repository.scan(token)) {
                 is ApiResult.Error -> {
                     if (result.isUnauthorized) {
                         // Token revoked: sign out so the user can re-authorize.
                         c.tokenStore.clearSync()
-                        c.login.value = LoginUiState()
+                        c.setLogin(LoginUiState())
                     } else {
                         val msg = if (result.isRateLimited) "GitHub 访问频率受限，请稍后再试"
                             else if (result.isServerError) "GitHub 服务暂时不可用，请稍后再试"
                             else result.message
-                        c.repo.value = RepoUiState(error = msg)
+                        c.setRepo(RepoUiState(error = msg))
                     }
                 }
                 is ApiResult.Success -> {
-                    c.repo.value = if (result.data == 0) RepoUiState(messageKey = "扫描完成")
+                    c.setRepo(if (result.data == 0) RepoUiState(messageKey = "扫描完成")
                     else RepoUiState(
                         messageKey = "扫描完成，{0} 个仓库的工作流读取失败",
                         messageArgs = listOf("${result.data}")
-                    )
+                    ))
                 }
             }
         }
@@ -59,36 +59,50 @@ class RepoViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshProfile() {
         if (c.refreshing.value) return
         val token = c.tokenStore.getToken() ?: return
-        c.refreshing.value = true
+        c.setRefreshing(true)
         viewModelScope.launch {
             val result = c.repository.refreshManaged(token)
             if (result is ApiResult.Error) {
                 if (result.isUnauthorized) {
                     c.tokenStore.clearSync()
-                    c.login.value = LoginUiState() // re-authorize; rules are preserved
+                    c.setLogin(LoginUiState()) // re-authorize; rules are preserved
                 } else {
-                    c.repo.value = c.repo.value.copy(error = result.message)
+                    c.updateRepo { it.copy(error = result.message) }
                 }
             }
-            c.refreshing.value = false
+            c.setRefreshing(false)
         }
     }
 
+    /** Unchecking a workflow/repo drops its rules in Repository; cancel the
+     *  corresponding alarms so a stale alarm cannot fire a ghost FAILED log. */
+    private suspend fun cancelAlarmsForRemovedRules(change: suspend () -> Unit) {
+        val before = c.repository.getRulesOnce().map { it.id }.toSet()
+        change()
+        val after = c.repository.getRulesOnce().map { it.id }.toSet()
+        (before - after).forEach { c.alarmScheduler.cancel(it) }
+    }
+
     fun toggleWorkflow(id: Long, selected: Boolean) {
-        viewModelScope.launch { c.repository.setSelected(id, selected) }
+        viewModelScope.launch {
+            if (selected) c.repository.setSelected(id, true)
+            else cancelAlarmsForRemovedRules { c.repository.setSelected(id, false) }
+        }
     }
 
     fun toggleManaged(repoId: Long, managed: Boolean) {
-        viewModelScope.launch { c.repository.setManaged(repoId, managed) }
+        viewModelScope.launch {
+            if (managed) c.repository.setManaged(repoId, true)
+            else cancelAlarmsForRemovedRules { c.repository.setManaged(repoId, false) }
+        }
     }
 
     fun removeRepo(repoId: Long) {
-        viewModelScope.launch { c.repository.removeRepo(repoId) }
+        viewModelScope.launch { cancelAlarmsForRemovedRules { c.repository.removeRepo(repoId) } }
     }
 
     fun saveOrder(kind: String, ids: List<String>) {
-        c.orders.value = c.orders.value.toMutableMap().apply { put(kind, ids) }
-        viewModelScope.launch { c.repository.saveOrder(kind, ids) }
+        c.saveOrder(kind, ids)
     }
 
     suspend fun readOrder(kind: String): List<String> = c.orders.value[kind] ?: c.repository.readOrder(kind)

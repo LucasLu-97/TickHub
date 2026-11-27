@@ -23,7 +23,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     // SettingsScreen also shows theme switch and logout (shared state via container).
     val themeMode: StateFlow<Int> get() = c.themeMode
 
-    fun cycleTheme() { c.themeMode.value = (c.themeMode.value + 1) % 3 }
+    fun cycleTheme() = c.cycleTheme()
 
     fun logout() = c.logout()
 
@@ -50,7 +50,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun setHolidayEnabled(enabled: Boolean) {
         viewModelScope.launch {
             c.repository.setHolidayEnabled(enabled)
-            c.holidayEnabledFlow.value = enabled
+            c.setHolidayEnabledState(enabled)
             if (enabled) refreshHolidays()
         }
     }

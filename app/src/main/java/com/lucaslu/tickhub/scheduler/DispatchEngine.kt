@@ -93,7 +93,7 @@ class DispatchEngine(private val context: Context) {
         if (token == null) {
             AppLogger.e("Engine", "token missing -> retry (user may re-login)")
             addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "未登录，token 缺失", errorKey = "未登录，token 缺失", isMakeup = isMakeup)
-            retryOrAdvance(rule, plannedAt)
+            retryOrAdvance(rule, plannedAt, rule.retryFailedWfIds) // preserve retry subset
             return TriggerStatus.FAILED
         }
 
@@ -103,7 +103,7 @@ class DispatchEngine(private val context: Context) {
         AppLogger.i("Engine", "network ready=$networkOk")
         if (!networkOk) {
             addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "等待网络超时（${waitMinutes}分钟）", errorKey = "等待网络超时（{0}分钟）", errorArgs = listOf("$waitMinutes"), isMakeup = isMakeup)
-            retryOrAdvance(rule, plannedAt)
+            retryOrAdvance(rule, plannedAt, rule.retryFailedWfIds) // preserve retry subset
             return TriggerStatus.FAILED
         }
 
@@ -115,7 +115,7 @@ class DispatchEngine(private val context: Context) {
         if (parts.size != 2) {
             AppLogger.e("Engine", "invalid repo name: ${rule.repoFullName}")
             addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "仓库名无效：${rule.repoFullName}", errorKey = "仓库名无效：{0}", errorArgs = listOf(rule.repoFullName), isMakeup = isMakeup)
-            retryOrAdvance(rule, plannedAt)
+            retryOrAdvance(rule, plannedAt, rule.retryFailedWfIds) // preserve retry subset
             return TriggerStatus.FAILED
         }
 

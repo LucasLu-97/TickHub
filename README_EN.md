@@ -10,7 +10,7 @@ Replace GitHub's unreliable `on.schedule` with an Android phone: sign in to GitH
 
 | Item | Status |
 | --- | --- |
-| Version | **v1.3.4 stable** (signed APK, upgrade-compatible) |
+| Version | **v1.4.0 stable** (signed APK, upgrade-compatible) |
 | Spec / architecture | ✅ [`docs/TickHub-开发需求文档.md`](docs/TickHub-开发需求文档.md) (Chinese) |
 | CI | ✅ GitHub Actions: build, unit tests, signing, Release publishing |
 | Login | ✅ GitHub OAuth Device Flow (built-in public Client ID, zero setup) |
@@ -33,7 +33,7 @@ GitHub Actions `on.schedule` on free tiers is frequently delayed or skipped duri
 - **Scheduling**: `AlarmManager.setExactAndAllowWhileIdle` + `BroadcastReceiver` + `WorkManager` (execution & result tracking)
 - **Storage**: DataStore Preferences (config / ordering / rules) + Android Keystore (encrypted token)
 - **Networking**: OkHttp + kotlinx.serialization (no redundant Retrofit dependency)
-- **Build**: Gradle 9.7 / AGP 9.3.1; release enables R8 code/resource shrinking with complete keep rules (obfuscation off for readable stacks + safe serialization), producing both APK and AAB
+- **Build**: Gradle 9.7 / AGP 9.3.1; release enables R8 code/resource shrinking with complete keep rules (obfuscation off for readable stacks + safe serialization), producing a signed APK
 
 ~4,800 lines, clearly layered: `data` (models / storage) → `domain` (rule engine) → `network` (API) → `repository` → `scheduler` → `ui`.
 
@@ -75,13 +75,14 @@ Everything builds in GitHub Actions — no local Android SDK needed:
 git tag v1.3.0 && git push origin v1.3.0
 ```
 
-Actions runs unit tests → builds an R8-shrunk signed **APK** → a store-ready **AAB** → `mapping.txt` → publishes a Release. You can also trigger `workflow_dispatch` manually for an artifact. The signing key lives in repo Secrets, valid until 2054.
+Actions runs unit tests → verifies R8 keep rules → builds an R8-shrunk signed **APK** → publishes a Release. You can also trigger `workflow_dispatch` manually for an artifact. The signing key lives in repo Secrets, valid until 2054.
 
 Local build (Android SDK required):
 
 ```bash
-./gradlew assembleRelease bundleRelease \
-  -PversionName=1.3.0 -PversionCode=130 \
+# APK only for now (store submission not planned yet)
+./gradlew assembleRelease \
+  -PversionName=1.4.0 -PversionCode=140 \
   -PgithubClientId=<your GitHub OAuth Client ID>
 ```
 
@@ -89,9 +90,9 @@ Local build (Android SDK required):
 
 Open-sourced under the [Apache License 2.0](LICENSE) — commercial use, modification and redistribution allowed with attribution. The bundled OAuth Client ID is GitHub's official public value (not a secret); inject your own at build time via `-PgithubClientId` if needed.
 
-## Publishing to app stores
+## Publishing to app stores (not done yet)
 
-Each Release ships an **AAB** (`TickHub-vX.Y.Z.aab`) ready for Google Play (AAB required for new apps since 2021). Before upload, complete the Play Console items: privacy policy URL, Data Safety form, content rating, and target audience. `mapping.txt` is included for deobfuscating crash reports. Chinese stores generally accept the signed APK.
+The project currently ships via GitHub Releases only; CI produces a signed **APK** and **no AAB / mapping.txt**. Store submission would require: `bundleRelease` for AAB, a privacy policy URL, Data Safety form, content rating, target audience, and uploading mapping.txt for crash deobfuscation.
 
 ## Documentation
 

@@ -47,6 +47,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     private val showExecutionKey = androidx.datastore.preferences.core.booleanPreferencesKey("show_execution_status")
     private val runTrackingKey = androidx.datastore.preferences.core.booleanPreferencesKey("run_tracking_enabled")
     private val hapticsKey = androidx.datastore.preferences.core.booleanPreferencesKey("haptics_enabled")
+    private val themeModeKey = androidx.datastore.preferences.core.intPreferencesKey("theme_mode")
 
     val snapshot: Flow<ScanSnapshot> = context.dataStore.data.map { prefs ->
         val raw = prefs[snapshotKey]
@@ -249,6 +250,10 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     suspend fun showExecutionStatusOnce(): Boolean = runCatching { context.dataStore.data.first()[showExecutionKey] ?: true }.getOrDefault(true)
     suspend fun runTrackingOnce(): Boolean = runCatching { context.dataStore.data.first()[runTrackingKey] ?: true }.getOrDefault(true)
     suspend fun hapticsOnce(): Boolean = runCatching { context.dataStore.data.first()[hapticsKey] ?: true }.getOrDefault(true)
+
+    /** Theme mode: 0=light, 1=dark, 2=system. Defaults to system (2). */
+    suspend fun themeModeOnce(): Int = runCatching { context.dataStore.data.first()[themeModeKey] ?: 2 }.getOrDefault(2)
+    suspend fun setThemeMode(mode: Int) { context.dataStore.edit { it[themeModeKey] = mode } }
 
     suspend fun setShowExecutionStatus(enabled: Boolean) {
         context.dataStore.edit { it[showExecutionKey] = enabled }

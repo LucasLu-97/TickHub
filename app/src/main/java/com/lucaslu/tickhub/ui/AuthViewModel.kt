@@ -18,7 +18,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     val login: StateFlow<LoginUiState> get() = c.login
     val themeMode: StateFlow<Int> get() = c.themeMode
 
-    fun cycleTheme() { c.themeMode.value = (c.themeMode.value + 1) % 3 }
+    fun cycleTheme() = c.cycleTheme()
 
     fun clientConfigured(): Boolean = c.api.isClientConfigured()
 
@@ -27,22 +27,22 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun startDeviceFlow() {
-        c.login.value = LoginUiState(status = "正在请求设备码…", loading = true)
+        c.setLogin(LoginUiState(status = "正在请求设备码…", loading = true))
         viewModelScope.launch {
             when (val result = c.api.requestDeviceCode()) {
                 is ApiResult.Error -> {
                     AppLogger.e("Auth", "device code request failed: ${result.message}")
-                    c.login.value = LoginUiState(error = result.message)
+                    c.setLogin(LoginUiState(error = result.message))
                 }
                 is ApiResult.Success -> {
                     val device = result.data
                     AppLogger.i("Auth", "device code obtained, expiresIn=${device.expiresIn}s interval=${device.interval}s")
-                    c.login.value = LoginUiState(
+                    c.setLogin(LoginUiState(
                         userCode = device.userCode,
                         verificationUri = device.verificationUri,
                         status = "请在浏览器输入设备码完成授权，完成后本 APP 会自动进入，无需其他操作",
                         loading = false
-                    )
+                    ))
                     pollLoop(device.deviceCode, device.interval.coerceAtLeast(5), device.expiresIn)
                 }
             }
@@ -59,10 +59,10 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
                 is ApiResult.Error -> {
                     consecutiveNetworkErrors++
                     AppLogger.w("Auth", "poll error (transient #$consecutiveNetworkErrors): ${result.message}")
-                    c.login.value = c.login.value.copy(
+                    c.updateLogin { it.copy(
                         status = "正在等待授权完成，登录会自动继续，请稍候…",
                         error = null
-                    )
+                    ) }
                 }
                 is ApiResult.Success -> {
                     when (val poll = result.data) {
@@ -74,37 +74,37 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
                             val avatarUrl = if (userResult is ApiResult.Success) userResult.data.avatarUrl else null
                             c.repository.saveUser(loginName, avatarUrl)
                             AppLogger.i("Auth", "LOGIN OK user=$loginName")
-                            c.login.value = LoginUiState(isLoggedIn = true, status = "登录成功：" + loginName, statusKey = "登录成功：{0}", statusArgs = listOf(loginName))
+                            c.setLogin(LoginUiState(isLoggedIn = true, status = "登录成功：" + loginName, statusKey = "登录成功：{0}", statusArgs = listOf(loginName)))
                             return
                         }
                         TokenPoll.Pending -> {
                             if (consecutiveNetworkErrors > 0) {
                                 consecutiveNetworkErrors = 0
-                                c.login.value = c.login.value.copy(status = "正在确认授权结果，请稍候…")
+                                c.updateLogin { it.copy(status = "正在确认授权结果，请稍候…") }
                             }
                         }
                         TokenPoll.SlowDown -> currentInterval += 5
                         TokenPoll.NetworkError -> {
                             consecutiveNetworkErrors++
                             AppLogger.d("Auth", "poll network unreachable (#$consecutiveNetworkErrors), retrying")
-                            c.login.value = c.login.value.copy(
+                            c.updateLogin { it.copy(
                                 status = "正在等待授权完成，登录会自动继续，请稍候…",
                                 error = null
-                            )
+                            ) }
                         }
                         TokenPoll.Expired -> {
-                            c.login.value = c.login.value.copy(error = "设备码已过期，请重新发起", loading = false)
+                            c.updateLogin { it.copy(error = "设备码已过期，请重新发起", loading = false) }
                             return
                         }
                         TokenPoll.Denied -> {
-                            c.login.value = c.login.value.copy(error = "你拒绝了授权", loading = false)
+                            c.updateLogin { it.copy(error = "你拒绝了授权", loading = false) }
                             return
                         }
                     }
                 }
             }
         }
-        c.login.value = c.login.value.copy(error = "授权超时，请重试", loading = false)
+        c.updateLogin { it.copy(error = "授权超时，请重试", loading = false) }
     }
 
     fun logout() = c.logout()

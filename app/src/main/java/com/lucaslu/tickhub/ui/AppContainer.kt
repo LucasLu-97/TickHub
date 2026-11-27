@@ -1,13 +1,11 @@
 package com.lucaslu.tickhub.ui
 
 import android.app.Application
-import com.lucaslu.tickhub.data.Rule
 import com.lucaslu.tickhub.data.TokenStore
 import com.lucaslu.tickhub.network.GitHubApi
 import com.lucaslu.tickhub.repository.AppRepository
 import com.lucaslu.tickhub.scheduler.AlarmScheduler
 import com.lucaslu.tickhub.scheduler.DispatchEngine
-import com.lucaslu.tickhub.util.AppLogger
 import com.lucaslu.tickhub.util.Haptics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +38,10 @@ data class RepoUiState(
  * Process-wide shared kernel for all domain ViewModels. Holds the single set of
  * infrastructure components and shared UI state so splitting the old monolithic
  * AppViewModel does NOT change runtime behaviour (same instances, same flows).
+ *
+ * State is exposed read-only: mutations go through explicit methods below so a
+ * future ViewModel cannot accidentally bypass the "memory + DataStore" write
+ * contracts (e.g. saveOrder / theme persistence).
  */
 class AppContainer private constructor(val app: Application) {
 
@@ -50,18 +52,27 @@ class AppContainer private constructor(val app: Application) {
     val dispatchEngine = DispatchEngine(app)
 
     // ---- Shared UI state (was in AppViewModel) ----
-    val login = MutableStateFlow(LoginUiState(isLoggedIn = tokenStore.getToken() != null))
-    val repo = MutableStateFlow(RepoUiState())
-    val refreshing = MutableStateFlow(false)
-    // 0=light, 1=dark, 2=system
-    val themeMode = MutableStateFlow(2)
+    private val _login = MutableStateFlow(LoginUiState(isLoggedIn = tokenStore.getToken() != null))
+    val login: StateFlow<LoginUiState> = _login.asStateFlow()
+    fun setLogin(value: LoginUiState) { _login.value = value }
+    fun updateLogin(transform: (LoginUiState) -> LoginUiState) { _login.value = transform(_login.value) }
+
+    private val _repo = MutableStateFlow(RepoUiState())
+    val repo: StateFlow<RepoUiState> = _repo.asStateFlow()
+    fun setRepo(value: RepoUiState) { _repo.value = value }
+    fun updateRepo(transform: (RepoUiState) -> RepoUiState) { _repo.value = transform(_repo.value) }
+
+    private val _refreshing = MutableStateFlow(false)
+    val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
+    fun setRefreshing(value: Boolean) { _refreshing.value = value }
 
     private data class PrefsSnapshot(
         val orders: Map<String, List<String>> = emptyMap(),
         val showExecution: Boolean = true,
         val runTracking: Boolean = true,
         val haptics: Boolean = true,
-        val holiday: Boolean = false
+        val holiday: Boolean = false,
+        val themeMode: Int = 2
     )
 
     // One synchronized read at construction so the first frame shows saved
@@ -74,26 +85,50 @@ class AppContainer private constructor(val app: Application) {
                 showExecution = repository.showExecutionStatusOnce(),
                 runTracking = repository.runTrackingOnce(),
                 haptics = repository.hapticsOnce(),
-                holiday = repository.holidayEnabledOnce()
+                holiday = repository.holidayEnabledOnce(),
+                themeMode = repository.themeModeOnce()
             )
         }
     }.getOrDefault(PrefsSnapshot())
 
-    val orders = MutableStateFlow(initialPrefs.orders)
-    val showExecutionStatusFlow = MutableStateFlow(initialPrefs.showExecution)
-    val runTrackingFlow = MutableStateFlow(initialPrefs.runTracking)
-    val hapticsFlow = MutableStateFlow(initialPrefs.haptics)
-    val holidayEnabledFlow = MutableStateFlow(initialPrefs.holiday)
+    // 0=light, 1=dark, 2=system — persisted so the choice survives process death
+    private val _themeMode = MutableStateFlow(initialPrefs.themeMode)
+    val themeMode: StateFlow<Int> = _themeMode.asStateFlow()
+
+    /** Cycle theme and persist it (single authoritative implementation). */
+    fun cycleTheme() {
+        val next = (_themeMode.value + 1) % 3
+        _themeMode.value = next
+        scope.launch { repository.setThemeMode(next) }
+    }
+
+    private val _orders = MutableStateFlow(initialPrefs.orders)
+    val orders: StateFlow<Map<String, List<String>>> = _orders.asStateFlow()
+    /** Single write path: update memory AND persist to DataStore. */
+    fun saveOrder(kind: String, ids: List<String>) {
+        _orders.value = _orders.value.toMutableMap().apply { put(kind, ids) }
+        scope.launch { repository.saveOrder(kind, ids) }
+    }
+
+    private val _showExecutionStatusFlow = MutableStateFlow(initialPrefs.showExecution)
+    val showExecutionStatusFlow: StateFlow<Boolean> = _showExecutionStatusFlow.asStateFlow()
+    private val _runTrackingFlow = MutableStateFlow(initialPrefs.runTracking)
+    val runTrackingFlow: StateFlow<Boolean> = _runTrackingFlow.asStateFlow()
+    private val _hapticsFlow = MutableStateFlow(initialPrefs.haptics)
+    val hapticsFlow: StateFlow<Boolean> = _hapticsFlow.asStateFlow()
+    private val _holidayEnabledFlow = MutableStateFlow(initialPrefs.holiday)
+    val holidayEnabledFlow: StateFlow<Boolean> = _holidayEnabledFlow.asStateFlow()
+    fun setHolidayEnabledState(value: Boolean) { _holidayEnabledFlow.value = value }
 
     // Process-scoped collector: keeps sync-loaded values fresh when prefs change.
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     init {
         scope.launch { repository.hapticsEnabled.collect { Haptics.enabled = it } }
-        scope.launch { repository.showExecutionStatus.collect { showExecutionStatusFlow.value = it } }
-        scope.launch { repository.runTrackingEnabled.collect { runTrackingFlow.value = it } }
-        scope.launch { repository.hapticsEnabled.collect { hapticsFlow.value = it } }
-        scope.launch { repository.holidayEnabled.collect { holidayEnabledFlow.value = it } }
+        scope.launch { repository.showExecutionStatus.collect { _showExecutionStatusFlow.value = it } }
+        scope.launch { repository.runTrackingEnabled.collect { _runTrackingFlow.value = it } }
+        scope.launch { repository.hapticsEnabled.collect { _hapticsFlow.value = it } }
+        scope.launch { repository.holidayEnabled.collect { _holidayEnabledFlow.value = it } }
     }
 
     // ---- Repository-backed observable data ----
@@ -114,7 +149,7 @@ class AppContainer private constructor(val app: Application) {
             com.lucaslu.tickhub.scheduler.RunTrackerWorker.cancelAll(app)
             androidx.work.WorkManager.getInstance(app).cancelAllWorkByTag("manual")
             repository.clearAllUserData()
-            login.value = LoginUiState()
+            setLogin(LoginUiState())
         }
     }
 

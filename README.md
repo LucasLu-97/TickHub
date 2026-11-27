@@ -10,7 +10,7 @@
 
 | 项 | 状态 |
 | --- | --- |
-| 版本 | **v1.3.4 正式版**（签名 APK，可覆盖安装） |
+| 版本 | **v1.4.0 正式版**（签名 APK，可覆盖安装） |
 | 需求 / 架构文档 | ✅ [`docs/TickHub-开发需求文档.md`](docs/TickHub-开发需求文档.md) |
 | CI | ✅ GitHub Actions 自动构建、单测、签名、发布 Release |
 | 登录 | ✅ GitHub OAuth Device Flow（内置公开 Client ID，装完即用） |
@@ -29,11 +29,11 @@ GitHub Actions 的 `on.schedule` 在免费额度下常被延迟甚至跳过（�
 
 - **语言**：Kotlin 2.4（100% Kotlin，无 Java 遗留）
 - **UI**：Jetpack Compose + Material 3，MIUI 风格字体与配色
-- **架构**：单 Activity + Compose Navigation 状态驱动；`AppViewModel`（StateFlow）集中状态；Repository 层统一数据访问
+- **架构**：单 Activity + Compose 状态驱动；共享 `AppContainer`（进程单例）持有基础设施与状态，5 个领域 ViewModel（Auth/Repo/Rule/History/Settings）分治；Repository 层统一数据访问
 - **调度**：`AlarmManager.setExactAndAllowWhileIdle` + `BroadcastReceiver` + `WorkManager`（执行与结果追踪）
 - **存储**：DataStore Preferences（配置 / 顺序 / 规则）+ Android Keystore（token 加密）
 - **网络**：OkHttp + kotlinx.serialization（无 Retrofit 冗余依赖）
-- **构建**：Gradle 9.7 / AGP 9.3.1；release 启用 R8 代码/资源压缩 + 完整 keep 规则（关闭混淆以保堆栈可读与序列化安全），同时产出 APK 与 AAB
+- **构建**：Gradle 9.7 / AGP 9.3.1；release 启用 R8 代码/资源压缩 + 完整 keep 规则（关闭混淆以保堆栈可读与序列化安全），产出签名 APK 供用户直接安装
 
 代码约 4800 行，分层清晰：`data`（模型 / 存储）→ `domain`（规则计算）→ `network`（API）→ `repository` → `scheduler`（调度）→ `ui`（界面）。
 
@@ -75,13 +75,14 @@ APP 只在触发时发 HTTPS 请求，业务结果仍由各仓库原有的推送
 git tag v1.3.0 && git push origin v1.3.0
 ```
 
-Actions 自动完成：单测 → R8 瘦身的签名 **APK** → 上架用 **AAB** → 混淆映射 `mapping.txt` → 发布 Release。也可在 Actions 页手动触发 `workflow_dispatch` 产出 artifact。签名密钥存于仓库 Secrets，有效期至 2054 年。
+Actions 自动完成：单测 → R8 关键 keep 规则校验 → R8 瘦身的签名 **APK** → 发布 Release。也可在 Actions 页手动触发 `workflow_dispatch` 产出 artifact。签名密钥存于仓库 Secrets，有效期至 2054 年。
 
 本地构建（需 Android SDK）：
 
 ```bash
-./gradlew assembleRelease bundleRelease \
-  -PversionName=1.3.0 -PversionCode=130 \
+# 当前仅产出 APK（暂不上架商店）
+./gradlew assembleRelease \
+  -PversionName=1.4.0 -PversionCode=140 \
   -PgithubClientId=<你的 GitHub OAuth Client ID>
 ```
 
@@ -89,9 +90,9 @@ Actions 自动完成：单测 → R8 瘦身的签名 **APK** → 上架用 **AAB
 
 本项目以 [Apache License 2.0](LICENSE) 开源——允许商用、修改、分发，只需保留版权与许可声明。OAuth Client ID 为 GitHub 官方公开值（非密钥），可直接使用；如需自有应用，构建时通过 `-PgithubClientId` 注入。
 
-## 上架应用商店
+## 上架应用商店（尚未进行）
 
-Release 同时提供 **AAB**（`TickHub-vX.Y.Z.aab`），可直接上传 Google Play（新应用自 2021 年起要求 AAB）。上架前需在 Play Console 完成：隐私政策 URL、数据安全表单、内容分级、目标受众声明。`mapping.txt` 随 Release 提供，用于崩溃堆栈还原。国内商店一般接受签名 APK。
+当前按项目规划优先 GitHub 开源发布，暂不上架商店；CI 只产出签名 APK，**不产出 AAB / mapping.txt**。后续如需上架，需补充：`bundleRelease` 产 AAB、隐私政策 URL、数据安全表单、内容分级、目标受众声明，并上传 mapping.txt 用于崩溃还原。
 
 ## 文档
 

@@ -67,10 +67,12 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Fail fast: never publish a debug-signed "release" — it would break
+            // overwrite installs for existing users (signature mismatch).
             signingConfig = if (System.getenv("KEYSTORE_BASE64") != null) {
                 signingConfigs.getByName("release")
             } else {
-                signingConfigs.getByName("debug")
+                throw GradleException("KEYSTORE_BASE64 missing: release build requires the signing key")
             }
         }
     }
