@@ -11,7 +11,7 @@
 | 仓库    | <https://github.com/LucasLu-97/TickHub> （公开）                                                                                                                      |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1>                                                                   |
 | 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35>                             |
-| 当前正式版 | v1.3.0（第二次全面审查：P0三漏签隐患+P1全部+P2收尾+图标零依赖），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.3.0 |
+| 当前正式版 | v1.3.1-beta（R8瘦身验证版：APK 1.69MB / AAB 4.20MB，待实机确认不闪退后转正），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.3.1-beta |
 | 历史正式版 | v1.2.0（全面加固）、v1.1.5（立即触发耗时追踪）、v1.1.4（规则卡/失败重试/闹钟降级）、v1.1.3（历史页i18n+耗时）、v1.1.2（i18n布局）、v1.1.1（状态实时翻译）、v1.1.0（双语/节假日开关）、v1.0.3（登录页）、v1.0.2（关闭R8）、v1.0.1/v1.0.0（R8闪退） |
 | 真机验收  | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现）                                                                                                 |
 | 登录方式  | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16）                                                                                                                  |
@@ -1020,6 +1020,18 @@ APP 内置了 **GitHub CLI 的官方公开 Client ID**（`178c6fc778ccc68e1d6a`�
 **图标包（零依赖）**：material-icons-extended 官方设计为 R8 配套、不该直接依赖；material-icons-core 1.7.8 虽存在但 `Alarm/Folder/History/Settings/Delete` 不在 core。最终方案：5 个 Material 官方 outlined 图标的 VectorDrawable XML 内置到 `res/drawable/`，TabIcons 改用 `painterResource`，彻底移除图标库依赖——零体积开销、无需 R8、功能不变。
 
 **踩坑**：TokenStore 降级初版实现完整 SharedPreferences 接口漏 `getStringSet` 编译失败→简化为 nullable prefs + 内存变量；VectorDrawable 用 `?attr/colorControlNormal` 在纯 Material3 主题不存在→去掉 tint（Compose 的 `Icon(tint=)` 会覆盖）。
+
+---
+
+## 27. R8 启用 + 开源/上架准备（v1.3.1-beta）
+
+用户目标：GitHub 开源 + 上架应用商店 + 轻量低耗。评估后执行：
+1. **启用 R8**：`isMinifyEnabled=true` + `isShrinkResources=true`。v1.0.0/v1.0.1 闪退根因是 kotlinx.serialization 的 `@Serializable` 类 serializer 被裁——现已补完整 keep 规则（`$$serializer`、Companion.serializer、data/domain 包、枚举 values/valueOf），保留 `-dontobfuscate` 确保堆栈可读与序列化安全。效果：**APK 10.14MB → 1.69MB（-83%）**。
+2. **AAB + mapping**：CI 同时 `assembleRelease bundleRelease`，Release 附签名 APK + AAB（Play 商店要求）+ mapping.txt（崩溃还原）。签名密钥清理改由 workflow 末尾统一执行（避免 assemble/bundle 竞态）。
+3. **开源许可**：新增 Apache 2.0 LICENSE；README 中英补开源许可/构建命令/上架说明，修正过时版本与体积描述。
+4. **验证策略**：CI 只能验证编译，无法验证运行时——故发 **v1.3.1-beta（prerelease）** 供实机确认 R8 不闪退；确认后再发正式版。
+
+**产物对比**：APK 1.69MB（原 10.14MB）、AAB 4.20MB、mapping.txt 36.36MB。
 
 ---
 
