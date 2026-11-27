@@ -34,7 +34,7 @@ private val fmt = SimpleDateFormat("MM-dd HH:mm:ss", Locale.getDefault())
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoryScreen(vm: AppViewModel) {
+fun HistoryScreen(vm: HistoryViewModel) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val logs by vm.logs.collectAsState(initial = emptyList())
     var multiSelect by remember { mutableStateOf(false) }

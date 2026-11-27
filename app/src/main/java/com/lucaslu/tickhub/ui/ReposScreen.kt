@@ -43,7 +43,7 @@ import sh.calvin.reorderable.ReorderableItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReposScreen(vm: AppViewModel) {
+fun ReposScreen(vm: RepoViewModel) {
     val context = LocalContext.current
     fun haptic() = Haptics.tick(context)
     val snapshot by vm.snapshot.collectAsState(initial = ScanSnapshot())

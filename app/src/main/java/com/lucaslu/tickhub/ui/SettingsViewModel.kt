@@ -1,0 +1,129 @@
+package com.lucaslu.tickhub.ui
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.lucaslu.tickhub.data.RuleStatus
+import com.lucaslu.tickhub.domain.RuleEngine
+import com.lucaslu.tickhub.util.AppLogger
+import com.lucaslu.tickhub.util.L10n
+import java.time.LocalDateTime
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+
+/** App settings, startup maintenance (timezone/alarms/catch-up) and holidays. */
+class SettingsViewModel(app: Application) : AndroidViewModel(app) {
+
+    private val c = AppContainer.get(app)
+
+    val showExecutionStatusFlow: StateFlow<Boolean> get() = c.showExecutionStatusFlow
+    val runTrackingFlow: StateFlow<Boolean> get() = c.runTrackingFlow
+    val hapticsFlow: StateFlow<Boolean> get() = c.hapticsFlow
+    val holidayEnabledFlow: StateFlow<Boolean> get() = c.holidayEnabledFlow
+
+    fun holidayEnabledOnce(): Boolean = c.holidayEnabledFlow.value
+
+    fun setShowExecutionStatus(enabled: Boolean) {
+        viewModelScope.launch { c.repository.setShowExecutionStatus(enabled) }
+    }
+
+    fun setRunTrackingEnabled(enabled: Boolean) {
+        viewModelScope.launch { c.repository.setRunTrackingEnabled(enabled) }
+    }
+
+    fun setHapticsEnabled(enabled: Boolean) {
+        viewModelScope.launch { c.repository.setHapticsEnabled(enabled) }
+    }
+
+    fun setLanguage(lang: L10n.Lang) {
+        viewModelScope.launch { L10n.set(getApplication(), lang) }
+    }
+
+    /** China-only statutory calendar opt-in. Turning it on immediately fetches
+     *  current + next year data (cached thereafter); turning off stops refreshes. */
+    fun setHolidayEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            c.repository.setHolidayEnabled(enabled)
+            c.holidayEnabledFlow.value = enabled
+            if (enabled) refreshHolidays()
+        }
+    }
+
+    /** Refresh holiday data from GitHub (best effort). */
+    fun refreshHolidays() {
+        viewModelScope.launch {
+            val ok = com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication())
+            AppLogger.i("Holiday", "refresh current+next year result=$ok")
+            if (ok) c.repository.setHolidayAnnualFetchYear(java.time.LocalDate.now().year)
+        }
+    }
+
+    /** Fetch next-year holiday data when needed, with a Dec-17 trigger and a
+     *  catch-up fallback. No pull on ordinary app opens otherwise. */
+    fun maybeAnnualHolidayRefresh() {
+        viewModelScope.launch {
+            if (!c.repository.holidayEnabledOnce()) return@launch
+            val today = java.time.LocalDate.now()
+            val nextYear = today.year + 1
+            val nextData = com.lucaslu.tickhub.data.HolidayCalendar.load(getApplication(), nextYear)
+            val alreadyFetched = c.repository.holidayAnnualFetchYearOnce() >= today.year
+            val inWindow = today.monthValue == 12 && today.dayOfMonth >= 17
+            if (alreadyFetched && nextData.days.isNotEmpty()) return@launch
+            if (!inWindow && nextData.days.isNotEmpty()) return@launch
+            if (!inWindow && alreadyFetched) return@launch
+            AppLogger.i("Holiday", "annual refresh for $nextYear (inWindow=$inWindow, dataReady=${nextData.days.isNotEmpty()}, fetched=$alreadyFetched)")
+            val ok = com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication())
+            if (ok) c.repository.setHolidayAnnualFetchYear(today.year)
+        }
+    }
+
+    /** Serialized startup maintenance: timezone resync -> alarm registration ->
+     *  catch-up. Running these in one coroutine avoids stale reads between them. */
+    fun onAppReady() {
+        viewModelScope.launch {
+            checkTimezoneAndResyncInternal()
+            syncAlarmsInternal()
+            c.dispatchEngine.catchUpMissed()
+            AppLogger.i("App", "startup maintenance done")
+        }
+    }
+
+    private suspend fun checkTimezoneAndResyncInternal() {
+        val current = java.time.ZoneId.systemDefault().id
+        val saved = c.repository.getSavedTimezone()
+        if (saved == null) { c.repository.setSavedTimezone(current); return }
+        if (saved == current) return
+        AppLogger.i("App", "timezone $saved -> $current, recomputing rules")
+        c.repository.setSavedTimezone(current)
+        val enabled = c.repository.getRulesOnce().filter { it.status == RuleStatus.ENABLED }
+        for (rule in enabled) {
+            val (next, effective) = c.repository.computeNextFire(rule, LocalDateTime.now())
+            if (next == null || effective == null) {
+                c.alarmScheduler.cancel(rule.id)
+                continue
+            }
+            val updated = c.repository.updateRule(rule.copy(
+                nextFireAt = RuleEngine.toEpochMillis(next),
+                effectiveFireAt = effective
+            ))
+            c.alarmScheduler.scheduleWithSlot(updated, triggerAt = effective, plannedAt = updated.nextFireAt!!)
+        }
+    }
+
+    private suspend fun syncAlarmsInternal() {
+        val enabled = c.repository.getRulesOnce().filter { it.status == RuleStatus.ENABLED }
+        AppLogger.i("App", "syncAlarms: ${enabled.size} enabled rules")
+        val now = System.currentTimeMillis()
+        enabled.forEach { rule ->
+            val base = rule.nextFireAt ?: return@forEach
+            // Restore a pending retry alarm if still in the future — the in-memory
+            // alarm is lost on process death; catchUp covers overdue retries.
+            if (rule.retryAt != null && rule.retryPlannedAt == base && rule.retryAt > now) {
+                c.alarmScheduler.scheduleRetry(rule.id, rule.workflowName, rule.retryAt, base)
+                return@forEach
+            }
+            val trigger = rule.effectiveFireAt ?: base
+            c.alarmScheduler.scheduleWithSlot(rule, triggerAt = trigger, plannedAt = base)
+        }
+    }
+}

@@ -46,7 +46,7 @@ class DispatchEngine(private val context: Context) {
 
     /**
      * Catch up rule slots whose effective time has passed but were not attempted.
-     * Shared by app start (AppViewModel) and device boot (BootReceiver) so missed
+     * Shared by app start (SettingsViewModel via AppContainer) and device boot (BootReceiver) so missed
      * slots during shutdown are recovered without requiring the user to open the app.
      * Due check uses effectiveFireAt (drifted); dedup key stays the base slot.
      */

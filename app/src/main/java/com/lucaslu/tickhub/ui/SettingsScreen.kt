@@ -41,7 +41,7 @@ import androidx.core.content.getSystemService
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
+fun SettingsScreen(vm: SettingsViewModel, onOpenLogs: (() -> Unit)? = null) {
     val context = LocalContext.current
     val themeMode by vm.themeMode.collectAsState()
     val showExec by vm.showExecutionStatusFlow.collectAsState()

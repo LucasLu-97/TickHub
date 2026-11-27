@@ -53,7 +53,7 @@ class TokenStore(context: Context) {
     companion object {
         private const val KEY_TOKEN = "github_access_token"
         // Keystore-unavailable fallback is PROCESS-WIDE, not per-instance:
-        // AppViewModel, DispatchEngine, RunTrackerWorker and BootReceiver each
+        // AuthViewModel/RepoViewModel, DispatchEngine, RunTrackerWorker and BootReceiver each
         // construct their own TokenStore — an instance field lost the token for
         // all background paths. Lost on process death (never written to disk).
         @Volatile

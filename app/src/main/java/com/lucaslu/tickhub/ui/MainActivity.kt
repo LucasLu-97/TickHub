@@ -56,9 +56,14 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun TickHubApp() {
-    val vm: AppViewModel = viewModel()
-    val loginState by vm.login.collectAsState()
-    val themeMode by vm.themeMode.collectAsState()
+    // Domain ViewModels share one AppContainer, so state/instances stay consistent.
+    val authVm: AuthViewModel = viewModel()
+    val repoVm: RepoViewModel = viewModel()
+    val ruleVm: RuleViewModel = viewModel()
+    val historyVm: HistoryViewModel = viewModel()
+    val settingsVm: SettingsViewModel = viewModel()
+    val loginState by authVm.login.collectAsState()
+    val themeMode by authVm.themeMode.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     var tab by remember { mutableIntStateOf(0) }
     var showLogs by remember { mutableStateOf(false) }
@@ -76,13 +81,13 @@ private fun TickHubApp() {
                 startupDone.value = true // config change must not re-run startup maintenance
                 // Serialized: timezone resync -> alarms -> catch-up. Holiday fetch
                 // only on opt-in toggle or once per year (Dec 17 + catch-up fallback).
-                vm.onAppReady()
-                vm.maybeAnnualHolidayRefresh()
+                settingsVm.onAppReady()
+                settingsVm.maybeAnnualHolidayRefresh()
             }
         }
 
         if (!loginState.isLoggedIn) {
-            LoginScreen(state = loginState, vm = vm, configured = vm.clientConfigured())
+            LoginScreen(state = loginState, vm = authVm, configured = authVm.clientConfigured())
             return@TickHubTheme
         }
 
@@ -90,10 +95,10 @@ private fun TickHubApp() {
         // (A nested Scaffold here used to paint a white surface over status bar / tab area.)
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             when (tab) {
-                0 -> ReposScreen(vm)
-                1 -> RulesScreen(vm)
-                2 -> HistoryScreen(vm)
-                3 -> SettingsScreen(vm, onOpenLogs = { showLogs = true })
+                0 -> ReposScreen(repoVm)
+                1 -> RulesScreen(ruleVm)
+                2 -> HistoryScreen(historyVm)
+                3 -> SettingsScreen(settingsVm, onOpenLogs = { showLogs = true })
             }
 
             if (showLogs) {

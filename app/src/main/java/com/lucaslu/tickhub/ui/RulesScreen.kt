@@ -53,7 +53,7 @@ private val TYPE_LABELS = mapOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RulesScreen(vm: AppViewModel) {
+fun RulesScreen(vm: RuleViewModel) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val rules by vm.rules.collectAsState(initial = emptyList())
     val snapshot by vm.snapshot.collectAsState(initial = com.lucaslu.tickhub.data.ScanSnapshot())

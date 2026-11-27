@@ -1,0 +1,134 @@
+package com.lucaslu.tickhub.ui
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.lucaslu.tickhub.data.TriggerLog
+import com.lucaslu.tickhub.data.TriggerStatus
+import com.lucaslu.tickhub.network.ApiResult
+import com.lucaslu.tickhub.scheduler.RunTrackerWorker
+import com.lucaslu.tickhub.util.AppLogger
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+
+/** Repo scanning, managed-workflow selection, manual trigger and repo ordering. */
+class RepoViewModel(app: Application) : AndroidViewModel(app) {
+
+    private val c = AppContainer.get(app)
+
+    val repo: StateFlow<RepoUiState> get() = c.repo
+    val refreshing: StateFlow<Boolean> get() = c.refreshing
+    val snapshot get() = c.snapshot
+    val loggedInUser get() = c.loggedInUser
+    val avatarUrl get() = c.avatarUrl
+    val orders get() = c.orders
+
+    fun scanRepos() {
+        val token = c.tokenStore.getToken()
+        if (token == null) {
+            c.repo.value = RepoUiState(error = "未登录")
+            return
+        }
+        c.repo.value = RepoUiState(scanning = true, message = "正在扫描仓库与工作流…")
+        viewModelScope.launch {
+            when (val result = c.repository.scan(token)) {
+                is ApiResult.Error -> {
+                    if (result.isUnauthorized) {
+                        // Token revoked: sign out so the user can re-authorize.
+                        c.tokenStore.clearSync()
+                        c.login.value = LoginUiState()
+                    } else {
+                        val msg = if (result.isRateLimited) "GitHub 访问频率受限，请稍后再试"
+                            else if (result.isServerError) "GitHub 服务暂时不可用，请稍后再试"
+                            else result.message
+                        c.repo.value = RepoUiState(error = msg)
+                    }
+                }
+                is ApiResult.Success -> {
+                    c.repo.value = if (result.data == 0) RepoUiState(messageKey = "扫描完成")
+                    else RepoUiState(
+                        messageKey = "扫描完成，{0} 个仓库的工作流读取失败",
+                        messageArgs = listOf("${result.data}")
+                    )
+                }
+            }
+        }
+    }
+
+    /** Pull-to-refresh: refresh avatar + managed repos only, no full scan. */
+    fun refreshProfile() {
+        if (c.refreshing.value) return
+        val token = c.tokenStore.getToken() ?: return
+        c.refreshing.value = true
+        viewModelScope.launch {
+            val result = c.repository.refreshManaged(token)
+            if (result is ApiResult.Error) {
+                if (result.isUnauthorized) {
+                    c.tokenStore.clearSync()
+                    c.login.value = LoginUiState() // re-authorize; rules are preserved
+                } else {
+                    c.repo.value = c.repo.value.copy(error = result.message)
+                }
+            }
+            c.refreshing.value = false
+        }
+    }
+
+    fun toggleWorkflow(id: Long, selected: Boolean) {
+        viewModelScope.launch { c.repository.setSelected(id, selected) }
+    }
+
+    fun toggleManaged(repoId: Long, managed: Boolean) {
+        viewModelScope.launch { c.repository.setManaged(repoId, managed) }
+    }
+
+    fun removeRepo(repoId: Long) {
+        viewModelScope.launch { c.repository.removeRepo(repoId) }
+    }
+
+    fun saveOrder(kind: String, ids: List<String>) {
+        c.orders.value = c.orders.value.toMutableMap().apply { put(kind, ids) }
+        viewModelScope.launch { c.repository.saveOrder(kind, ids) }
+    }
+
+    suspend fun readOrder(kind: String): List<String> = c.orders.value[kind] ?: c.repository.readOrder(kind)
+
+    fun <T> applyOrder(list: List<T>, order: List<String>, idOf: (T) -> String): List<T> =
+        c.repository.applyOrder(list, order, idOf)
+
+    /** Manually trigger a single workflow directly (not via a rule). */
+    fun triggerWorkflowNow(repoFullName: String, workflowId: Long, workflowName: String) {
+        viewModelScope.launch {
+            val token = c.tokenStore.getToken() ?: return@launch
+            val parts = repoFullName.split("/")
+            if (parts.size != 2) return@launch
+            val ref = c.repository.getSnapshotOnce().repos.firstOrNull { it.fullName == repoFullName }?.defaultBranch?.takeIf { it.isNotBlank() } ?: "main"
+            when (val result = c.api.dispatchWorkflow(token, parts[0], parts[1], workflowId, ref)) {
+                is ApiResult.Success -> {
+                    AppLogger.i("Manual", "trigger OK wf=$workflowName repo=$repoFullName")
+                    val logId = java.util.UUID.randomUUID().toString()
+                    val now = System.currentTimeMillis()
+                    c.repository.addLog(
+                        TriggerLog(
+                            id = logId,
+                            ruleId = AppContainer.MANUAL_RULE_ID,
+                            workflowName = workflowName,
+                            workflowNames = listOf(workflowName),
+                            repoFullName = repoFullName,
+                            plannedAt = now,
+                            firedAt = now,
+                            status = TriggerStatus.SUCCESS,
+                            httpCode = result.data,
+                            tracking = true,
+                            trackWorkflowIds = listOf(workflowId)
+                        )
+                    )
+                    // Same real-duration tracking as rule triggers, so the history
+                    // card shows a live-growing timer until the run completes.
+                    RunTrackerWorker.enqueue(getApplication(), logId, AppContainer.MANUAL_RULE_ID)
+                }
+                is ApiResult.Error -> AppLogger.e("Manual", "trigger FAILED wf=$workflowName: ${result.message}")
+            }
+        }
+    }
+}

@@ -37,7 +37,7 @@ import com.lucaslu.tickhub.util.L10n
 import com.lucaslu.tickhub.util.t
 
 @Composable
-fun LoginScreen(state: LoginUiState, vm: AppViewModel, configured: Boolean) {
+fun LoginScreen(state: LoginUiState, vm: AuthViewModel, configured: Boolean) {
     val context = LocalContext.current
     val lang by L10n.lang.collectAsState()
     Column(
