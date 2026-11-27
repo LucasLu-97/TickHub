@@ -104,7 +104,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun holidayEnabledOnce(): Boolean = _holidayEnabled.value
 
     fun startDeviceFlow() {
-        _login.value = LoginUiState(status = com.lucaslu.tickhub.util.L10n.tNow("正在请求设备码…"), loading = true)
+        _login.value = LoginUiState(status = "正在请求设备码…", loading = true)
         viewModelScope.launch {
             when (val result = api.requestDeviceCode()) {
                 is ApiResult.Error -> {
@@ -117,7 +117,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     _login.value = LoginUiState(
                         userCode = device.userCode,
                         verificationUri = device.verificationUri,
-                        status = com.lucaslu.tickhub.util.L10n.tNow("请在浏览器输入设备码完成授权，完成后本 APP 会自动进入，无需其他操作"),
+                        status = "请在浏览器输入设备码完成授权，完成后本 APP 会自动进入，无需其他操作",
                         loading = false
                     )
                     pollLoop(device.deviceCode, device.interval.coerceAtLeast(5), device.expiresIn)
@@ -139,7 +139,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     consecutiveNetworkErrors++
                     AppLogger.w("Auth", "poll error (transient #$consecutiveNetworkErrors): ${result.message}")
                     _login.value = _login.value.copy(
-                        status = com.lucaslu.tickhub.util.L10n.tNow("正在等待授权完成，登录会自动继续，请稍候…"),
+                        status = "正在等待授权完成，登录会自动继续，请稍候…",
                         error = null
                     )
                 }
@@ -149,17 +149,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             AppLogger.i("Auth", "token obtained, fetching user")
                             tokenStore.saveToken(poll.token)
                             val userResult = api.getCurrentUser(poll.token)
-                            val loginName = if (userResult is ApiResult.Success) userResult.data.login else com.lucaslu.tickhub.util.L10n.tNow("GitHub 用户")
+                            val loginName = if (userResult is ApiResult.Success) userResult.data.login else "GitHub 用户"
                             val avatarUrl = if (userResult is ApiResult.Success) userResult.data.avatarUrl else null
                             repository.saveUser(loginName, avatarUrl)
                             AppLogger.i("Auth", "LOGIN OK user=$loginName")
-                            _login.value = LoginUiState(isLoggedIn = true, status = com.lucaslu.tickhub.util.L10n.tNow("登录成功：") + loginName)
+                            _login.value = LoginUiState(isLoggedIn = true, status = "登录成功：" + loginName)
                             return
                         }
                         TokenPoll.Pending -> {
                             if (consecutiveNetworkErrors > 0) {
                                 consecutiveNetworkErrors = 0
-                                _login.value = _login.value.copy(status = com.lucaslu.tickhub.util.L10n.tNow("正在确认授权结果，请稍候…"))
+                                _login.value = _login.value.copy(status = "正在确认授权结果，请稍候…")
                             }
                         }
                         TokenPoll.SlowDown -> currentInterval += 5
@@ -167,23 +167,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             consecutiveNetworkErrors++
                             AppLogger.d("Auth", "poll network unreachable (#$consecutiveNetworkErrors), retrying")
                             _login.value = _login.value.copy(
-                                status = com.lucaslu.tickhub.util.L10n.tNow("正在等待授权完成，登录会自动继续，请稍候…"),
+                                status = "正在等待授权完成，登录会自动继续，请稍候…",
                                 error = null
                             )
                         }
                         TokenPoll.Expired -> {
-                            _login.value = _login.value.copy(error = com.lucaslu.tickhub.util.L10n.tNow("设备码已过期，请重新发起"), loading = false)
+                            _login.value = _login.value.copy(error = "设备码已过期，请重新发起", loading = false)
                             return
                         }
                         TokenPoll.Denied -> {
-                            _login.value = _login.value.copy(error = com.lucaslu.tickhub.util.L10n.tNow("你拒绝了授权"), loading = false)
+                            _login.value = _login.value.copy(error = "你拒绝了授权", loading = false)
                             return
                         }
                     }
                 }
             }
         }
-        _login.value = _login.value.copy(error = com.lucaslu.tickhub.util.L10n.tNow("授权超时，请重试"), loading = false)
+        _login.value = _login.value.copy(error = "授权超时，请重试", loading = false)
     }
 
     fun logout() {
@@ -198,15 +198,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun scanRepos() {
         val token = tokenStore.getToken()
         if (token == null) {
-            _repo.value = RepoUiState(error = com.lucaslu.tickhub.util.L10n.tNow("未登录"))
+            _repo.value = RepoUiState(error = "未登录")
             return
         }
-        _repo.value = RepoUiState(scanning = true, message = com.lucaslu.tickhub.util.L10n.tNow("正在扫描仓库与工作流…"))
+        _repo.value = RepoUiState(scanning = true, message = "正在扫描仓库与工作流…")
         viewModelScope.launch {
             when (val result = repository.scan(token)) {
                 is ApiResult.Error -> _repo.value = RepoUiState(error = result.message)
                 is ApiResult.Success -> {
-                    val msg = if (result.data == 0) com.lucaslu.tickhub.util.L10n.tNow("扫描完成") else com.lucaslu.tickhub.util.L10n.tNow("扫描完成，") + "${result.data}" + com.lucaslu.tickhub.util.L10n.tNow(" 个仓库的工作流读取失败")
+                    val msg = if (result.data == 0) "扫描完成" else "扫描完成，" + "${result.data}" + " 个仓库的工作流读取失败"
                     _repo.value = RepoUiState(message = msg)
                 }
             }

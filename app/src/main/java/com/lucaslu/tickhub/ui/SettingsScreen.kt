@@ -164,27 +164,6 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
             }
             Spacer(Modifier.height(16.dp))
 
-            // language switch (app-level, independent of system locale)
-            val curLang by com.lucaslu.tickhub.util.L10n.lang.collectAsState()
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(t("语言"), style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(8.dp))
-                    Row {
-                        Button(onClick = {
-                            vm.setLanguage(com.lucaslu.tickhub.util.L10n.Lang.ZH)
-                            com.lucaslu.tickhub.util.Haptics.tick(context)
-                        }, enabled = curLang != com.lucaslu.tickhub.util.L10n.Lang.ZH) { Text("中文") }
-                        Spacer(Modifier.padding(8.dp))
-                        Button(onClick = {
-                            vm.setLanguage(com.lucaslu.tickhub.util.L10n.Lang.EN)
-                            com.lucaslu.tickhub.util.Haptics.tick(context)
-                        }, enabled = curLang != com.lucaslu.tickhub.util.L10n.Lang.EN) { Text("English") }
-                    }
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-
             // China-only statutory holiday calendar — opt-in, default off
             val holidayEnabled by vm.holidayEnabledFlow.collectAsState()
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
@@ -218,6 +197,27 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                     Text(t("调试日志"), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
                     Text(t("记录运行过程，可导出排查问题"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+
+            // language switch — last card, above sign out
+            val curLang by com.lucaslu.tickhub.util.L10n.lang.collectAsState()
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(t("语言"), style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    Row {
+                        Button(onClick = {
+                            vm.setLanguage(com.lucaslu.tickhub.util.L10n.Lang.ZH)
+                            com.lucaslu.tickhub.util.Haptics.tick(context)
+                        }, enabled = curLang != com.lucaslu.tickhub.util.L10n.Lang.ZH) { Text("中文") }
+                        Spacer(Modifier.padding(8.dp))
+                        Button(onClick = {
+                            vm.setLanguage(com.lucaslu.tickhub.util.L10n.Lang.EN)
+                            com.lucaslu.tickhub.util.Haptics.tick(context)
+                        }, enabled = curLang != com.lucaslu.tickhub.util.L10n.Lang.EN) { Text("English") }
+                    }
                 }
             }
             Spacer(Modifier.height(24.dp))

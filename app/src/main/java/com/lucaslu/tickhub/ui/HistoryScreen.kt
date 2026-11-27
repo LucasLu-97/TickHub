@@ -67,7 +67,7 @@ fun HistoryScreen(vm: AppViewModel) {
         }
     ) { pad ->
         Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp)) {
-            Text("最近 ${logs.size} 条记录", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(t("最近 ") + "${logs.size}" + t(" 条记录"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(12.dp))
 
             if (logs.isEmpty()) {

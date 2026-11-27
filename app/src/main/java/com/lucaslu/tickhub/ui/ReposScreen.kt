@@ -77,7 +77,7 @@ fun ReposScreen(vm: AppViewModel) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmWf = null },
             title = { Text(t("确认立即触发")) },
-            text = { Text("将立即触发工作流「${wf.name}」，确定继续？") },
+            text = { Text(t("将立即触发工作流「") + wf.name + t("」，确定继续？")) },
             confirmButton = {
                 TextButton(onClick = {
                     haptic()
@@ -140,8 +140,8 @@ fun ReposScreen(vm: AppViewModel) {
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                             }
                         }
-                        state.message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                        state.error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+                        state.message?.let { Text(com.lucaslu.tickhub.util.L10n.tNow(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        state.error?.let { Text(com.lucaslu.tickhub.util.L10n.tNow(it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
                         Text(
                             t("已纳管 ") + "${snapshot.workflows.count { it.selected }}" + t(" 个工作流 / ") + "${snapshot.repos.size}" + t(" 个仓库（下拉可刷新头像与纳管项）"),
                             style = MaterialTheme.typography.labelSmall,
@@ -217,7 +217,7 @@ private fun RepoCardContent(
             Column(modifier = Modifier.weight(1f)) {
                 Text(repoName, style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "${if (private) t("私有") else t("公开")} · ${selectedIds.size}/${workflows.size} 工作流",
+                    "${if (private) t("私有") else t("公开")} · ${selectedIds.size}/${workflows.size}" + t(" 工作流"),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
