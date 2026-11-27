@@ -59,9 +59,13 @@ android {
             isMinifyEnabled = false
         }
         getByName("release") {
-            // R8 shrink disabled: it stripped runtime-needed classes and caused
-            // instant crashes on launch in v1.0.0/v1.0.1. Stability over size.
-            isMinifyEnabled = false
+            // R8 enabled for store release + smaller APK. The v1.0.0/v1.0.1
+            // launch crashes were caused by missing kotlinx.serialization keep
+            // rules; those rules are now explicit in proguard-rules.pro.
+            // Obfuscation stays off (-dontobfuscate) so stack traces remain
+            // readable and serialization is safe — shrink alone yields the size win.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = if (System.getenv("KEYSTORE_BASE64") != null) {
                 signingConfigs.getByName("release")
@@ -105,14 +109,4 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     debugImplementation(libs.androidx.compose.ui.tooling)
-}
-
-// CI hygiene: the base64-decoded signing keystore is a build artifact, not a
-// deliverable. Remove it from the build dir once assembly finishes.
-tasks.matching { it.name == "assembleRelease" }.configureEach {
-    doLast {
-        layout.buildDirectory.file("tickhub-release.p12").get().asFile.let {
-            if (it.exists()) it.delete()
-        }
-    }
 }

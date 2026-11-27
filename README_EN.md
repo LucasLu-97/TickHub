@@ -10,7 +10,7 @@ Replace GitHub's unreliable `on.schedule` with an Android phone: sign in to GitH
 
 | Item | Status |
 | --- | --- |
-| Version | **v1.0.0 stable** (signed APK, upgrade-compatible) |
+| Version | **v1.3.0 stable** (signed APK + AAB, upgrade-compatible) |
 | Spec / architecture | ✅ [`docs/TickHub-开发需求文档.md`](docs/TickHub-开发需求文档.md) (Chinese) |
 | CI | ✅ GitHub Actions: build, unit tests, signing, Release publishing |
 | Login | ✅ GitHub OAuth Device Flow (built-in public Client ID, zero setup) |
@@ -19,7 +19,7 @@ Replace GitHub's unreliable `on.schedule` with an Android phone: sign in to GitH
 | Scheduler | ✅ Exact alarms + network wait + dispatch + catch-up + reboot re-registration |
 | Device acceptance | ✅ Verified overnight-to-next-morning on-time triggers, no Doze sleep; reboot & background-kill resilient |
 | Native schedule | Disabled by repo-side automation; not duplicated in the app |
-| Size / power | ✅ ~14 MB APK; result polling at 5s intervals (stops on completion, no residual wake-ups) |
+| Size / power | ✅ ~10 MB APK (smaller after R8 shrink); result polling at 5s intervals (stops on completion, no residual wake-ups) |
 
 ## Why
 
@@ -33,7 +33,7 @@ GitHub Actions `on.schedule` on free tiers is frequently delayed or skipped duri
 - **Scheduling**: `AlarmManager.setExactAndAllowWhileIdle` + `BroadcastReceiver` + `WorkManager` (execution & result tracking)
 - **Storage**: DataStore Preferences (config / ordering / rules) + Android Keystore (encrypted token)
 - **Networking**: OkHttp + kotlinx.serialization (no redundant Retrofit dependency)
-- **Build**: Gradle 9.7 / AGP 9.3.1 (R8 shrink intentionally off to keep all runtime classes intact)
+- **Build**: Gradle 9.7 / AGP 9.3.1; release enables R8 code/resource shrinking with complete keep rules (obfuscation off for readable stacks + safe serialization), producing both APK and AAB
 
 ~4,800 lines, clearly layered: `data` (models / storage) → `domain` (rule engine) → `network` (API) → `repository` → `scheduler` → `ui`.
 
@@ -69,7 +69,29 @@ The app only sends HTTPS requests when a trigger fires. Business notifications a
 
 ## Build
 
-Everything builds in GitHub Actions — no local Android SDK needed: push a tag to auto-build a signed APK and publish a Release, or manually trigger `workflow_dispatch` for an artifact. The signing key lives in repo Secrets, valid until 2054.
+Everything builds in GitHub Actions — no local Android SDK needed:
+
+```bash
+git tag v1.3.0 && git push origin v1.3.0
+```
+
+Actions runs unit tests → builds an R8-shrunk signed **APK** → a store-ready **AAB** → `mapping.txt` → publishes a Release. You can also trigger `workflow_dispatch` manually for an artifact. The signing key lives in repo Secrets, valid until 2054.
+
+Local build (Android SDK required):
+
+```bash
+./gradlew assembleRelease bundleRelease \
+  -PversionName=1.3.0 -PversionCode=130 \
+  -PgithubClientId=<your GitHub OAuth Client ID>
+```
+
+## License
+
+Open-sourced under the [Apache License 2.0](LICENSE) — commercial use, modification and redistribution allowed with attribution. The bundled OAuth Client ID is GitHub's official public value (not a secret); inject your own at build time via `-PgithubClientId` if needed.
+
+## Publishing to app stores
+
+Each Release ships an **AAB** (`TickHub-vX.Y.Z.aab`) ready for Google Play (AAB required for new apps since 2021). Before upload, complete the Play Console items: privacy policy URL, Data Safety form, content rating, and target audience. `mapping.txt` is included for deobfuscating crash reports. Chinese stores generally accept the signed APK.
 
 ## Documentation
 
