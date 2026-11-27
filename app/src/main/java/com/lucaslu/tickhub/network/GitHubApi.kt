@@ -1,5 +1,6 @@
 package com.lucaslu.tickhub.network
 
+import com.lucaslu.tickhub.data.ErrorBody
 import com.lucaslu.tickhub.BuildConfig
 import com.lucaslu.tickhub.data.DeviceCodeResponse
 import com.lucaslu.tickhub.data.GhOwner
@@ -305,5 +306,3 @@ sealed class TokenPoll {
     data object NetworkError : TokenPoll()
 }
 
-@kotlinx.serialization.Serializable
-private data class ErrorBody(val message: String? = null)

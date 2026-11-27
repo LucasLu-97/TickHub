@@ -226,8 +226,10 @@ fun RuleEditScreen(
                                 intervalDays = if (type == RuleType.EVERY_N_DAYS) interval else 7,
                                 startDate = if (type == RuleType.EVERY_N_DAYS) startDate else null,
                                 driftMinutes = driftMinutes,
-                                status = RuleStatus.ENABLED,
-                                createdAt = System.currentTimeMillis()
+                                // Editing a DISABLED/COMPLETED rule must not
+                                // silently re-enable it and arm an alarm.
+                                status = existing?.status ?: RuleStatus.ENABLED,
+                                createdAt = existing?.createdAt ?: System.currentTimeMillis()
                             )
                         }
                         onSave(rules)

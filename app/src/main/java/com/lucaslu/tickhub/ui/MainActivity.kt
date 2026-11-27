@@ -76,10 +76,18 @@ private fun TickHubApp() {
     }
 
     TickHubTheme(darkTheme = darkTheme) {
-        val startupDone = rememberSaveable { mutableStateOf(false) }
+        // Process-scoped (NOT rememberSaveable): saved state survives process
+        // death, which would skip catch-up / alarm re-registration after the OS
+        // kills us. Re-running on config change is idempotent and cheap.
+        val startupDone = remember { mutableStateOf(false) }
         LaunchedEffect(loginState.isLoggedIn) {
-            if (loginState.isLoggedIn && !startupDone.value) {
-                startupDone.value = true // config change must not re-run startup maintenance
+            if (!loginState.isLoggedIn) {
+                // Reset on logout so a different account re-runs alarm setup.
+                startupDone.value = false
+                return@LaunchedEffect
+            }
+            if (!startupDone.value) {
+                startupDone.value = true
                 // Serialized: timezone resync -> alarms -> catch-up. Holiday fetch
                 // only on opt-in toggle or once per year (Dec 17 + catch-up fallback).
                 settingsVm.onAppReady()

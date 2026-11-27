@@ -177,7 +177,7 @@ class DispatchEngine(private val context: Context) {
                                 // Don't waste 1+4+16s retrying non-transient 4xx
                                 // (401 token revoked, 422 bad params, 404 missing).
                                 val code = result.code
-                                if (code != null && code in 400..499 && code != 429) break
+                                if (DispatchPolicy.isPermanentHttpError(code) || code == 401) break
                                 if (attempt < 2) delay(delays[attempt])
                             }
                         }
@@ -312,6 +312,15 @@ class DispatchEngine(private val context: Context) {
             return com.lucaslu.tickhub.repository.DispatchTransition(
                 nextFireAt = RuleEngine.toEpochMillis(next), effectiveFireAt = effective,
                 lastFiredAt = System.currentTimeMillis(),
+                retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
+            )
+        }
+        // Manual trigger (advance=false) never arms a persistent retry alarm —
+        // otherwise a failed "test now" fires a real check-in 15 minutes later.
+        if (!advance) {
+            return com.lucaslu.tickhub.repository.DispatchTransition(
+                nextFireAt = rule.nextFireAt, effectiveFireAt = rule.effectiveFireAt,
+                lastFiredAt = rule.lastFiredAt,
                 retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
             )
         }

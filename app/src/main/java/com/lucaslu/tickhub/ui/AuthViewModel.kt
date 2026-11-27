@@ -6,14 +6,17 @@ import androidx.lifecycle.viewModelScope
 import com.lucaslu.tickhub.network.ApiResult
 import com.lucaslu.tickhub.network.TokenPoll
 import com.lucaslu.tickhub.util.AppLogger
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** GitHub OAuth device-flow login and logout. All state lives in AppContainer. */
 class AuthViewModel(app: Application) : AndroidViewModel(app) {
 
     private val c = AppContainer.get(app)
+    private var pollJob: Job? = null
 
     val login: StateFlow<LoginUiState> get() = c.login
     val themeMode: StateFlow<Int> get() = c.themeMode
@@ -25,8 +28,11 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun startDeviceFlow() {
+        // Cancel any in-flight poll so "retry / new code" cannot leave two
+        // loops writing the same login state (old code may win after new login).
+        pollJob?.cancel()
         c.setLogin(LoginUiState(status = "正在请求设备码…", loading = true))
-        viewModelScope.launch {
+        pollJob = viewModelScope.launch {
             when (val result = c.api.requestDeviceCode()) {
                 is ApiResult.Error -> {
                     AppLogger.e("Auth", "device code request failed: ${result.message}")
@@ -51,7 +57,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         val deadline = System.currentTimeMillis() + expiresIn * 1000L
         var currentInterval = intervalSec
         var consecutiveNetworkErrors = 0
-        while (System.currentTimeMillis() < deadline) {
+        while (isActive && System.currentTimeMillis() < deadline) {
             delay(currentInterval * 1000L)
             when (val result = c.api.pollToken(deviceCode)) {
                 is ApiResult.Error -> {

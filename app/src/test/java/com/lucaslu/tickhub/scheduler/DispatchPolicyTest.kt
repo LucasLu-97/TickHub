@@ -24,11 +24,19 @@ class DispatchPolicyTest {
     }
 
     @Test
-    fun `permanent HTTP errors skip retries while 429 and 5xx retry`() {
-        assertTrue(DispatchPolicy.isPermanentHttpError(401))
+    fun `permanent HTTP errors skip retries while rate-limits and 5xx retry`() {
+        assertTrue(DispatchPolicy.isPermanentHttpError(400))
         assertTrue(DispatchPolicy.isPermanentHttpError(404))
+        assertTrue(DispatchPolicy.isPermanentHttpError(410))
         assertTrue(DispatchPolicy.isPermanentHttpError(422))
-        assertFalse(DispatchPolicy.isPermanentHttpError(429)) // rate-limit: retry later
+        // GitHub secondary rate limit (403) / timeout / conflict / rate limit
+        // are TRANSIENT — skipping them means a missed check-in.
+        assertFalse(DispatchPolicy.isPermanentHttpError(403))
+        assertFalse(DispatchPolicy.isPermanentHttpError(408))
+        assertFalse(DispatchPolicy.isPermanentHttpError(409))
+        assertFalse(DispatchPolicy.isPermanentHttpError(425))
+        assertFalse(DispatchPolicy.isPermanentHttpError(429))
+        assertFalse(DispatchPolicy.isPermanentHttpError(401)) // handled separately
         assertFalse(DispatchPolicy.isPermanentHttpError(500))
         assertFalse(DispatchPolicy.isPermanentHttpError(null)) // network error
     }

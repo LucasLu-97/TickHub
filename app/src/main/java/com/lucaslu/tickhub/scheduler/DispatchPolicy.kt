@@ -16,9 +16,16 @@ object DispatchPolicy {
     /** Infra failures (no token / no network) get their own smaller budget. */
     fun shouldRetryInfra(infraCount: Int): Boolean = infraCount < MAX_INFRA_RETRIES
 
-    /** Permanent HTTP errors (except 429 rate-limit) must not be retried. */
-    fun isPermanentHttpError(code: Int?): Boolean =
-        code != null && code in 400..499 && code != 429
+    /**
+     * Only genuinely permanent 4xx errors skip retries. 403 (GitHub secondary
+     * rate limit), 408/425 (timeout-ish), 409 (conflict) and 429 are TRANSIENT —
+     * treating them as permanent silently skips the slot (missed check-in).
+     * 401 is handled separately by clearing the token.
+     */
+    fun isPermanentHttpError(code: Int?): Boolean = when (code) {
+        400, 404, 410, 422 -> true
+        else -> false
+    }
 
     /**
      * Which workflows to dispatch on a retry of a partially-failed slot.
