@@ -11,8 +11,8 @@
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
 | 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35 |
-| 当前正式版 | v1.0.3（登录页转圈修复 + 授权等待提示优化），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.3 |
-| 历史正式版 | v1.0.2（关闭 R8 修复闪退）、v1.0.1 / v1.0.0（R8 闪退） |
+| 当前正式版 | v1.1.0（全界面中英双语 + 中国节假日开关 + 执行耗时修复 + 历史页纯耗时文本），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.1.0 |
+| 历史正式版 | v1.0.3（登录页优化）、v1.0.2（关闭 R8 修复闪退）、v1.0.1 / v1.0.0（R8 闪退） |
 | 真机验收 | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现） |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
@@ -965,6 +965,16 @@ APP 内置了 **GitHub CLI 的官方公开 Client ID**（`178c6fc778ccc68e1d6a`�
 **仓库介绍**：description 中英双语（含 GitHub Actions scheduler / Kotlin / Compose 等英文关键词）；README 默认中文并切换英文版（`README_EN.md`）。
 
 **登录体验修正（v1.0.3）**：① 请求设备码按钮的转圈只用 `height(18.dp)` 导致宽度测量异常"圆圈乱飞"，改 `size(18.dp)`；设备卡片状态文本旁加常量程转圈明确"正在等待"。② Device Flow 切浏览器授权再回来时，后台网络收紧期的轮询文案原为"网络不可达…请切回本 APP"，用户已切回却看到此提示会误判失败退出；改为中性的"正在等待授权完成，登录会自动继续，请稍候…"，不提网络错误/重试次数（仅日志保留），仅真正失败（过期/拒绝/超时）才用 error 提示。
+
+## 24. v1.1.0：双语 / 节假日开关 / 耗时修复
+
+**全界面中英双语（APP 内独立切换）**：`util/L10n.kt` 双语字典（key 为中文原文，value 为英文），语言偏好存独立 DataStore（`tickhub_l10n`），不跟随系统语言。Composable 用 `t(key)`（随 StateFlow 重组实时切换），非 Composable（ViewModel/Worker/通知）用 `L10n.tNow(key)`。设置页加「语言」卡片（中文/English），登录首屏也加切换按钮，避免英文用户首屏看不懂。约 139 处字符串已本地化，字典覆盖校验无缺失。顶层 `TYPE_LABELS` 等存中文 key、使用时再 `t()`（Composable 上下文限制）；lambda/普通函数内用 `tNow`。
+
+**中国法定节假日开关（默认关闭）**：`AppRepository` 加 `holidayEnabled` 偏好（默认 false）。MainActivity 仅在开启时才调用 `refreshHolidays()`；开启瞬间立即拉取，关闭则停止刷新。`HolidayCalendar.refresh` 已有缓存机制：拉取当年+次年（12 月提前拉次年）、按年份 key 记录已拉取、本地有缓存不重复拉取。设置页加开关卡片，说明"仅中国用户需要"；规则编辑页周期区加提示"法定工作日/节假日仅中国用户可用，非中国地区不支持此周期"。
+
+**执行耗时修复**：DispatchEngine 原在 dispatch 后立即 `listWorkflowRuns` 查 runId，GitHub 常常还没创建 run，导致 tracking 从未启动、历史卡片无耗时。改为 dispatch 后直接 `repository.markTracking(logId)` + 启动 `RunTrackerWorker`，由 Worker 在 20 秒后自行查找 run 并追踪。历史卡片 tracking 态显示纯"耗时 mm:ss"实时递增文本（`ElapsedText` 加 prefix），无转圈。
+
+**时区确认**：RuleEngine 全程用 `LocalDateTime` + `ZoneId.systemDefault()`，存 epoch millis 绝对时间，AlarmManager 用 `RTC_WAKEUP` 按 epoch 触发，显示时再转回本机时区。国外用户按本机时区解释规则时间，**无硬编码北京时间**，无需改动。
 
 ---
 
