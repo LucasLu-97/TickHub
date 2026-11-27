@@ -21,7 +21,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.net.URL
 
 /** Process-wide bounded LRU cache (50 avatars ≈ a few MB) with sampling.
  *  Avoids the unbounded growth of a plain ConcurrentHashMap on long sessions. */
@@ -63,7 +62,14 @@ fun AvatarImage(url: String?, name: String, modifier: Modifier = Modifier) {
         }
         val bmp = withContext(Dispatchers.IO) {
             runCatching {
-                URL(url).openStream().use { it.readBytes() }.let { AvatarCache.decodeSampled(it) }
+                // Reuse the shared OkHttp client (connection pool + 10s timeouts)
+                // instead of URL.openStream() which has no timeout and can hang a
+                // thread indefinitely on a slow network.
+                val request = okhttp3.Request.Builder().url(url).build()
+                com.lucaslu.tickhub.network.GitHubApi().sharedClient().newCall(request).execute().use { resp ->
+                    if (!resp.isSuccessful) null
+                    else resp.body?.bytes()?.let { AvatarCache.decodeSampled(it) }
+                }
             }.getOrNull()
         }
         if (bmp != null) {

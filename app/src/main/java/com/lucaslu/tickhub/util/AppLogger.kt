@@ -21,6 +21,8 @@ object AppLogger {
     private var logFile: File? = null
     private val fmt = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.getDefault())
     private val lock = Any()
+    private var writesSinceTrim = 0
+    private const val TRIM_EVERY = 50 // readLines() rewrites the whole file — don't do it per line
 
     fun init(context: Context) {
         if (logFile == null) {
@@ -50,7 +52,10 @@ object AppLogger {
             try {
                 if (!file.exists()) file.createNewFile()
                 file.appendText(line + "\n")
-                trim(file)
+                if (++writesSinceTrim >= TRIM_EVERY) {
+                    writesSinceTrim = 0
+                    trim(file)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "write log failed: ${e.message}")
             }

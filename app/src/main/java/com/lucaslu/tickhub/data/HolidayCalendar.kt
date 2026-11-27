@@ -43,8 +43,8 @@ data class HolidayYearData(
 object HolidayCalendar {
 
     private val json = Json { ignoreUnknownKeys = true }
-    private var cache: HolidayYearData? = null
-    private var cacheYear: Int = 0
+    @Volatile private var cache: HolidayYearData? = null
+    @Volatile private var cacheYear: Int = 0
 
     /** Bundled 2026 data (State Council notice). */
     private val bundled2026 = """

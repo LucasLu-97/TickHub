@@ -66,30 +66,11 @@ class AppContainer private constructor(val app: Application) {
     val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
     fun setRefreshing(value: Boolean) { _refreshing.value = value }
 
-    private data class PrefsSnapshot(
-        val orders: Map<String, List<String>> = emptyMap(),
-        val showExecution: Boolean = true,
-        val runTracking: Boolean = true,
-        val haptics: Boolean = true,
-        val holiday: Boolean = false,
-        val themeMode: Int = 2
-    )
-
-    // One synchronized read at construction so the first frame shows saved
-    // order/switch states (no "flash to default"). A single runBlocking keeps
-    // cold-start main-thread IO to a minimum; runCatching survives corrupt data.
+    // ONE DataStore read at construction (was eight). runBlocking keeps the first
+    // frame free of "flash to default"; runCatching survives corrupt preferences.
     private val initialPrefs = runCatching {
-        kotlinx.coroutines.runBlocking {
-            PrefsSnapshot(
-                orders = listOf("repos", "rules", "logs").associateWith { repository.readOrder(it) },
-                showExecution = repository.showExecutionStatusOnce(),
-                runTracking = repository.runTrackingOnce(),
-                haptics = repository.hapticsOnce(),
-                holiday = repository.holidayEnabledOnce(),
-                themeMode = repository.themeModeOnce()
-            )
-        }
-    }.getOrDefault(PrefsSnapshot())
+        kotlinx.coroutines.runBlocking { repository.readInitialPrefsOnce() }
+    }.getOrDefault(com.lucaslu.tickhub.repository.InitialPrefs())
 
     // 0=light, 1=dark, 2=system — persisted so the choice survives process death
     private val _themeMode = MutableStateFlow(initialPrefs.themeMode)
@@ -124,10 +105,9 @@ class AppContainer private constructor(val app: Application) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     init {
-        scope.launch { repository.hapticsEnabled.collect { Haptics.enabled = it } }
         scope.launch { repository.showExecutionStatus.collect { _showExecutionStatusFlow.value = it } }
         scope.launch { repository.runTrackingEnabled.collect { _runTrackingFlow.value = it } }
-        scope.launch { repository.hapticsEnabled.collect { _hapticsFlow.value = it } }
+        scope.launch { repository.hapticsEnabled.collect { Haptics.enabled = it; _hapticsFlow.value = it } }
         scope.launch { repository.holidayEnabled.collect { _holidayEnabledFlow.value = it } }
     }
 

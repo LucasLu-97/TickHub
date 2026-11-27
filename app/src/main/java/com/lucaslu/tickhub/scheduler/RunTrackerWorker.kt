@@ -99,14 +99,14 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
 
         // No run created yet (GitHub lag): keep the timer growing from firedAt and retry.
         if (allRuns.isEmpty()) {
-            persistLiveElapsed(repo, logId, firedAt, null)
+            persistLiveElapsed(repo, logId, firedAt, null, poll)
             return continueOrGiveUp(logId, ruleId, poll, repo, log)
         }
 
         val allDone = allRuns.size == workflowIds.size && allRuns.all { it.second.status == "completed" }
         if (!allDone) {
             // Run exists but still running (or some workflows not found yet): keep the timer.
-            persistLiveElapsed(repo, logId, firedAt, allRuns.mapNotNull { parseInstant(it.second.runStartedAt.ifBlank { it.second.createdAt })?.toEpochMilli() }.minOrNull())
+            persistLiveElapsed(repo, logId, firedAt, allRuns.mapNotNull { parseInstant(it.second.runStartedAt.ifBlank { it.second.createdAt })?.toEpochMilli() }.minOrNull(), poll)
             return continueOrGiveUp(logId, ruleId, poll, repo, log)
         }
 
@@ -134,7 +134,11 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
     }
 
     /** Persist a live-growing duration so the history card always shows a timer. */
-    private suspend fun persistLiveElapsed(repo: AppRepository, logId: String, firedAt: Long, runStartMs: Long?) {
+    private suspend fun persistLiveElapsed(repo: AppRepository, logId: String, firedAt: Long, runStartMs: Long?, poll: Int) {
+        // GitHub completion detection still polls every 5s, but the live timer is
+        // written to DataStore only every 3rd poll (~15s) — each write re-encodes
+        // the whole logs JSON, so this cuts background IO/CPU by ~2/3.
+        if (poll % 3 != 0 && poll != MAX_POLLS) return
         val base = runStartMs ?: firedAt
         val elapsed = (System.currentTimeMillis() - base).coerceAtLeast(0L)
         repo.updateLogElapsed(logId, elapsed)

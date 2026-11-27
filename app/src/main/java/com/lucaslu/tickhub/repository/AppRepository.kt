@@ -27,6 +27,16 @@ import kotlinx.serialization.json.Json
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "tickhub_data")
 
+/** Cold-start preference snapshot read in a single DataStore transaction. */
+data class InitialPrefs(
+    val orders: Map<String, List<String>> = emptyMap(),
+    val showExecution: Boolean = true,
+    val runTracking: Boolean = true,
+    val haptics: Boolean = true,
+    val holiday: Boolean = false,
+    val themeMode: Int = 2
+)
+
 /**
  * Repository for scanned repos/workflows and selection state.
  * Uses DataStore + JSON instead of Room to avoid the KSP/Kotlin version conflict
@@ -383,6 +393,25 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         val raw = context.dataStore.data.first()[orderKey(kind)] ?: return emptyList()
         return try { json.decodeFromString(raw) } catch (e: Exception) { emptyList() }
     }
+
+    /** Cold-start optimisation: ONE DataStore read instead of eight separate
+     *  `first()` calls. Same values, far less main-thread IO at startup. */
+    suspend fun readInitialPrefsOnce(): InitialPrefs = runCatching {
+        context.dataStore.data.first().let { p ->
+            fun decodeOrder(kind: String): List<String> {
+                val raw = p[orderKey(kind)] ?: return emptyList()
+                return try { json.decodeFromString(raw) } catch (e: Exception) { emptyList() }
+            }
+            InitialPrefs(
+                orders = listOf("repos", "rules", "logs").associateWith { decodeOrder(it) },
+                showExecution = p[showExecutionKey] ?: true,
+                runTracking = p[runTrackingKey] ?: true,
+                haptics = p[hapticsKey] ?: true,
+                holiday = p[holidayEnabledKey] ?: false,
+                themeMode = p[themeModeKey] ?: 2
+            )
+        }
+    }.getOrDefault(InitialPrefs())
 
     /** All saved orders as a flow, so the UI renders the persisted order on the first frame. */
     val allOrders: Flow<Map<String, List<String>>> = context.dataStore.data.map { prefs ->

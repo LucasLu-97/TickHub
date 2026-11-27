@@ -15,21 +15,43 @@ import androidx.security.crypto.MasterKey
  */
 class TokenStore(context: Context) {
 
-    private val prefs: SharedPreferences? = runCatching {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        EncryptedSharedPreferences.create(
-            context,
-            "tickhub_secure_prefs",
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
-    }.getOrElse {
-        android.util.Log.e("TokenStore", "Keystore unavailable, token will be transient", it)
-        null
+    private val prefs: SharedPreferences? get() = sharedPrefs
+
+    companion object {
+        // Keystore/EncryptedSharedPreferences setup is expensive; RunTrackerWorker
+        // constructs a TokenStore every 5s poll. Cache ONE instance per process.
+        @Volatile
+        private var cachedContext: Context? = null
+        @Volatile
+        private var sharedPrefs: SharedPreferences? = null
+        private val prefsLock = Any()
+
+        private fun prefsFor(context: Context): SharedPreferences? {
+            cachedContext?.let { return sharedPrefs }
+            return synchronized(prefsLock) {
+                cachedContext?.let { return@synchronized sharedPrefs }
+                val appCtx = context.applicationContext
+                val result = runCatching {
+                    val masterKey = MasterKey.Builder(appCtx)
+                        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                        .build()
+                    EncryptedSharedPreferences.create(
+                        appCtx, "tickhub_secure_prefs", masterKey,
+                        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                    )
+                }.getOrElse {
+                    android.util.Log.e("TokenStore", "Keystore unavailable, token will be transient", it)
+                    null
+                }
+                cachedContext = appCtx
+                sharedPrefs = result
+                result
+            }
+        }
     }
+
+    init { prefsFor(context) }
 
     fun getToken(): String? =
         (prefs?.getString(KEY_TOKEN, null) ?: transientToken)?.takeIf { it.isNotBlank() }

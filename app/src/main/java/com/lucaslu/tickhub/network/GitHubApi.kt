@@ -33,16 +33,27 @@ sealed class ApiResult<out T> {
 
 class GitHubApi {
 
+    companion object {
+        // One process-wide client: shared connection pool / TLS sessions across
+        // all GitHubApi instances (VM, DispatchEngine, RunTrackerWorker polls).
+        private val SHARED_CLIENT: OkHttpClient by lazy {
+            OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .build()
+        }
+    }
+
     private val json = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
     }
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
+    private val client: OkHttpClient get() = SHARED_CLIENT
+
+    /** Exposed for AvatarImage so avatars reuse the same connections. */
+    fun sharedClient(): OkHttpClient = SHARED_CLIENT
 
     private val clientId: String get() = BuildConfig.GITHUB_CLIENT_ID
     private val apiBase = "https://api.github.com"
