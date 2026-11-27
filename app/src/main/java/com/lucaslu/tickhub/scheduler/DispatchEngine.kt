@@ -51,7 +51,7 @@ class DispatchEngine(private val context: Context) {
         val token = tokenStore.getToken()
         if (token == null) {
             AppLogger.e("Engine", "token missing -> abort")
-            addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "未登录，token 缺失", isMakeup = isMakeup)
+            addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = com.lucaslu.tickhub.util.L10n.tNow("未登录，token 缺失"), isMakeup = isMakeup)
             return TriggerStatus.FAILED
         }
 
@@ -60,7 +60,7 @@ class DispatchEngine(private val context: Context) {
         val networkOk = waitForNetwork(waitMinutes)
         AppLogger.i("Engine", "network ready=$networkOk")
         if (!networkOk) {
-            addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "等待网络超时（${waitMinutes}分钟）", isMakeup = isMakeup)
+            addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = com.lucaslu.tickhub.util.L10n.tNow("等待网络超时（") + waitMinutes + com.lucaslu.tickhub.util.L10n.tNow("分钟）"), isMakeup = isMakeup)
             advanceRule(rule)
             return TriggerStatus.FAILED
         }
@@ -72,7 +72,7 @@ class DispatchEngine(private val context: Context) {
         val parts = rule.repoFullName.split("/")
         if (parts.size != 2) {
             AppLogger.e("Engine", "invalid repo name: ${rule.repoFullName}")
-            addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "仓库名无效：${rule.repoFullName}", isMakeup = isMakeup)
+            addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = com.lucaslu.tickhub.util.L10n.tNow("仓库名无效：") + rule.repoFullName, isMakeup = isMakeup)
             return TriggerStatus.FAILED
         }
 
@@ -117,7 +117,7 @@ class DispatchEngine(private val context: Context) {
             plannedAt = plannedAt,
             status = status,
             httpCode = if (allSuccess) 204 else httpCode,
-            errorMessage = if (allSuccess) null else "工作流 ${results.filter { !it.second }.map { it.first }} 触发失败：$lastError",
+            errorMessage = if (allSuccess) null else com.lucaslu.tickhub.util.L10n.tNow("工作流 ") + "${results.filter { !it.second }.map { it.first }}" + com.lucaslu.tickhub.util.L10n.tNow(" 触发失败：") + lastError,
             isMakeup = isMakeup
         )
 

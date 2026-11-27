@@ -1,5 +1,7 @@
 package com.lucaslu.tickhub.ui
 
+import com.lucaslu.tickhub.util.t
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -58,7 +60,7 @@ fun AvatarImage(url: String?, name: String, modifier: Modifier = Modifier) {
         if (bmp != null) {
             Image(
                 bitmap = bmp.asImageBitmap(),
-                contentDescription = "头像",
+                contentDescription = t("头像"),
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.size(36.dp).clip(CircleShape)
             )

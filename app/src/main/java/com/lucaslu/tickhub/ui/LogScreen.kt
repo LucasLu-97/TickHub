@@ -1,5 +1,7 @@
 package com.lucaslu.tickhub.ui
 
+import com.lucaslu.tickhub.util.t
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -46,7 +48,7 @@ fun LogScreen(onBack: (() -> Unit)? = null) {
                     containerColor = MaterialTheme.colorScheme.background,
                     scrolledContainerColor = MaterialTheme.colorScheme.background
                 ),
-                title = { Text("调试日志") },
+                title = { Text(t("调试日志")) },
                 navigationIcon = {
                     if (onBack != null) {
                         androidx.compose.material3.IconButton(onClick = onBack) {
@@ -58,24 +60,24 @@ fun LogScreen(onBack: (() -> Unit)? = null) {
         }
     ) { pad ->
     Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(top = 4.dp)) {
-        Text("记录闹钟注册/触发、网络等待、dispatch 全过程，可导出分析故障", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(t("记录闹钟注册/触发、网络等待、dispatch 全过程，可导出分析故障"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
 
         Row {
-            Button(onClick = { logText = AppLogger.readAll() }, modifier = Modifier.weight(1f).padding(end = 4.dp)) { Text("刷新") }
+            Button(onClick = { logText = AppLogger.readAll() }, modifier = Modifier.weight(1f).padding(end = 4.dp)) { Text(t("刷新")) }
             OutlinedButton(onClick = {
                 copyToClipboard(context, logText)
-                Toast.makeText(context, "日志已复制，可粘贴发送", Toast.LENGTH_SHORT).show()
-            }, modifier = Modifier.weight(1f).padding(start = 4.dp)) { Text("复制全部") }
+                Toast.makeText(context, t("日志已复制，可粘贴发送"), Toast.LENGTH_SHORT).show()
+            }, modifier = Modifier.weight(1f).padding(start = 4.dp)) { Text(t("复制全部")) }
         }
         Spacer(Modifier.height(8.dp))
         Row {
-            OutlinedButton(onClick = { shareLogFile(context) }, modifier = Modifier.weight(1f).padding(end = 4.dp)) { Text("分享日志文件") }
+            OutlinedButton(onClick = { shareLogFile(context) }, modifier = Modifier.weight(1f).padding(end = 4.dp)) { Text(t("分享日志文件")) }
             OutlinedButton(onClick = {
                 AppLogger.clear()
                 logText = AppLogger.readAll()
-                Toast.makeText(context, "已清空", Toast.LENGTH_SHORT).show()
-            }, modifier = Modifier.weight(1f).padding(start = 4.dp)) { Text("清空") }
+                Toast.makeText(context, t("已清空"), Toast.LENGTH_SHORT).show()
+            }, modifier = Modifier.weight(1f).padding(start = 4.dp)) { Text(t("清空")) }
         }
         Spacer(Modifier.height(12.dp))
 
@@ -100,7 +102,7 @@ private fun copyToClipboard(context: Context, text: String) {
 private fun shareLogFile(context: Context) {
     val file = AppLogger.getFile()
     if (file == null || !file.exists()) {
-        Toast.makeText(context, "暂无日志文件", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, t("暂无日志文件"), Toast.LENGTH_SHORT).show()
         return
     }
     try {
@@ -108,11 +110,11 @@ private fun shareLogFile(context: Context) {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "TickHub 调试日志")
+            putExtra(Intent.EXTRA_SUBJECT, t("TickHub 调试日志"))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(Intent.createChooser(intent, "分享日志").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        context.startActivity(Intent.createChooser(intent, t("分享日志")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     } catch (e: Exception) {
-        Toast.makeText(context, "分享失败：${e.message}", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, com.lucaslu.tickhub.util.L10n.tNow("分享失败：") + e.message, Toast.LENGTH_SHORT).show()
     }
 }

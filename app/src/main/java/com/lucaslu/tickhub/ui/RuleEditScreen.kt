@@ -1,5 +1,7 @@
 package com.lucaslu.tickhub.ui
 
+import com.lucaslu.tickhub.util.t
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,11 +37,11 @@ import java.util.UUID
 
 @Suppress("DEPRECATION")
 private val TYPE_LABELS = mapOf(
-    RuleType.ONCE to "单次", RuleType.DAILY to "每天", RuleType.WEEKLY to "每周",
-    RuleType.LEGAL_WORKDAY to "法定工作日", RuleType.LEGAL_HOLIDAY to "法定节假日",
-    RuleType.EVERY_N_DAYS to "每隔X天", RuleType.WEEKDAYS to "法定工作日"
+    RuleType.ONCE to t("单次"), RuleType.DAILY to t("每天"), RuleType.WEEKLY to t("每周"),
+    RuleType.LEGAL_WORKDAY to t("法定工作日"), RuleType.LEGAL_HOLIDAY to t("法定节假日"),
+    RuleType.EVERY_N_DAYS to t("每隔X天"), RuleType.WEEKDAYS to t("法定工作日")
 )
-private val WEEKDAY_LABELS = mapOf(1 to "一", 2 to "二", 3 to "三", 4 to "四", 5 to "五", 6 to "六", 7 to "日")
+private val WEEKDAY_LABELS = mapOf(1 to t("一"), 2 to t("二"), 3 to t("三"), 4 to t("四"), 5 to t("五"), 6 to t("六"), 7 to t("日"))
 
 @Composable
 fun RuleEditScreen(
@@ -79,16 +81,16 @@ fun RuleEditScreen(
     var expandedRepo by remember {
         mutableStateOf<Long?>(if (existing != null) editRepoId else null)
     }
-    fun repoLabel(id: Long) = (repoNames[id] ?: "仓库 $id").split("/").lastOrNull() ?: "仓库 $id"
+    fun repoLabel(id: Long) = (repoNames[id] ?: "${com.lucaslu.tickhub.util.L10n.tNow("仓库 ")}$id").split("/").lastOrNull() ?: "${com.lucaslu.tickhub.util.L10n.tNow("仓库 ")}$id"
 
     Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp).padding(top = 40.dp, bottom = 120.dp)) {
-        Text(if (existing == null) "新建触发规则" else "编辑触发规则", style = MaterialTheme.typography.titleLarge)
+        Text(if (existing == null) t("新建触发规则") else t("编辑触发规则"), style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(16.dp))
 
-        Text("① 选择仓库（点开后勾选工作流，可多选）", style = MaterialTheme.typography.titleSmall)
+        Text(t("① 选择仓库（点开后勾选工作流，可多选）"), style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(8.dp))
         if (grouped.isEmpty()) {
-            Text("还没有纳管的工作流。请先在「仓库」页勾选工作流。", color = MaterialTheme.colorScheme.error)
+            Text(t("还没有纳管的工作流。请先在「仓库」页勾选工作流。"), color = MaterialTheme.colorScheme.error)
         }
         grouped.forEach { (repoId, wfs) ->
             TextButton(onClick = {
@@ -118,14 +120,14 @@ fun RuleEditScreen(
         }
         Spacer(Modifier.height(16.dp))
 
-        Text("② 触发时间（可添加多个时段）", style = MaterialTheme.typography.titleSmall)
+        Text(t("② 触发时间（可添加多个时段）"), style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(8.dp))
         timeSlots.forEachIndexed { idx, slot ->
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
-                Text("时间${idx + 1}：$slot", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                TextButton(onClick = { editingSlotIndex = idx; Haptics.tick(context) }) { Text("修改") }
+                Text(t("时间") + "${idx + 1}：$slot", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                TextButton(onClick = { editingSlotIndex = idx; Haptics.tick(context) }) { Text(t("修改")) }
                 if (timeSlots.size > 1) {
-                    TextButton(onClick = { Haptics.tick(context); timeSlots = timeSlots.filterIndexed { i, _ -> i != idx } }) { Text("移除") }
+                    TextButton(onClick = { Haptics.tick(context); timeSlots = timeSlots.filterIndexed { i, _ -> i != idx } }) { Text(t("移除")) }
                 }
             }
         }
@@ -134,10 +136,10 @@ fun RuleEditScreen(
             val h = (last.split(":").getOrNull(0)?.toIntOrNull() ?: 8) + 1
             timeSlots = timeSlots + "${(h % 24).toString().padStart(2, '0')}:00"
             Haptics.tick(context)
-        }) { Text("＋ 添加时间段") }
+        }) { Text(t("＋ 添加时间段")) }
         Spacer(Modifier.height(16.dp))
 
-        Text("③ 重复周期", style = MaterialTheme.typography.titleSmall)
+        Text(t("③ 重复周期"), style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(8.dp))
         RuleType.entries.filter { it != RuleType.WEEKDAYS }.chunked(3).forEach { row ->
             Row(modifier = Modifier.fillMaxWidth()) {
@@ -154,9 +156,9 @@ fun RuleEditScreen(
             Spacer(Modifier.height(4.dp))
         }
         when (type) {
-            RuleType.ONCE -> TextButton(onClick = { Haptics.tick(context); dateTarget = "once"; showDate = true }) { Text("日期：$onceDate  修改") }
+            RuleType.ONCE -> TextButton(onClick = { Haptics.tick(context); dateTarget = "once"; showDate = true }) { Text(t("日期：") + "$onceDate  " + t("修改")) }
             RuleType.WEEKLY -> {
-                Text("选择星期（可多选）", style = MaterialTheme.typography.labelLarge)
+                Text(t("选择星期（可多选）"), style = MaterialTheme.typography.labelLarge)
                 Row(modifier = Modifier.fillMaxWidth()) {
                     (1..7).forEach { d ->
                         FilterChip(
@@ -172,21 +174,21 @@ fun RuleEditScreen(
                 }
             }
             RuleType.EVERY_N_DAYS -> {
-                TextButton(onClick = { Haptics.tick(context); showInterval = true }) { Text("每隔 $interval 天（1=每天）  修改") }
-                TextButton(onClick = { Haptics.tick(context); dateTarget = "start"; showDate = true }) { Text("起始日期：$startDate  修改") }
+                TextButton(onClick = { Haptics.tick(context); showInterval = true }) { Text(t("每隔 ") + "$interval" + t(" 天（1=每天）") + "  " + t("修改")) }
+                TextButton(onClick = { Haptics.tick(context); dateTarget = "start"; showDate = true }) { Text(t("起始日期：") + "$startDate  " + t("修改")) }
             }
             else -> Unit
         }
         Spacer(Modifier.height(16.dp))
 
-        Text("④ 随机漂移（规避签到规律检测）", style = MaterialTheme.typography.titleSmall)
+        Text(t("④ 随机漂移（规避签到规律检测）"), style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth()) {
             listOf(0, 10, 30, 60).forEach { d ->
                 FilterChip(
                     selected = driftMinutes == d,
                     onClick = { driftMinutes = d; Haptics.tick(context) },
-                    label = { Text(if (d == 0) "不漂移" else "${d}分") },
+                    label = { Text(if (d == 0) t("不漂移") else "$d" + t("分")) },
                     modifier = Modifier.weight(1f).padding(end = 4.dp)
                 )
             }
@@ -198,8 +200,8 @@ fun RuleEditScreen(
             Button(onClick = {
                 Haptics.tick(context)
                 when {
-                    selectedIds.isEmpty() -> error = "请至少勾选一个工作流"
-                    type == RuleType.WEEKLY && selectedDays.isEmpty() -> error = "请至少选择一个星期"
+                    selectedIds.isEmpty() -> error = t("请至少勾选一个工作流")
+                    type == RuleType.WEEKLY && selectedDays.isEmpty() -> error = t("请至少选择一个星期")
                     else -> {
                         val chosen = workflows.filter { selectedIds.contains(it.id) }
                         // split by repo: one rule per repo, each with its own workflows
@@ -228,9 +230,9 @@ fun RuleEditScreen(
                         onSave(rules)
                     }
                 }
-            }, modifier = Modifier.weight(1f)) { Text("保存") }
+            }, modifier = Modifier.weight(1f)) { Text(t("保存")) }
             Spacer(Modifier.padding(8.dp))
-            OutlinedButton(onClick = { Haptics.tick(context); onCancel() }, modifier = Modifier.weight(1f)) { Text("取消") }
+            OutlinedButton(onClick = { Haptics.tick(context); onCancel() }, modifier = Modifier.weight(1f)) { Text(t("取消")) }
         }
     }
 

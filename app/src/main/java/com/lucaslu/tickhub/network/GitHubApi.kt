@@ -49,7 +49,7 @@ class GitHubApi {
 
     suspend fun requestDeviceCode(): ApiResult<DeviceCodeResponse> = withContext(Dispatchers.IO) {
         if (!isClientConfigured()) {
-            return@withContext ApiResult.Error("GitHub Client ID 未配置，请先在 OAuth App 注册后重新构建")
+            return@withContext ApiResult.Error(com.lucaslu.tickhub.util.L10n.tNow("GitHub Client ID 未配置，请先在 OAuth App 注册后重新构建"))
         }
         val body = buildJsonObject {
             put("client_id", clientId)
@@ -67,7 +67,7 @@ class GitHubApi {
                     else -> result
                 }
             }
-        } ?: ApiResult.Error("请求设备码失败：网络不可达")
+        } ?: ApiResult.Error(com.lucaslu.tickhub.util.L10n.tNow("请求设备码失败：网络不可达"))
     }
 
     suspend fun pollToken(deviceCode: String): ApiResult<TokenPoll> = withContext(Dispatchers.IO) {
@@ -85,7 +85,7 @@ class GitHubApi {
                 when (t.error) {
                     null -> if (!t.accessToken.isNullOrBlank()) {
                         ApiResult.Success(TokenPoll.Success(t.accessToken))
-                    } else ApiResult.Error("响应缺少 access_token")
+                    } else ApiResult.Error(com.lucaslu.tickhub.util.L10n.tNow("响应缺少 access_token"))
                     "authorization_pending" -> ApiResult.Success(TokenPoll.Pending)
                     "slow_down" -> ApiResult.Success(TokenPoll.SlowDown)
                     "expired" -> ApiResult.Success(TokenPoll.Expired)
@@ -187,7 +187,7 @@ class GitHubApi {
                 }
             }
         } catch (e: IOException) {
-            ApiResult.Error("网络错误：${e.message}")
+            ApiResult.Error(com.lucaslu.tickhub.util.L10n.tNow("网络错误：") + e.message)
         }
     }
 
@@ -237,7 +237,7 @@ class GitHubApi {
                 }
             }
         } catch (e: IOException) {
-            ApiResult.Error("网络错误：${e.message}")
+            ApiResult.Error(com.lucaslu.tickhub.util.L10n.tNow("网络错误：") + e.message)
         }
     }
 
@@ -245,9 +245,9 @@ class GitHubApi {
         return try {
             ApiResult.Success(json.decodeFromString<T>(raw))
         } catch (e: SerializationException) {
-            ApiResult.Error("解析响应失败：${e.message}")
+            ApiResult.Error(com.lucaslu.tickhub.util.L10n.tNow("解析响应失败：") + e.message)
         } catch (e: IllegalArgumentException) {
-            ApiResult.Error("解析响应失败：${e.message}")
+            ApiResult.Error(com.lucaslu.tickhub.util.L10n.tNow("解析响应失败：") + e.message)
         }
     }
 

@@ -1,5 +1,7 @@
 package com.lucaslu.tickhub.ui
 
+import com.lucaslu.tickhub.util.t
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,7 +34,7 @@ fun TimePickerDialog(initial: String, onConfirm: (String) -> Unit, onDismiss: ()
     val minutes = (0..59).map { it.toString().padStart(2, '0') }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("选择时间") },
+        title = { Text(t("选择时间")) },
         text = {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 WheelPicker(hours, h, { h = it }, Modifier.weight(1f))
@@ -43,9 +45,9 @@ fun TimePickerDialog(initial: String, onConfirm: (String) -> Unit, onDismiss: ()
         confirmButton = {
             TextButton(onClick = {
                 onConfirm("${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}")
-            }) { Text("确定") }
+            }) { Text(t("确定")) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(t("取消")) } }
     )
 }
 
@@ -56,14 +58,14 @@ fun IntervalDialog(initial: Int, onConfirm: (Int) -> Unit, onDismiss: () -> Unit
     val items = (1..30).map { it.toString() }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("间隔天数") },
+        title = { Text(t("间隔天数")) },
         text = {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 WheelPicker(items, n - 1, { n = it + 1 }, Modifier.fillMaxWidth())
             }
         },
-        confirmButton = { TextButton(onClick = { onConfirm(n) }) { Text("确定") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        confirmButton = { TextButton(onClick = { onConfirm(n) }) { Text(t("确定")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(t("取消")) } }
     )
 }
 
@@ -81,7 +83,7 @@ fun DatePickerDialog(initial: String, onConfirm: (String) -> Unit, onDismiss: ()
     val days = (1..maxDay).map { it.toString() }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("选择日期") },
+        title = { Text(t("选择日期")) },
         text = {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 WheelPicker(years, yi, { yi = it }, Modifier.weight(1f))
@@ -95,8 +97,8 @@ fun DatePickerDialog(initial: String, onConfirm: (String) -> Unit, onDismiss: ()
                 val mo = mi + 1
                 val d = (di + 1).coerceAtMost(YearMonth.of(y, mo).lengthOfMonth())
                 onConfirm("$y-${mo.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}")
-            }) { Text("确定") }
+            }) { Text(t("确定")) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(t("取消")) } }
     )
 }

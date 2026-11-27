@@ -1,5 +1,7 @@
 package com.lucaslu.tickhub.ui
 
+import com.lucaslu.tickhub.util.t
+
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -58,7 +60,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                     containerColor = MaterialTheme.colorScheme.background,
                     scrolledContainerColor = MaterialTheme.colorScheme.background
                 ),
-                title = { Text("设置") },
+                title = { Text(t("设置")) },
                 actions = {
                     IconButton(onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); vm.cycleTheme() }) {
                         Text(
@@ -78,25 +80,25 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
             fun setHaptic(enabled: Boolean) { vm.setShowExecutionStatus(enabled); com.lucaslu.tickhub.util.Haptics.tick(context) }
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("后台运行", style = MaterialTheme.typography.titleMedium)
+                    Text(t("后台运行"), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        if (batteryOptimized) "⚠ 电池优化开启，定时可能延迟" else "✓ 已加入电池白名单",
+                        if (batteryOptimized) t("⚠ 电池优化开启，定时可能延迟") else t("✓ 已加入电池白名单"),
                         color = if (batteryOptimized) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(Modifier.height(8.dp))
-                    Text("国产 ROM 还需开启「自启动」权限，否则划掉后台后定时任务不会执行。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(t("国产 ROM 还需开启「自启动」权限，否则划掉后台后定时任务不会执行。"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(12.dp))
                     Row {
                         Button(
                             onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); openBatterySettings(context) },
                             modifier = Modifier.weight(1f).padding(end = 4.dp)
-                        ) { Text("电池无限制") }
+                        ) { Text(t("电池无限制")) }
                         OutlinedButton(
                             onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); openAppDetails(context) },
                             modifier = Modifier.weight(1f).padding(start = 4.dp)
-                        ) { Text("自启动设置") }
+                        ) { Text(t("自启动设置")) }
                     }
                 }
             }
@@ -107,16 +109,16 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                 val canExact = alarmManager?.canScheduleExactAlarms() == true
                 Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("精确闹钟", style = MaterialTheme.typography.titleMedium)
+                        Text(t("精确闹钟"), style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            if (canExact) "✓ 已允许精确闹钟，触发更准时" else "⚠ 未允许精确闹钟，触发可能延迟数分钟",
+                            if (canExact) t("✓ 已允许精确闹钟，触发更准时") else t("⚠ 未允许精确闹钟，触发可能延迟数分钟"),
                             color = if (canExact) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodyMedium
                         )
                         if (!canExact) {
                             Spacer(Modifier.height(8.dp))
-                            Button(onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); openExactAlarmSettings(context) }) { Text("去开启精确闹钟") }
+                            Button(onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); openExactAlarmSettings(context) }) { Text(t("去开启精确闹钟")) }
                         }
                     }
                 }
@@ -127,8 +129,8 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("执行状态监测", style = MaterialTheme.typography.titleMedium)
-                            Text("触发时显示进度与用时，仅前台刷新", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(t("执行状态监测"), style = MaterialTheme.typography.titleMedium)
+                            Text(t("触发时显示进度与用时，仅前台刷新"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         MiuixSwitch(checked = showExec, onCheckedChange = { setHaptic(it) })
                     }
@@ -140,8 +142,8 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("执行结果通知", style = MaterialTheme.typography.titleMedium)
-                            Text("任务完成后通知成功或失败，并显示真实用时", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(t("执行结果通知"), style = MaterialTheme.typography.titleMedium)
+                            Text(t("任务完成后通知成功或失败，并显示真实用时"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         MiuixSwitch(checked = runTrack, onCheckedChange = { vm.setRunTrackingEnabled(it); com.lucaslu.tickhub.util.Haptics.tick(context) })
                     }
@@ -153,10 +155,31 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("触感反馈", style = MaterialTheme.typography.titleMedium)
-                            Text("开关、滑动、拨轮、页面切换的短震动反馈", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(t("触感反馈"), style = MaterialTheme.typography.titleMedium)
+                            Text(t("开关、滑动、拨轮、页面切换的短震动反馈"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         MiuixSwitch(checked = haptics, onCheckedChange = { vm.setHapticsEnabled(it); com.lucaslu.tickhub.util.Haptics.tick(context) })
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+
+            // language switch (app-level, independent of system locale)
+            val curLang by com.lucaslu.tickhub.util.L10n.lang.collectAsState()
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(t("语言"), style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    Row {
+                        Button(onClick = {
+                            vm.setLanguage(com.lucaslu.tickhub.util.L10n.Lang.ZH)
+                            com.lucaslu.tickhub.util.Haptics.tick(context)
+                        }, enabled = curLang != com.lucaslu.tickhub.util.L10n.Lang.ZH) { Text("中文") }
+                        Spacer(Modifier.padding(8.dp))
+                        Button(onClick = {
+                            vm.setLanguage(com.lucaslu.tickhub.util.L10n.Lang.EN)
+                            com.lucaslu.tickhub.util.Haptics.tick(context)
+                        }, enabled = curLang != com.lucaslu.tickhub.util.L10n.Lang.EN) { Text("English") }
                     }
                 }
             }
@@ -168,8 +191,8 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("中国法定节假日", style = MaterialTheme.typography.titleMedium)
-                            Text("仅中国用户需要：开启后拉取节假日数据，支持「法定工作日/节假日」周期。非中国地区不支持此周期。", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(t("中国法定节假日"), style = MaterialTheme.typography.titleMedium)
+                            Text(t("仅中国用户需要：开启后拉取节假日数据，支持「法定工作日/节假日」周期。非中国地区不支持此周期。"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         MiuixSwitch(checked = holidayEnabled, onCheckedChange = { vm.setHolidayEnabled(it); com.lucaslu.tickhub.util.Haptics.tick(context) })
                     }
@@ -179,10 +202,10 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
 
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("网络恢复机制", style = MaterialTheme.typography.titleMedium)
+                    Text(t("网络恢复机制"), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "到点唤醒手机，无网络时最多等待 3 分钟，联网后立即触发，避免夜间断网漏签。",
+                        t("到点唤醒手机，无网络时最多等待 3 分钟，联网后立即触发，避免夜间断网漏签。"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -192,9 +215,9 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
 
             Card(modifier = Modifier.fillMaxWidth().clickable { com.lucaslu.tickhub.util.Haptics.tick(context); onOpenLogs?.invoke() }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("调试日志", style = MaterialTheme.typography.titleMedium)
+                    Text(t("调试日志"), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
-                    Text("记录运行过程，可导出排查问题", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(t("记录运行过程，可导出排查问题"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             Spacer(Modifier.height(24.dp))
@@ -202,7 +225,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
             OutlinedButton(
                 onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); vm.logout() },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("退出登录", color = MaterialTheme.colorScheme.primary) }
+            ) { Text(t("退出登录"), color = MaterialTheme.colorScheme.primary) }
         }
     }
 }

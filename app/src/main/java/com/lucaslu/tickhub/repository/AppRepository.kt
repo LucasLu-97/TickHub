@@ -166,7 +166,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
                 logs[idx] = old.copy(
                     status = newStatus,
                     httpCode = null,
-                    errorMessage = if (success) null else "工作流执行失败（GitHub 结论）",
+                    errorMessage = if (success) null else com.lucaslu.tickhub.util.L10n.tNow("工作流执行失败（GitHub 结论）"),
                     durationMs = durationMs,
                     tracking = false
                 )

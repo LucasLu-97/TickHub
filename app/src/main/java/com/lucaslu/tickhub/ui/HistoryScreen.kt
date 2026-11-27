@@ -1,5 +1,7 @@
 package com.lucaslu.tickhub.ui
 
+import com.lucaslu.tickhub.util.t
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -46,19 +48,19 @@ fun HistoryScreen(vm: AppViewModel) {
                     containerColor = MaterialTheme.colorScheme.background,
                     scrolledContainerColor = MaterialTheme.colorScheme.background
                 ),
-                title = { Text("触发历史") },
+                title = { Text(t("触发历史")) },
                 actions = {
                     if (multiSelect) {
                         TextButton(onClick = {
                             com.lucaslu.tickhub.util.Haptics.tick(context)
                             selectedIds = if (selectedIds.size == logs.size) emptySet() else logs.map { it.id }.toSet()
-                        }) { Text("全选") }
+                        }) { Text(t("全选")) }
                         TextButton(onClick = {
                             com.lucaslu.tickhub.util.Haptics.tick(context)
                             selectedIds.forEach { vm.deleteLog(it) }
                             selectedIds = emptySet(); multiSelect = false
-                        }) { Text("删除") }
-                        TextButton(onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); multiSelect = false; selectedIds = emptySet() }) { Text("取消") }
+                        }) { Text(t("删除")) }
+                        TextButton(onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); multiSelect = false; selectedIds = emptySet() }) { Text(t("取消")) }
                     }
                 }
             )
@@ -69,7 +71,7 @@ fun HistoryScreen(vm: AppViewModel) {
             Spacer(Modifier.height(12.dp))
 
             if (logs.isEmpty()) {
-                Text("还没有触发记录。创建规则并到点后，记录会显示在这里。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(t("还没有触发记录。创建规则并到点后，记录会显示在这里。"), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             LazyColumn(
@@ -103,18 +105,18 @@ fun HistoryScreen(vm: AppViewModel) {
 @Composable
 private fun LogCardContent(log: TriggerLog) {
     val (label, color) = if (log.tracking) {
-        "执行中" to MaterialTheme.colorScheme.tertiary
+        t("执行中") to MaterialTheme.colorScheme.tertiary
     } else when (log.status) {
-        TriggerStatus.SUCCESS -> "成功" to MaterialTheme.colorScheme.primary
-        TriggerStatus.MAKEUP -> "补触发" to MaterialTheme.colorScheme.tertiary
-        TriggerStatus.FAILED -> "失败" to MaterialTheme.colorScheme.error
-        TriggerStatus.SKIPPED -> "跳过" to MaterialTheme.colorScheme.onSurfaceVariant
+        TriggerStatus.SUCCESS -> t("成功") to MaterialTheme.colorScheme.primary
+        TriggerStatus.MAKEUP -> t("补触发") to MaterialTheme.colorScheme.tertiary
+        TriggerStatus.FAILED -> t("失败") to MaterialTheme.colorScheme.error
+        TriggerStatus.SKIPPED -> t("跳过") to MaterialTheme.colorScheme.onSurfaceVariant
     }
     Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
         androidx.compose.foundation.layout.Row {
             val names = log.workflowNames.ifEmpty { listOfNotNull(log.workflowName.takeIf { it.isNotBlank() }) }
             Text(
-                if (names.isEmpty()) "工作流" else names.joinToString("、"),
+                if (names.isEmpty()) t("工作流") else names.joinToString("、"),
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.weight(1f)
             )
@@ -130,11 +132,11 @@ private fun LogCardContent(log: TriggerLog) {
                 ?: Spacer(Modifier.weight(1f))
             if (log.tracking) {
                 // plain live-growing duration text — no spinner on history cards
-                ElapsedText(startAt = log.firedAt ?: log.plannedAt, prefix = "耗时 ")
+                ElapsedText(startAt = log.firedAt ?: log.plannedAt, prefix = t("耗时 "))
             } else if (log.durationMs > 0) {
                 val s = log.durationMs / 1000
                 Text(
-                    "耗时 ${(s / 60).toString().padStart(2, '0')}m${(s % 60).toString().padStart(2, '0')}s",
+                    t("耗时 ") + "${(s / 60).toString().padStart(2, '0')}m${(s % 60).toString().padStart(2, '0')}s",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary
                 )

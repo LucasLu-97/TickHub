@@ -1,5 +1,7 @@
 package com.lucaslu.tickhub.ui
 
+import com.lucaslu.tickhub.util.t
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -74,16 +76,16 @@ fun ReposScreen(vm: AppViewModel) {
     confirmWf?.let { (fullName, wf) ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmWf = null },
-            title = { Text("确认立即触发") },
+            title = { Text(t("确认立即触发")) },
             text = { Text("将立即触发工作流「${wf.name}」，确定继续？") },
             confirmButton = {
                 TextButton(onClick = {
                     haptic()
                     vm.triggerWorkflowNow(fullName, wf.id, wf.name)
                     confirmWf = null
-                }) { Text("确认触发") }
+                }) { Text(t("确认触发")) }
             },
-            dismissButton = { TextButton(onClick = { haptic(); confirmWf = null }) { Text("取消") } }
+            dismissButton = { TextButton(onClick = { haptic(); confirmWf = null }) { Text(t("取消")) } }
         )
     }
 
@@ -99,7 +101,7 @@ fun ReposScreen(vm: AppViewModel) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 14.dp)) {
                         AvatarImage(url = avatar, name = user ?: "?")
                         Spacer(Modifier.padding(8.dp))
-                        Text(user ?: "未登录", style = MaterialTheme.typography.titleMedium)
+                        Text(user ?: t("未登录"), style = MaterialTheme.typography.titleMedium)
                     }
                 },
                 actions = {
@@ -107,13 +109,13 @@ fun ReposScreen(vm: AppViewModel) {
                         TextButton(onClick = {
                             haptic()
                             selectedRepoIds = if (selectedRepoIds.size == repos.size) emptySet() else repos.map { it.id }.toSet()
-                        }) { Text("全选") }
+                        }) { Text(t("全选")) }
                         TextButton(onClick = {
                             haptic()
                             selectedRepoIds.forEach { vm.removeRepo(it) }
                             selectedRepoIds = emptySet(); multiSelect = false
-                        }) { Text("删除") }
-                        TextButton(onClick = { haptic(); multiSelect = false; selectedRepoIds = emptySet() }) { Text("取消") }
+                        }) { Text(t("删除")) }
+                        TextButton(onClick = { haptic(); multiSelect = false; selectedRepoIds = emptySet() }) { Text(t("取消")) }
                     }
                 }
             )
@@ -132,7 +134,7 @@ fun ReposScreen(vm: AppViewModel) {
                             enabled = !state.scanning,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                         ) {
-                            Text(if (state.scanning) "扫描仓库与工作流" else "扫描仓库与工作流")
+                            Text(if (state.scanning) t("扫描仓库与工作流") else t("扫描仓库与工作流"))
                             if (state.scanning) {
                                 Spacer(Modifier.padding(4.dp))
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -141,7 +143,7 @@ fun ReposScreen(vm: AppViewModel) {
                         state.message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         state.error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
                         Text(
-                            "已纳管 ${snapshot.workflows.count { it.selected }} 个工作流 / ${snapshot.repos.size} 个仓库（下拉可刷新头像与纳管项）",
+                            t("已纳管 ") + "${snapshot.workflows.count { it.selected }}" + t(" 个工作流 / ") + "${snapshot.repos.size}" + t(" 个仓库（下拉可刷新头像与纳管项）"),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(vertical = 6.dp)
@@ -215,13 +217,13 @@ private fun RepoCardContent(
             Column(modifier = Modifier.weight(1f)) {
                 Text(repoName, style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "${if (private) "私有" else "公开"} · ${selectedIds.size}/${workflows.size} 工作流",
+                    "${if (private) t("私有") else t("公开")} · ${selectedIds.size}/${workflows.size} 工作流",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Spacer(Modifier.padding(12.dp))
-            Text("全选", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(t("全选"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.padding(4.dp))
             MiuixSwitch(checked = managed, onCheckedChange = { cardHaptic(); onManagedChange(it) })
         }
@@ -234,7 +236,7 @@ private fun RepoCardContent(
                         onCheckedChange = { onWorkflowToggle(wf.id, it); cardHaptic() }
                     )
                     Text(wf.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { onTriggerWorkflow(wf); cardHaptic() }) { Text("立即触发") }
+                    TextButton(onClick = { onTriggerWorkflow(wf); cardHaptic() }) { Text(t("立即触发")) }
                 }
             }
         }

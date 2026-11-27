@@ -74,12 +74,12 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         val success = allRuns.all { it.second.conclusion == "success" } && !anyError
         repo.finalizeLog(logId, durationMs, success)
 
-        val statusText = if (success) "执行成功" else "执行失败"
+        val statusText = if (success) com.lucaslu.tickhub.util.L10n.tNow("执行成功") else com.lucaslu.tickhub.util.L10n.tNow("执行失败")
         NotificationHelper.notifyResult(
             applicationContext,
             logId.hashCode(),
             "TickHub · $statusText",
-            "${rule.workflowNames.firstOrNull() ?: rule.workflowName} 用时 ${durationMs / 1000}s",
+            "${rule.workflowNames.firstOrNull() ?: rule.workflowName}" + com.lucaslu.tickhub.util.L10n.tNow(" 用时 ") + "${durationMs / 1000}s",
             success
         )
         AppLogger.i("Tracker", "finalized log=${logId.take(8)} duration=${durationMs}ms success=$success runs=${allRuns.size}")
@@ -88,7 +88,7 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
 
     private suspend fun giveUp(repo: AppRepository, logId: String) {
         repo.finalizeLog(logId, 0L, false)
-        NotificationHelper.notifyResult(applicationContext, logId.hashCode(), "TickHub · 执行结果未确认", "无法从 GitHub 获取执行结果，请到仓库页查看", false)
+        NotificationHelper.notifyResult(applicationContext, logId.hashCode(), com.lucaslu.tickhub.util.L10n.tNow("TickHub · 执行结果未确认"), com.lucaslu.tickhub.util.L10n.tNow("无法从 GitHub 获取执行结果，请到仓库页查看"), false)
     }
 
     private fun parseInstant(value: String): Instant? = try {

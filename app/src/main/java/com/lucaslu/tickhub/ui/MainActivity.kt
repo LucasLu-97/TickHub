@@ -1,5 +1,7 @@
 package com.lucaslu.tickhub.ui
 
+import com.lucaslu.tickhub.util.t
+
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -114,7 +116,7 @@ private fun TickHubApp() {
                             containerColor = MaterialTheme.colorScheme.surface,
                             tonalElevation = 0.dp
                         ) {
-                            val items = listOf("仓库", "规则", "历史", "设置")
+                            val items = listOf(t("仓库"), t("规则"), t("历史"), t("设置"))
                             items.forEachIndexed { index, label ->
                                 NavigationBarItem(
                                     selected = tab == index,

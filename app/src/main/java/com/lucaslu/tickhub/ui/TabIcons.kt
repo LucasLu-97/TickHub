@@ -1,5 +1,7 @@
 package com.lucaslu.tickhub.ui
 
+import com.lucaslu.tickhub.util.t
+
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.Delete
@@ -27,5 +29,5 @@ fun TabIcon(index: Int, color: Color, modifier: Modifier = Modifier) {
 /** Delete icon for swipe-to-delete, using the official outlined trash can. */
 @Composable
 fun DeleteLineIcon(tint: Color, modifier: Modifier = Modifier) {
-    Icon(imageVector = Icons.Outlined.Delete, contentDescription = "删除", tint = tint, modifier = modifier)
+    Icon(imageVector = Icons.Outlined.Delete, contentDescription = t("删除"), tint = tint, modifier = modifier)
 }

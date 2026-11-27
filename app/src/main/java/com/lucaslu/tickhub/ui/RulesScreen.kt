@@ -1,5 +1,7 @@
 package com.lucaslu.tickhub.ui
 
+import com.lucaslu.tickhub.util.t
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.verticalScroll
@@ -40,13 +42,13 @@ import sh.calvin.reorderable.ReorderableItem
 
 @Suppress("DEPRECATION")
 private val TYPE_LABELS = mapOf(
-    RuleType.ONCE to "单次",
-    RuleType.DAILY to "每天",
-    RuleType.WEEKLY to "每周",
-    RuleType.LEGAL_WORKDAY to "法定工作日",
-    RuleType.LEGAL_HOLIDAY to "法定节假日",
-    RuleType.EVERY_N_DAYS to "每隔X天",
-    RuleType.WEEKDAYS to "法定工作日"
+    RuleType.ONCE to t("单次"),
+    RuleType.DAILY to t("每天"),
+    RuleType.WEEKLY to t("每周"),
+    RuleType.LEGAL_WORKDAY to t("法定工作日"),
+    RuleType.LEGAL_HOLIDAY to t("法定节假日"),
+    RuleType.EVERY_N_DAYS to t("每隔X天"),
+    RuleType.WEEKDAYS to t("法定工作日")
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,7 +73,7 @@ fun RulesScreen(vm: AppViewModel) {
         .map { it.fullName.split("/").lastOrNull() ?: it.fullName }
 
     fun groupNameOf(rule: com.lucaslu.tickhub.data.Rule): String =
-        rule.repoFullName.split("/").lastOrNull().takeUnless { it.isNullOrBlank() } ?: "未分类"
+        rule.repoFullName.split("/").lastOrNull().takeUnless { it.isNullOrBlank() } ?: t("未分类")
 
     LaunchedEffect(rules, savedRuleOrder) {
         orderedRules = vm.applyOrder(rules, savedRuleOrder) { it.id }
@@ -113,12 +115,12 @@ fun RulesScreen(vm: AppViewModel) {
     confirmTrigger?.let { ruleToTrigger ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmTrigger = null },
-            title = { Text("确认立即触发") },
-            text = { Text("将立即触发「${ruleToTrigger.workflowNames.joinToString("、").ifBlank { ruleToTrigger.workflowName }}」，确定继续？") },
+            title = { Text(t("确认立即触发")) },
+            text = { Text("将立即触发「${ruleToTrigger.workflowNames.joinToString("、t(").ifBlank { ruleToTrigger.workflowName }}」，确定继续？")) },
             confirmButton = {
-                TextButton(onClick = { Haptics.tick(context); vm.triggerNow(ruleToTrigger); confirmTrigger = null }) { Text("确认触发") }
+                TextButton(onClick = { Haptics.tick(context); vm.triggerNow(ruleToTrigger); confirmTrigger = null }) { Text(t("确认触发")) }
             },
-            dismissButton = { TextButton(onClick = { Haptics.tick(context); confirmTrigger = null }) { Text("取消") } }
+            dismissButton = { TextButton(onClick = { Haptics.tick(context); confirmTrigger = null }) { Text(t("取消")) } }
         )
     }
 
@@ -132,7 +134,7 @@ fun RulesScreen(vm: AppViewModel) {
                 ),
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("触发规则")
+                        Text(t("触发规则"))
                         if (showExec && running.isNotEmpty()) {
                             Spacer(Modifier.padding(6.dp))
                             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -144,13 +146,13 @@ fun RulesScreen(vm: AppViewModel) {
                         TextButton(onClick = {
                             Haptics.tick(context)
                             selectedIds = if (selectedIds.size == rules.size) emptySet() else rules.map { it.id }.toSet()
-                        }) { Text("全选") }
+                        }) { Text(t("全选")) }
                         TextButton(onClick = {
                             Haptics.tick(context)
                             selectedIds.forEach { vm.deleteRule(it) }
                             selectedIds = emptySet(); multiSelect = false
-                        }) { Text("删除") }
-                        TextButton(onClick = { Haptics.tick(context); multiSelect = false; selectedIds = emptySet() }) { Text("取消") }
+                        }) { Text(t("删除")) }
+                        TextButton(onClick = { Haptics.tick(context); multiSelect = false; selectedIds = emptySet() }) { Text(t("取消")) }
                     } else {
                         androidx.compose.material3.IconButton(onClick = { Haptics.tick(context); creating = true }, enabled = selectedWorkflows.isNotEmpty()) {
                             Text("＋", style = MaterialTheme.typography.titleLarge)
@@ -163,7 +165,7 @@ fun RulesScreen(vm: AppViewModel) {
         Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp)) {
         if (selectedWorkflows.isEmpty()) {
             Spacer(Modifier.height(16.dp))
-            Text("请先在「仓库」页勾选要纳管的工作流，再来创建规则。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(t("请先在「仓库」页勾选要纳管的工作流，再来创建规则。"), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.height(12.dp))
 
@@ -218,7 +220,7 @@ fun RulesScreen(vm: AppViewModel) {
 private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () -> Unit, onTriggerNow: () -> Unit, runningStart: Long? = null) {
     val context = androidx.compose.ui.platform.LocalContext.current
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
-        val names = rule.workflowNames.ifEmpty { listOf(rule.workflowName.ifBlank { "工作流 #${rule.workflowId}" }) }
+        val names = rule.workflowNames.ifEmpty { listOf(rule.workflowName.ifBlank { t("工作流 #") + "${rule.workflowId}" }) }
         Text(names.joinToString("、"), style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(6.dp))
         val timeText = rule.timeSlots.ifEmpty { listOf(String.format("%02d:%02d", rule.hour, rule.minute)) }.joinToString("、")
@@ -227,14 +229,14 @@ private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () 
         rule.effectiveFireAt?.let {
             val next = RuleEngine.fromEpochMillis(it)
             Text(
-                "下次：${RuleEngine.formatDate(next.toLocalDate())} ${String.format("%02d:%02d", next.hour, next.minute)}",
+                t("下次：") + "${RuleEngine.formatDate(next.toLocalDate())} ${String.format("%02d:%02d", next.hour, next.minute)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary
             )
         } ?: rule.nextFireAt?.let {
             val next = RuleEngine.fromEpochMillis(it)
             Text(
-                "下次：${RuleEngine.formatDate(next.toLocalDate())} ${String.format("%02d:%02d", next.hour, next.minute)}",
+                t("下次：") + "${RuleEngine.formatDate(next.toLocalDate())} ${String.format("%02d:%02d", next.hour, next.minute)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -246,14 +248,14 @@ private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () 
                 onCheckedChange = onToggle,
                 modifier = Modifier.padding(end = 8.dp)
             )
-            Text("启用", style = MaterialTheme.typography.labelMedium)
+            Text(t("启用"), style = MaterialTheme.typography.labelMedium)
             if (runningStart != null) {
                 Spacer(Modifier.padding(4.dp))
                 RunningIndicator(startAt = runningStart)
             }
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = onTriggerNow) { Text("立即触发") }
-            TextButton(onClick = onEdit) { Text("编辑") }
+            TextButton(onClick = onTriggerNow) { Text(t("立即触发")) }
+            TextButton(onClick = onEdit) { Text(t("编辑")) }
         }
     }
 }
