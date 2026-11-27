@@ -95,7 +95,7 @@ fun LoginScreen(state: LoginUiState, vm: AppViewModel, configured: Boolean) {
                     Spacer(Modifier.height(12.dp))
                     OutlinedButton(onClick = {
                         copyToClipboard(context, code)
-                        Toast.makeText(context, t("设备码已复制"), Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, L10n.tNow("设备码已复制"), Toast.LENGTH_SHORT).show()
                     }) {
                         Text(t("复制设备码"))
                     }
