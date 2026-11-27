@@ -11,7 +11,7 @@
 | 仓库    | <https://github.com/LucasLu-97/TickHub> （公开）                                                                                                                      |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1>                                                                   |
 | 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35>                             |
-| 当前正式版 | v1.4.0；**v2.0.0（终极优化版）待发布**：第四轮四路严格审视后修复全部Critical/High，CI全绿34单测 |
+| 当前正式版 | **v2.0.0**（终极优化版）：四轮审视+债务清理完成，39单测全绿 |
 | 历史正式版 | v1.2.0（全面加固）、v1.1.5（立即触发耗时追踪）、v1.1.4（规则卡/失败重试/闹钟降级）、v1.1.3（历史页i18n+耗时）、v1.1.2（i18n布局）、v1.1.1（状态实时翻译）、v1.1.0（双语/节假日开关）、v1.0.3（登录页）、v1.0.2（关闭R8）、v1.0.1/v1.0.0（R8闪退） |
 | 真机验收  | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现）                                                                                                 |
 | 登录方式  | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16）                                                                                                                  |
@@ -1178,4 +1178,21 @@ Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: a
 
 ---
 
+## 35. 剩余债务清理（v2.0.0 发布候选）
+
+用户"全部接受并继续"后，清理审视列出的全部剩余债务：
+
+**可测性**：新增 `repository/TransitionApplier.kt` 纯函数 `apply(cur,t,now)`，把最关键的"日志+规则原子提交"状态机（三条分支）纳入 JVM 单测（+6个，共39个）。AppRepository.commitDispatchOutcome 改调纯函数，仍在单次 dataStore.edit 内保持原子性。
+
+**catchUp 多 slot（串行补签）**：原来只补最近一个 slot → 现在补签后若 nextFireAt 仍过期，链式补下一个（从该 slot 而非 now 计算，避免跳过中间 slot），硬上限 5 个防爆发/风控。链深度用 Work input 参数传递（非历史日志计数，避免老日志让链式永久失效）。已验证：不无限循环、不重复签、不补未来 slot、与闹钟不冲突。
+
+**通知**：加 contentIntent 点击回 App + 自有白色铃铛 small icon；401 时发高优先级通知提示重新登录。
+
+**其他**：RunTracker 轮询退避 5s→15s→30s；listWorkflows 分页（≤1000）；ONCE 日期下限校验；删 LOCKED_BOOT_COMPLETED 死配置；补自适应图标；L10n 去重；字典 key 覆盖检查 0 缺失。
+
+**验证**：CI 全绿，39 单测；v2.0.0 tag 发布。
+
+**仍保留的取舍（明确记录）**：AppContainer 偏宽、Repository 无接口（已用纯函数缓解核心可测性）、通知渠道名不随语言更新、logout 与在途 Worker 竞态（低概率）、时钟大幅回拨保护。
+
+---
 > 文档结束。任何与实现不一致之处，以「实际代码 + 本文档更新」为准；请接手人持续维护本文档。
