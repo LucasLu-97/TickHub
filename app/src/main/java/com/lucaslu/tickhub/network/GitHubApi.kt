@@ -6,6 +6,7 @@ import com.lucaslu.tickhub.data.DeviceCodeResponse
 import com.lucaslu.tickhub.data.GhOwner
 import com.lucaslu.tickhub.data.GhRepo
 import com.lucaslu.tickhub.data.GhUser
+import com.lucaslu.tickhub.data.GhWorkflow
 import com.lucaslu.tickhub.data.GhWorkflowList
 import com.lucaslu.tickhub.data.RepoItem
 import com.lucaslu.tickhub.data.TokenResponse
@@ -143,24 +144,30 @@ class GitHubApi {
         owner: String,
         repo: String
     ): ApiResult<List<WorkflowItem>> = withContext(Dispatchers.IO) {
-        val url = "$apiBase/repos/$owner/$repo/actions/workflows?per_page=100"
-        val req = authorized(token, url).build()
-        when (val result = executeJson<GhWorkflowList>(req)) {
-            is ApiResult.Error -> result
-            is ApiResult.Success -> {
-                ApiResult.Success(
-                    result.data.workflows.map { wf ->
-                        WorkflowItem(
-                            id = wf.id,
-                            repoId = 0L, // filled by repository layer from matching repo
-                            name = wf.name,
-                            path = wf.path,
-                            state = wf.state
-                        )
-                    }
-                )
+        val all = mutableListOf<GhWorkflow>()
+        var page = 1
+        while (true) {
+            val url = "$apiBase/repos/$owner/$repo/actions/workflows?per_page=100&page=$page"
+            val req = authorized(token, url).build()
+            when (val batch = executeJson<GhWorkflowList>(req)) {
+                is ApiResult.Error -> return@withContext batch
+                is ApiResult.Success -> {
+                    all.addAll(batch.data.workflows)
+                    if (batch.data.workflows.size < 100) break
+                    page++
+                    if (page > 10) break // safety cap: 1000 workflows per repo
+                }
             }
         }
+        ApiResult.Success(all.map { wf ->
+            WorkflowItem(
+                id = wf.id,
+                repoId = 0L, // filled by repository layer from matching repo
+                name = wf.name,
+                path = wf.path,
+                state = wf.state
+            )
+        })
     }
 
     /**

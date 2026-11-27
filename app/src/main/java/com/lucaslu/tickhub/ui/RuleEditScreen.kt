@@ -205,6 +205,10 @@ fun RuleEditScreen(
                 when {
                     selectedIds.isEmpty() -> error = com.lucaslu.tickhub.util.L10n.tNow("请至少勾选一个工作流")
                     type == RuleType.WEEKLY && selectedDays.isEmpty() -> error = com.lucaslu.tickhub.util.L10n.tNow("请至少选择一个星期")
+                    // A past ONCE date would be saved as COMPLETED immediately —
+                    // reject it at the UI boundary instead of silently losing it.
+                    type == RuleType.ONCE && (onceDate.isBlank() || onceDate < java.time.LocalDate.now().toString()) ->
+                        error = com.lucaslu.tickhub.util.L10n.tNow("一次性规则的日期不能早于今天")
                     else -> {
                         val chosen = workflows.filter { selectedIds.contains(it.id) }
                         // split by repo: one rule per repo, each with its own workflows

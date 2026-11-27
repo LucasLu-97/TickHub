@@ -185,8 +185,16 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
 
     private fun reenqueue(logId: String, ruleId: String, poll: Int) {
         val data = workDataOf(KEY_LOG_ID to logId, KEY_RULE_ID to ruleId, KEY_POLL to poll)
+        // Exponential-ish backoff: 5s for the first minute (catch fast runs
+        // promptly), then 15s, then 30s cap. Cuts API calls/battery for long
+        // runs without delaying short ones.
+        val delaySec = when {
+            poll < 12 -> POLL_DELAY_SEC          // <1 min: 5s
+            poll < 40 -> 15L                     // ~1-10 min: 15s
+            else -> 30L                          // long runs: 30s cap
+        }
         val req = OneTimeWorkRequestBuilder<RunTrackerWorker>()
-            .setInitialDelay(POLL_DELAY_SEC, TimeUnit.SECONDS)
+            .setInitialDelay(delaySec, TimeUnit.SECONDS)
             .setInputData(data)
             .addTag("track-$logId")
             .addTag("tickhub_track_all")

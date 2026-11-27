@@ -185,27 +185,8 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
             val idx = rules.indexOfFirst { it.id == ruleId }
             if (idx >= 0) {
                 val cur = rules[idx]
-                val updated = if (cur.status != com.lucaslu.tickhub.data.RuleStatus.ENABLED) {
-                    // C-1: rule was disabled while a Worker was in flight —
-                    // never overwrite DISABLED with COMPLETED/retry state.
-                    cur.copy(lastFiredAt = transition.lastFiredAt ?: cur.lastFiredAt)
-                } else if (transition.completed) {
-                    cur.copy(
-                        status = com.lucaslu.tickhub.data.RuleStatus.COMPLETED,
-                        nextFireAt = null, effectiveFireAt = null,
-                        lastFiredAt = transition.lastFiredAt ?: System.currentTimeMillis(),
-                        retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
-                    )
-                } else {
-                    cur.copy(
-                        nextFireAt = transition.nextFireAt ?: cur.nextFireAt,
-                        effectiveFireAt = transition.effectiveFireAt ?: cur.effectiveFireAt,
-                        lastFiredAt = transition.lastFiredAt ?: cur.lastFiredAt,
-                        retryAt = transition.retryAt,
-                        retryPlannedAt = transition.retryPlannedAt,
-                        retryFailedWfIds = transition.retryFailedWfIds
-                    )
-                }
+                // Pure state machine — see TransitionApplier (JVM-testable).
+                val updated = TransitionApplier.apply(cur, transition, System.currentTimeMillis())
                 rules[idx] = updated
                 result = updated
                 prefs[rulesKey] = json.encodeToString(rules)

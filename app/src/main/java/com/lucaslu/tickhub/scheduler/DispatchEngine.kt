@@ -111,7 +111,7 @@ class DispatchEngine(private val context: Context) {
             AppLogger.w("Engine", "rule=${ruleId.take(8)} has no workflows -> advance directly")
             // Respect the caller's advance flag: a manual trigger on a rule with
             // no workflows must not consume the planned slot either.
-            val transition = buildTransition(rule, plannedAt, allSuccess = true, advance = advance, emptyList(), null)
+            val transition = buildTransition(rule, plannedAt, allSuccess = true, advance = advance, emptyList(), null, if (isMakeup) plannedAt + 60_000L else null)
             val log = com.lucaslu.tickhub.data.TriggerLog(
                 id = java.util.UUID.randomUUID().toString(), ruleId = rule.id,
                 workflowName = rule.workflowName, workflowNames = rule.workflowNames,
@@ -219,7 +219,7 @@ class DispatchEngine(private val context: Context) {
 
         // CRITICAL: compute the rule transition BEFORE the atomic commit, then write
         // log + rule state in ONE transaction. No "log written but slot stranded" window.
-        val transition = buildTransition(rule, plannedAt, allSuccess, advance, failedWfIds, httpCode)
+        val transition = buildTransition(rule, plannedAt, allSuccess, advance, failedWfIds, httpCode, if (isMakeup) plannedAt + 60_000L else null)
         val updated = repository.commitDispatchOutcome(log, startTracking, rule.id, transition)
 
         if (startTracking) {
@@ -229,6 +229,25 @@ class DispatchEngine(private val context: Context) {
 
         // Re-register alarm from the COMMITTED rule (not the stale input object).
         updated?.let { postCommitSchedule(it, transition) }
+
+        // Serial catch-up: if this was a makeup slot and the committed next slot
+        // is STILL overdue, chain one more makeup. Each make-up advances from its
+        // own slot (see makeupSlot above), so overdue slots are covered in order
+        // rather than skipped to "now". Hard cap avoids a burst after long downtime.
+        if (isMakeup && allSuccess && advance && updated?.status == RuleStatus.ENABLED) {
+            val nextBase = updated.nextFireAt
+            if (nextBase != null && nextBase < System.currentTimeMillis() - 60_000L) {
+                val makeupCount = repository.getLogsOnce().count {
+                    it.ruleId == rule.id && it.isMakeup && it.status != TriggerStatus.FAILED
+                }
+                if (makeupCount < DispatchPolicy.MAX_SERIAL_CATCHUP) {
+                    AppLogger.w("Engine", "catchUp chain rule=${rule.id.take(8)} nextOverdue=$nextBase (#$makeupCount)")
+                    DispatchWorker.enqueue(context, rule.id, nextBase, isMakeup = true)
+                } else {
+                    AppLogger.w("Engine", "catchUp chain capped rule=${rule.id.take(8)} at $makeupCount slots")
+                }
+            }
+        }
         return status
     }
 
@@ -299,7 +318,8 @@ class DispatchEngine(private val context: Context) {
     /** Build the rule-state transition from pure decisions. Called before the
      *  atomic commit so log + rule update happen in one DataStore transaction. */
     private suspend fun buildTransition(
-        rule: Rule, plannedAt: Long, allSuccess: Boolean, advance: Boolean, failedWfIds: List<Long>, httpCode: Int? = null
+        rule: Rule, plannedAt: Long, allSuccess: Boolean, advance: Boolean, failedWfIds: List<Long>,
+        httpCode: Int? = null, makeupSlot: Long? = null
     ): com.lucaslu.tickhub.repository.DispatchTransition {
         if (allSuccess) {
             if (!advance) {
@@ -310,7 +330,13 @@ class DispatchEngine(private val context: Context) {
                     retryFailedWfIds = emptyList()
                 )
             }
-            val (next, effective) = repository.computeNextFire(rule, LocalDateTime.now())
+            // On a makeup slot, advance from THAT slot (not "now") so the next
+            // still-overdue slot is preserved for serial catch-up instead of
+            // being skipped straight to a future one.
+            val from = makeupSlot?.let {
+                java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
+            } ?: LocalDateTime.now()
+            val (next, effective) = repository.computeNextFire(rule, from)
             if (next == null || effective == null) {
                 AppLogger.i("Engine", "rule=${rule.id.take(8)} COMPLETED (no next fire)")
                 return com.lucaslu.tickhub.repository.DispatchTransition(completed = true, lastFiredAt = System.currentTimeMillis())
@@ -357,6 +383,9 @@ class DispatchEngine(private val context: Context) {
         if (httpCode == 401) {
             AppLogger.w("Engine", "rule=${rule.id.take(8)} 401 unauthorized -> clear token, re-login required")
             tokenStore.clearSync() // next launch shows logged-out; no pointless retries
+            // Make the invalidation visible now (not only on next launch), and
+            // let the tap open the app so the user can re-authorize.
+            com.lucaslu.tickhub.util.NotificationHelper.notifyAuthExpired(context)
             return advanceTransition(rule)
         }
         if (DispatchPolicy.isPermanentHttpError(httpCode)) {
