@@ -7,6 +7,7 @@ import com.lucaslu.tickhub.network.ApiResult
 import com.lucaslu.tickhub.network.TokenPoll
 import com.lucaslu.tickhub.util.AppLogger
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
