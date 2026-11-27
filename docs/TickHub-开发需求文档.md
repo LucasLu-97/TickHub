@@ -11,8 +11,8 @@
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
 | 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35 |
-| 当前正式版 | v1.0.1（结果轮询改回 5s 提升及时性），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.1 |
-| 历史正式版 | v1.0.0，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.0 |
+| 当前正式版 | v1.0.2（关闭 R8 修复启动闪退 + 5s 轮询），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.2 |
+| 历史正式版 | v1.0.1（R8 闪退）、v1.0.0（R8 闪退） |
 | 真机验收 | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现） |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
@@ -957,7 +957,7 @@ APP 内置了 **GitHub CLI 的官方公开 Client ID**（`178c6fc778ccc68e1d6a`�
 **架构复核**：现有 Kotlin 2.4 + Jetpack Compose + Coroutines + WorkManager + AlarmManager + DataStore 已是 Android 原生最先进且稳定的方案；换成 Flutter/RN 会提高资源占用并降低后台可靠性，故**不重构语言/架构**。代码约 4800 行，分层为 data → domain → network → repository → scheduler → ui，可读性良好。
 
 **低资源占用优化（beta35）**：
-- Release 启用 R8 shrink（`-dontobfuscate` 只裁剪不混淆，保留 data 模型 / Worker / Receiver / 入口），APK **14.2MB → 2.03MB（-86%）**，相应大幅降低 ART（odex/vdex）编译产物与系统"应用存储"占用。
+- Release 曾启用 R8 shrink（`-dontobfuscate` 只裁剪不混淆），APK 14.2MB → 2.03MB；**但 v1.0.0/v1.0.1 真机卸载重装后启动瞬间闪退，判定 R8 裁剪了运行时必需类（无真机日志确认具体类）。v1.0.2 起关闭 R8（isMinifyEnabled=false），APK 回到约 14MB。教训：稳定性优先于体积，R8 上线前必须真机回归。** 保留删除冗余依赖的优化。
 - 删除零使用依赖：Retrofit、retrofit-kotlin-serialization、okhttp-logging。
 - `RunTrackerWorker` 结果轮询：beta35 曾 5s→30s 省电，v1.0.1 应及时性需求**改回 5s**（MAX_POLLS 144，覆盖 12 分钟）。评估：轮询在任务完成后立即停止，典型 12-36 次请求即结束，绝对开销小且有界；5s 使完成通知延迟 ≤5 秒。
 - 头像仅内存缓存、日志滚动 800 行（约 100KB），无磁盘缓存膨胀；80MB 存储主因是 ART 编译产物，已随 APK 瘦身下降。

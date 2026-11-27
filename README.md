@@ -19,7 +19,7 @@
 | 调度引擎 | ✅ 精确闹钟 + 网络等待 + dispatch + 补触发 + 开机重注册 |
 | 真机验收 | ✅ 连续夜间到次日准时触发，无睡死；重启 / 划后台仍生效 |
 | 原生 schedule | 由仓库侧自动化关闭，APP 不重复实现 |
-| 体积 / 功耗 | ✅ R8 shrink 后 APK 约 2 MB；结果轮询 5s 间隔（任务完成即停，无残留唤醒） |
+| 体积 / 功耗 | ✅ APK 约 14 MB；结果轮询 5s 间隔（任务完成即停，无残留唤醒） |
 
 ## 为什么需要它
 
@@ -33,7 +33,7 @@ GitHub Actions 的 `on.schedule` 在免费额度下常被延迟甚至跳过（�
 - **调度**：`AlarmManager.setExactAndAllowWhileIdle` + `BroadcastReceiver` + `WorkManager`（执行与结果追踪）
 - **存储**：DataStore Preferences（配置 / 顺序 / 规则）+ Android Keystore（token 加密）
 - **网络**：OkHttp + kotlinx.serialization（无 Retrofit 冗余依赖）
-- **构建**：Gradle 9.7 / AGP 9.3.1，release 启用 R8 shrink（不混淆，保留可读堆栈）
+- **构建**：Gradle 9.7 / AGP 9.3.1（release 不启用 R8，保证运行时类完整）
 
 代码约 4800 行，分层清晰：`data`（模型 / 存储）→ `domain`（规则计算）→ `network`（API）→ `repository` → `scheduler`（调度）→ `ui`（界面）。
 

@@ -19,7 +19,7 @@ Replace GitHub's unreliable `on.schedule` with an Android phone: sign in to GitH
 | Scheduler | ✅ Exact alarms + network wait + dispatch + catch-up + reboot re-registration |
 | Device acceptance | ✅ Verified overnight-to-next-morning on-time triggers, no Doze sleep; reboot & background-kill resilient |
 | Native schedule | Disabled by repo-side automation; not duplicated in the app |
-| Size / power | ✅ ~2 MB APK after R8 shrink; result polling at 5s intervals (stops on completion, no residual wake-ups) |
+| Size / power | ✅ ~14 MB APK; result polling at 5s intervals (stops on completion, no residual wake-ups) |
 
 ## Why
 
@@ -33,7 +33,7 @@ GitHub Actions `on.schedule` on free tiers is frequently delayed or skipped duri
 - **Scheduling**: `AlarmManager.setExactAndAllowWhileIdle` + `BroadcastReceiver` + `WorkManager` (execution & result tracking)
 - **Storage**: DataStore Preferences (config / ordering / rules) + Android Keystore (encrypted token)
 - **Networking**: OkHttp + kotlinx.serialization (no redundant Retrofit dependency)
-- **Build**: Gradle 9.7 / AGP 9.3.1, R8 shrink on release (no obfuscation — readable stack traces)
+- **Build**: Gradle 9.7 / AGP 9.3.1 (R8 shrink intentionally off to keep all runtime classes intact)
 
 ~4,800 lines, clearly layered: `data` (models / storage) → `domain` (rule engine) → `network` (API) → `repository` → `scheduler` → `ui`.
 

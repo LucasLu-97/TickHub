@@ -59,7 +59,9 @@ android {
             isMinifyEnabled = false
         }
         getByName("release") {
-            isMinifyEnabled = true
+            // R8 shrink disabled: it stripped runtime-needed classes and caused
+            // instant crashes on launch in v1.0.0/v1.0.1. Stability over size.
+            isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = if (System.getenv("KEYSTORE_BASE64") != null) {
                 signingConfigs.getByName("release")
