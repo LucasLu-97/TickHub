@@ -11,7 +11,7 @@
 | 仓库    | <https://github.com/LucasLu-97/TickHub> （公开）                                                                                                                      |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1>                                                                   |
 | 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35>                             |
-| 当前正式版 | v1.3.1-beta（R8瘦身验证版：APK 1.69MB / AAB 4.20MB，待实机确认不闪退后转正），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.3.1-beta |
+| 当前正式版 | v1.3.3（R8 瘦身正式版：APK 2.4MB，adb 实机验证启动/登录界面正常），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.3.3 |
 | 历史正式版 | v1.2.0（全面加固）、v1.1.5（立即触发耗时追踪）、v1.1.4（规则卡/失败重试/闹钟降级）、v1.1.3（历史页i18n+耗时）、v1.1.2（i18n布局）、v1.1.1（状态实时翻译）、v1.1.0（双语/节假日开关）、v1.0.3（登录页）、v1.0.2（关闭R8）、v1.0.1/v1.0.0（R8闪退） |
 | 真机验收  | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现）                                                                                                 |
 | 登录方式  | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16）                                                                                                                  |
@@ -1032,6 +1032,26 @@ APP 内置了 **GitHub CLI 的官方公开 Client ID**（`178c6fc778ccc68e1d6a`�
 4. **验证策略**：CI 只能验证编译，无法验证运行时——故发 **v1.3.1-beta（prerelease）** 供实机确认 R8 不闪退；确认后再发正式版。
 
 **产物对比**：APK 1.69MB（原 10.14MB）、AAB 4.20MB、mapping.txt 36.36MB。
+
+---
+
+## 28. R8 闪退根因定位与修复（v1.3.3）
+
+v1.3.1-beta / v1.3.2-beta 点开即闪退，通过 adb logcat 抓到真实堆栈（不再靠猜）：
+
+```
+java.lang.RuntimeException: Unable to get provider androidx.startup.InitializationProvider
+Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: androidx.work.impl.WorkDatabase_Impl.<init> []
+  at androidx.work.WorkManagerInitializer.create
+```
+
+**真正根因**：不是序列化（之前两次猜测均错）——是 WorkManager 通过反射 `getDeclaredConstructor()` 创建 Room 数据库实现 `WorkDatabase_Impl`，R8 把这个无参构造函数当未使用删掉了。崩溃发生在 ContentProvider 初始化阶段，比 Application.onCreate 还早，所以连崩溃捕获器都没机会写文件。这是 WorkManager + R8 的官方已知问题。
+
+**修复**：proguard-rules.pro 加 `-keep class androidx.work.impl.** { *; }` 和 `-keep class androidx.room.** { *; }`。
+
+**验证**（用户开通 adb，作者直接 adb install + monkey 启动 + 截图 + logcat）：进程存活、MainActivity 前台、登录界面正常渲染、无 TickHub 自身异常。AppViewModel 构造时同步读取的 DataStore 序列化数据（snapshot/rules/logs）也全部成功，证明序列化 keep 规则同样有效。
+
+**产物**：APK 2.4MB（R8 瘦身，原 10.14MB）、AAB 5.14MB、mapping.txt。
 
 ---
 
