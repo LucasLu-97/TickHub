@@ -131,7 +131,9 @@ class DispatchEngine(private val context: Context) {
         // Previously we queried runs here, but GitHub often hasn't created the run
         // yet right after dispatch, so tracking silently never started and the
         // history card showed no duration.
-        if (allSuccess && parts.size == 2 && repository.isRunTrackingEnabledOnce()) {
+        // Duration tracking is always on — the history card needs it. The
+        // "result notification" switch only controls the notification, not tracking.
+        if (allSuccess && parts.size == 2) {
             repository.markTracking(logId)
             RunTrackerWorker.enqueue(context, logId, rule.id)
             AppLogger.i("Engine", "tracking started log=${logId.take(8)}")

@@ -39,6 +39,10 @@ data class RepoUiState(
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
 
+    companion object {
+        const val MANUAL_RULE_ID = "manual" // pseudo rule id for Repos-tab triggers
+    }
+
     private val api = GitHubApi()
     private val tokenStore = TokenStore(app)
     private val repository = AppRepository(app, api)
@@ -362,19 +366,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             when (val result = api.dispatchWorkflow(token, parts[0], parts[1], workflowId, "main")) {
                 is ApiResult.Success -> {
                     AppLogger.i("Manual", "trigger OK wf=$workflowName repo=$repoFullName")
+                    val logId = java.util.UUID.randomUUID().toString()
+                    val now = System.currentTimeMillis()
                     repository.addLog(
                         com.lucaslu.tickhub.data.TriggerLog(
-                            id = java.util.UUID.randomUUID().toString(),
-                            ruleId = "manual",
+                            id = logId,
+                            ruleId = MANUAL_RULE_ID,
                             workflowName = workflowName,
                             workflowNames = listOf(workflowName),
                             repoFullName = repoFullName,
-                            plannedAt = System.currentTimeMillis(),
-                            firedAt = System.currentTimeMillis(),
+                            plannedAt = now,
+                            firedAt = now,
                             status = com.lucaslu.tickhub.data.TriggerStatus.SUCCESS,
-                            httpCode = result.data
+                            httpCode = result.data,
+                            tracking = true,
+                            trackWorkflowIds = listOf(workflowId)
                         )
                     )
+                    // Same real-duration tracking as rule triggers, so the history
+                    // card shows a live-growing timer until the run completes.
+                    com.lucaslu.tickhub.scheduler.RunTrackerWorker.enqueue(getApplication(), logId, MANUAL_RULE_ID)
                 }
                 is ApiResult.Error -> AppLogger.e("Manual", "trigger FAILED wf=$workflowName: ${result.message}")
             }

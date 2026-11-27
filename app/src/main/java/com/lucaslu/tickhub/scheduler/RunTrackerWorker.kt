@@ -36,13 +36,21 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         val token = TokenStore(applicationContext).getToken() ?: return Result.failure()
         val api = GitHubApi()
         val repo = AppRepository(applicationContext, api)
-        val rule = repo.getRuleOnce(ruleId) ?: return Result.failure()
         val log: TriggerLog? = repo.getLogsOnce().firstOrNull { it.id == logId }
+        val rule = repo.getRuleOnce(ruleId)
         val firedAt = log?.firedAt ?: System.currentTimeMillis()
 
-        val parts = rule.repoFullName.split("/")
-        if (parts.size != 2) return Result.failure()
-        val workflowIds = rule.resolvedWorkflowIds()
+        // Manual (non-rule) triggers carry their own repo/workflow ids in the log;
+        // rule-triggered logs fall back to the rule. This lets "trigger now" from
+        // the Repos tab get the same real-duration tracking as scheduled runs.
+        val repoFullName = log?.repoFullName?.takeIf { it.isNotBlank() } ?: rule?.repoFullName.orEmpty()
+        val workflowIds = log?.trackWorkflowIds?.takeIf { it.isNotEmpty() }
+            ?: rule?.resolvedWorkflowIds().orEmpty()
+        val workflowNames = log?.workflowNames?.takeIf { it.isNotEmpty() }
+            ?: listOfNotNull(rule?.workflowName?.takeIf { it.isNotBlank() })
+
+        val parts = repoFullName.split("/")
+        if (parts.size != 2 || workflowIds.isEmpty()) return Result.failure()
 
         val allRuns = mutableListOf<Pair<Long, GhWorkflowRun>>()
         var anyError = false
@@ -81,14 +89,16 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         val success = allRuns.all { it.second.conclusion == "success" } && !anyError
         repo.finalizeLog(logId, durationMs, success)
 
-        val statusText = if (success) com.lucaslu.tickhub.util.L10n.tNow("执行成功") else com.lucaslu.tickhub.util.L10n.tNow("执行失败")
-        NotificationHelper.notifyResult(
-            applicationContext,
-            logId.hashCode(),
-            "TickHub · $statusText",
-            "${rule.workflowNames.firstOrNull() ?: rule.workflowName}" + com.lucaslu.tickhub.util.L10n.tNow(" 用时 ") + "${durationMs / 1000}s",
-            success
-        )
+        if (repo.isRunTrackingEnabledOnce()) {
+            val statusText = if (success) com.lucaslu.tickhub.util.L10n.tNow("执行成功") else com.lucaslu.tickhub.util.L10n.tNow("执行失败")
+            NotificationHelper.notifyResult(
+                applicationContext,
+                logId.hashCode(),
+                "TickHub · $statusText",
+                "${workflowNames.firstOrNull().orEmpty()}" + com.lucaslu.tickhub.util.L10n.tNow(" 用时 ") + "${durationMs / 1000}s",
+                success
+            )
+        }
         AppLogger.i("Tracker", "finalized log=${logId.take(8)} duration=${durationMs}ms success=$success runs=${allRuns.size} polls=$poll")
         return Result.success()
     }
@@ -110,13 +120,15 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         // Extreme safety net (24h): keep the elapsed time, mark as unconfirmed (not failed).
         val elapsed = (System.currentTimeMillis() - (log?.firedAt ?: System.currentTimeMillis())).coerceAtLeast(0L)
         repo.finalizeUnconfirmed(logId, elapsed)
-        NotificationHelper.notifyResult(
-            applicationContext,
-            logId.hashCode(),
-            com.lucaslu.tickhub.util.L10n.tNow("TickHub · 执行结果未确认"),
-            com.lucaslu.tickhub.util.L10n.tNow("无法从 GitHub 获取执行结果，请到仓库页查看"),
-            false
-        )
+        if (repo.isRunTrackingEnabledOnce()) {
+            NotificationHelper.notifyResult(
+                applicationContext,
+                logId.hashCode(),
+                com.lucaslu.tickhub.util.L10n.tNow("TickHub · 执行结果未确认"),
+                com.lucaslu.tickhub.util.L10n.tNow("无法从 GitHub 获取执行结果，请到仓库页查看"),
+                false
+            )
+        }
         return Result.success()
     }
 

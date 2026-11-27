@@ -92,7 +92,8 @@ data class TriggerLog(
     val isMakeup: Boolean = false,
     val durationMs: Long = 0L,
     val runIds: Map<String, Long> = emptyMap(), // workflowId -> GitHub run id, for real-duration tracking
-    val tracking: Boolean = false // true while waiting for GitHub run to finish
+    val tracking: Boolean = false, // true while waiting for GitHub run to finish
+    val trackWorkflowIds: List<Long> = emptyList() // workflow ids to track for manual (non-rule) triggers
 )
 
 // ---- GitHub REST DTOs ----
