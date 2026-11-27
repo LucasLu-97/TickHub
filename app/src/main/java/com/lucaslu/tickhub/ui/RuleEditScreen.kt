@@ -3,6 +3,7 @@ package com.lucaslu.tickhub.ui
 import com.lucaslu.tickhub.util.t
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,6 +44,7 @@ private val TYPE_LABELS = mapOf(
 )
 private val WEEKDAY_LABELS = mapOf(1 to "一", 2 to "二", 3 to "三", 4 to "四", 5 to "五", 6 to "六", 7 to "日")
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun RuleEditScreen(
     workflows: List<WorkflowItem>,
@@ -141,19 +143,16 @@ fun RuleEditScreen(
 
         Text(t("③ 重复周期"), style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(8.dp))
-        RuleType.entries.filter { it != RuleType.WEEKDAYS }.chunked(3).forEach { row ->
-            Row(modifier = Modifier.fillMaxWidth()) {
-                row.forEach { tp ->
-                    FilterChip(
-                        selected = type == tp,
-                        onClick = { type = tp; Haptics.tick(context) },
-                        label = { Text(t(TYPE_LABELS[tp] ?: tp.name)) },
-                        modifier = Modifier.weight(1f).padding(end = 4.dp)
-                    )
-                }
-                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+        // FlowRow: chips size to their own text and wrap only when needed,
+        // so long translations never get squeezed into two-line chips.
+        FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+            RuleType.entries.filter { it != RuleType.WEEKDAYS }.forEach { tp ->
+                FilterChip(
+                    selected = type == tp,
+                    onClick = { type = tp; Haptics.tick(context) },
+                    label = { Text(t(TYPE_LABELS[tp] ?: tp.name), maxLines = 1) }
+                )
             }
-            Spacer(Modifier.height(4.dp))
         }
         Text(
             t("法定工作日/节假日仅中国用户可用：请先在设置开启「中国法定节假日」。非中国地区不支持此周期。"),
@@ -188,13 +187,12 @@ fun RuleEditScreen(
 
         Text(t("④ 随机漂移（规避签到规律检测）"), style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth()) {
+        FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
             listOf(0, 10, 30, 60).forEach { d ->
                 FilterChip(
                     selected = driftMinutes == d,
                     onClick = { driftMinutes = d; Haptics.tick(context) },
-                    label = { Text(if (d == 0) t("不漂移") else "$d" + t("分")) },
-                    modifier = Modifier.weight(1f).padding(end = 4.dp)
+                    label = { Text(if (d == 0) t("不漂移") else "$d" + t("分"), maxLines = 1) }
                 )
             }
         }

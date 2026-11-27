@@ -94,11 +94,11 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
                         Button(
                             onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); openBatterySettings(context) },
                             modifier = Modifier.weight(1f).padding(end = 4.dp)
-                        ) { Text(t("电池无限制")) }
+                        ) { Text(t("电池无限制"), maxLines = 1, style = MaterialTheme.typography.labelLarge) }
                         OutlinedButton(
                             onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); openAppDetails(context) },
                             modifier = Modifier.weight(1f).padding(start = 4.dp)
-                        ) { Text(t("自启动设置")) }
+                        ) { Text(t("自启动设置"), maxLines = 1, style = MaterialTheme.typography.labelLarge) }
                     }
                 }
             }
