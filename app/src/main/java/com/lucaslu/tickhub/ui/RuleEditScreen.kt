@@ -143,11 +143,11 @@ fun RuleEditScreen(
         Spacer(Modifier.height(8.dp))
         RuleType.entries.filter { it != RuleType.WEEKDAYS }.chunked(3).forEach { row ->
             Row(modifier = Modifier.fillMaxWidth()) {
-                row.forEach { t ->
+                row.forEach { tp ->
                     FilterChip(
-                        selected = type == t,
-                        onClick = { type = t; Haptics.tick(context) },
-                        label = { Text(t(TYPE_LABELS[t] ?: t.name)) },
+                        selected = type == tp,
+                        onClick = { type = tp; Haptics.tick(context) },
+                        label = { Text(t(TYPE_LABELS[tp] ?: tp.name)) },
                         modifier = Modifier.weight(1f).padding(end = 4.dp)
                     )
                 }
@@ -155,6 +155,11 @@ fun RuleEditScreen(
             }
             Spacer(Modifier.height(4.dp))
         }
+        Text(
+            t("法定工作日/节假日仅中国用户可用：请先在设置开启「中国法定节假日」。非中国地区不支持此周期。"),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         when (type) {
             RuleType.ONCE -> TextButton(onClick = { Haptics.tick(context); dateTarget = "once"; showDate = true }) { Text(t("日期：") + "$onceDate  " + t("修改")) }
             RuleType.WEEKLY -> {
