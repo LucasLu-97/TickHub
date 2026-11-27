@@ -65,7 +65,7 @@ class DispatchEngine(private val context: Context) {
         val networkOk = waitForNetwork(waitMinutes)
         AppLogger.i("Engine", "network ready=$networkOk")
         if (!networkOk) {
-            addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "等待网络超时（$waitMinutes分钟）", errorKey = "等待网络超时（{0}分钟）", errorArgs = listOf("$waitMinutes"), isMakeup = isMakeup)
+            addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "等待网络超时（${waitMinutes}分钟）", errorKey = "等待网络超时（{0}分钟）", errorArgs = listOf("$waitMinutes"), isMakeup = isMakeup)
             retryOrAdvance(rule, plannedAt)
             return TriggerStatus.FAILED
         }

@@ -57,7 +57,8 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         val knownRunIds = log?.runIds.orEmpty()
         if (knownRunIds.isNotEmpty()) {
             // Precise mode: we already discovered the exact run ids for this dispatch.
-            for ((wfId, runId) in knownRunIds) {
+            for ((wfIdKey, runId) in knownRunIds) {
+                val wfId = wfIdKey.toLongOrNull() ?: continue
                 when (val result = api.getWorkflowRun(token, parts[0], parts[1], runId)) {
                     is ApiResult.Success -> allRuns.add(wfId to result.data)
                     is ApiResult.Error -> anyError = true

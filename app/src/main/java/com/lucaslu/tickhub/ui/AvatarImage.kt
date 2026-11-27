@@ -31,6 +31,7 @@ private object AvatarCache {
     private val lru = object : android.util.LruCache<String, android.graphics.Bitmap>(maxKb) {
         override fun sizeOf(key: String, value: android.graphics.Bitmap): Int =
             value.byteCount / 1024 // size in KB, matches maxKb
+    }
 
     fun get(url: String): android.graphics.Bitmap? = synchronized(lru) { lru.get(url) }
     fun put(url: String, bmp: android.graphics.Bitmap) = synchronized(lru) { lru.put(url, bmp) }
