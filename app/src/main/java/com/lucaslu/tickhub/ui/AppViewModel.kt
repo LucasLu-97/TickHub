@@ -75,6 +75,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val holidayEnabledFlow: StateFlow<Boolean> = _holidayEnabled.asStateFlow()
 
     init {
+        // load app language preference (independent of system locale)
+        viewModelScope.launch { com.lucaslu.tickhub.util.L10n.load(getApplication()) }
         viewModelScope.launch {
             repository.hapticsEnabled.collect { com.lucaslu.tickhub.util.Haptics.enabled = it }
         }
@@ -325,6 +327,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setHapticsEnabled(enabled: Boolean) {
         viewModelScope.launch { repository.setHapticsEnabled(enabled) }
+    }
+
+    fun setLanguage(lang: com.lucaslu.tickhub.util.L10n.Lang) {
+        viewModelScope.launch { com.lucaslu.tickhub.util.L10n.set(getApplication(), lang) }
     }
 
     /** China-only statutory calendar opt-in. Turning it on immediately fetches
