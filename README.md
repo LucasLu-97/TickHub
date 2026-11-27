@@ -10,7 +10,7 @@
 
 | 项 | 状态 |
 | --- | --- |
-| 版本 | **v1.3.0 正式版**（签名 APK + AAB，可覆盖安装） |
+| 版本 | **v1.3.4 正式版**（签名 APK，可覆盖安装） |
 | 需求 / 架构文档 | ✅ [`docs/TickHub-开发需求文档.md`](docs/TickHub-开发需求文档.md) |
 | CI | ✅ GitHub Actions 自动构建、单测、签名、发布 Release |
 | 登录 | ✅ GitHub OAuth Device Flow（内置公开 Client ID，装完即用） |

@@ -11,7 +11,7 @@
 | 仓库    | <https://github.com/LucasLu-97/TickHub> （公开）                                                                                                                      |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1>                                                                   |
 | 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35>                             |
-| 当前正式版 | v1.3.3（R8 瘦身正式版：APK 2.4MB，adb 实机验证启动/登录界面正常），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.3.3 |
+| 当前正式版 | **v1.3.4（最终正式版）**（全局审视全修：失败重试持久化/部分成功去重/CI只产APK/状态机单测；adb 实机验证已登录主页正常），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.3.4 |
 | 历史正式版 | v1.2.0（全面加固）、v1.1.5（立即触发耗时追踪）、v1.1.4（规则卡/失败重试/闹钟降级）、v1.1.3（历史页i18n+耗时）、v1.1.2（i18n布局）、v1.1.1（状态实时翻译）、v1.1.0（双语/节假日开关）、v1.0.3（登录页）、v1.0.2（关闭R8）、v1.0.1/v1.0.0（R8闪退） |
 | 真机验收  | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现）                                                                                                 |
 | 登录方式  | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16）                                                                                                                  |
@@ -1052,6 +1052,24 @@ Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: a
 **验证**（用户开通 adb，作者直接 adb install + monkey 启动 + 截图 + logcat）：进程存活、MainActivity 前台、登录界面正常渲染、无 TickHub 自身异常。AppViewModel 构造时同步读取的 DataStore 序列化数据（snapshot/rules/logs）也全部成功，证明序列化 keep 规则同样有效。
 
 **产物**：APK 2.4MB（R8 瘦身，原 10.14MB）、AAB 5.14MB、mapping.txt。
+
+---
+
+## 29. v1.3.4 最终正式版（全局审视全修）
+
+用户要求发正式版前全局审视。两路独立审查（R8/启动链路 + 全局逻辑/兜底）交叉验证，发现一个发布阻断级缺陷，全部修复：
+
+**P0（漏签，已修）**：失败重试的闹钟只存在于内存（AlarmManager），设备重启/进程被杀后丢失；重启后 `catchUpMissed` 因 FAILED 日志判定"已尝试"而跳过 → 该 slot 永久不再触发。修复：Rule 新增 `retryAt/retryPlannedAt/retryFailedWfIds` 持久化重试状态；BootReceiver/syncAlarms 恢复未过期的 retry alarm；catchUp 用 `DispatchPolicy.catchUpAction` 区分"重试待执行（跳过）"与"重试已逾期（立即补发）"。
+
+**P1（已修）**：多 workflow 部分成功时重试会重发已成功的 workflow（重复签到）→ 只重试失败的 wfIds；runIds 修复 404 重发现后因只比较 size 而没持久化 → 改比较内容；TokenStore Keystore 降级 token 从实例字段改 companion 进程单例（否则后台各实例读不到 token）；execute 抛异常不写日志不重试 → handleException 走同一持久化重试路径；markRunning 移入 try 防 WakeLock 泄漏；addLog 与 tracking 合并为一次原子 edit（裁剪日志时保护 tracking 项）；手动触发加 advance=false 不消耗既定 slot；httpCode 从失败项取。
+
+**稳定性/架构（已修）**：R8 规则补 App Startup/WorkManagerInitializer/InputMerger keep（防同类闪退复发）；移除全局 -dontwarn（改为针对 Tink/errorprone 的精确抑制）；崩溃捕获改原子写+无 previous handler 时主动杀进程；SimpleDateFormat 移入锁内；AppViewModel 5 次 runBlocking 合并为 1 次 + 损坏兜底；重复 L10n.load 去除；扫描结果/登录成功 i18n 改 key+args 模式；MainActivity 启动维护加一次性守卫防配置变更重跑。
+
+**CI 精简（按用户要求）**：暂不上架商店，CI 只产出签名 APK（去掉 AAB/mapping），新增 R8 关键 keep 规则校验步骤（防回归）。
+
+**测试**：新增 `DispatchPolicyTest` 7 个 JVM 单测，覆盖重试计数、部分成功子集、C1 重启卡死、未来重试去重、已尝试跳过、漂移窗口、跨 slot 干扰。状态机关键决策从 DispatchEngine 抽到纯 Kotlin `DispatchPolicy`，测试与线上使用同一套逻辑。
+
+**验证**：CI 全绿（单测+R8 APK）；adb 实机安装 v1.3.4，启动后 MainActivity 前台、无崩溃、已登录主页（仓库列表+头像+底部标签栏）正常渲染。APK 2.35MB。
 
 ---
 
