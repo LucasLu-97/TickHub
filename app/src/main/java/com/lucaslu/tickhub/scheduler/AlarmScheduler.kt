@@ -15,6 +15,8 @@ import java.util.Locale
 /**
  * Registers precise alarms via AlarmManager.setExactAndAllowWhileIdle.
  * One alarm per enabled rule, identified by requestCode derived from rule id.
+ * On Android 12+ without exact-alarm permission, falls back to a non-exact
+ * alarm (still fires) and notifies the user instead of silently failing.
  */
 class AlarmScheduler(private val context: Context) {
 
@@ -23,18 +25,36 @@ class AlarmScheduler(private val context: Context) {
     fun schedule(rule: Rule) {
         if (rule.status != RuleStatus.ENABLED) return
         val triggerAt = rule.nextFireAt ?: return
-        if (triggerAt <= System.currentTimeMillis()) return
+        scheduleAt(rule.id, rule.workflowName, triggerAt, triggerAt)
+    }
 
-        val pi = pendingIntentFor(rule.id, triggerAt)
+    /** Retry alarm for a failed slot: fires at [triggerAt] but keeps the original
+     *  [plannedAt] so logs/dedup stay keyed to the real scheduled slot. */
+    fun scheduleRetry(ruleId: String, workflowName: String, triggerAt: Long, plannedAt: Long) {
+        scheduleAt(ruleId, workflowName, triggerAt, plannedAt)
+    }
+
+    private fun scheduleAt(ruleId: String, workflowName: String, triggerAt: Long, plannedAt: Long) {
+        if (triggerAt <= System.currentTimeMillis()) return
+        val pi = pendingIntentFor(ruleId, plannedAt)
         val timeStr = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(triggerAt))
-        val ok = runCatching {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        val canExact = canScheduleExactAlarms()
+        val result = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && canExact) {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+                "exact"
             } else {
-                alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+                // No exact-alarm permission (Android 12+): still fire, just not exact.
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+                "inexact"
             }
-        }.isSuccess
-        AppLogger.i("Alarm", "schedule rule=${rule.id.take(8)} wf=${rule.workflowName} at=$timeStr exact=$ok canExact=${canScheduleExactAlarms()}")
+        }
+        val mode = result.getOrDefault("failed")
+        AppLogger.i("Alarm", "schedule rule=${ruleId.take(8)} wf=$workflowName at=$timeStr mode=$mode canExact=$canExact")
+        if (mode == "inexact" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // One-time heads-up: exact alarms are off; triggers may be delayed.
+            com.lucaslu.tickhub.util.NotificationHelper.notifyExactAlarmNeeded(context)
+        }
     }
 
     fun cancel(ruleId: String) {

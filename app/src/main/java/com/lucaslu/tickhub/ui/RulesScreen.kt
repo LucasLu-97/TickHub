@@ -224,7 +224,10 @@ private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () 
         Text(names.joinToString("、"), style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(6.dp))
         val timeText = rule.timeSlots.ifEmpty { listOf(String.format("%02d:%02d", rule.hour, rule.minute)) }.joinToString("、")
-        val cycleText = t(TYPE_LABELS[rule.type] ?: rule.type.name)
+        val cycleText = when (rule.type) {
+            RuleType.EVERY_N_DAYS -> t("每隔 ") + "${rule.intervalDays}" + t(" 天")
+            else -> t(TYPE_LABELS[rule.type] ?: rule.type.name)
+        }
         Text("$cycleText · $timeText", style = MaterialTheme.typography.bodyMedium)
         rule.effectiveFireAt?.let {
             val next = RuleEngine.fromEpochMillis(it)
@@ -240,6 +243,15 @@ private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () 
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary
             )
+        } ?: run {
+            // Legal-holiday rules can have no next date when calendar data is unavailable.
+            if (rule.type == RuleType.LEGAL_HOLIDAY || rule.type == RuleType.LEGAL_WORKDAY) {
+                Text(
+                    t("节假日数据未就绪，请在设置开启「中国法定节假日」"),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
         }
         Spacer(Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {

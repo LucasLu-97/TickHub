@@ -89,15 +89,20 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
 
     suspend fun getLogsOnce(): List<TriggerLog> = logs.first()
 
-    /** Compute next fire time with holiday calendar + deterministic drift. */
+    /** Compute next fire time with holiday calendar + deterministic drift.
+     *  Loads the current AND next year so cross-year holidays (e.g. New Year in
+     *  December) resolve correctly instead of returning null. */
     suspend fun computeNextFire(rule: Rule, from: LocalDateTime): Pair<LocalDateTime?, Long?> {
         val year = from.year
         val holidays = HolidayCalendar.load(context, year)
+        val holidaysNext = HolidayCalendar.load(context, year + 1)
         val isWorkday: (LocalDate) -> Boolean = { d ->
-            HolidayCalendar.isLegalWorkday(holidays, d)
+            val data = if (d.year == year) holidays else if (d.year == year + 1) holidaysNext else holidays
+            HolidayCalendar.isLegalWorkday(data, d)
         }
         val isHoliday: (LocalDate) -> Boolean = { d ->
-            HolidayCalendar.isLegalHoliday(holidays, d)
+            val data = if (d.year == year) holidays else if (d.year == year + 1) holidaysNext else holidays
+            HolidayCalendar.isLegalHoliday(data, d)
         }
         val next = RuleEngine.computeNextFire(rule, from, isWorkday, isHoliday)
         val base = next?.let { RuleEngine.toEpochMillis(it) }

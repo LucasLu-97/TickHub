@@ -31,6 +31,11 @@ import kotlin.coroutines.resume
  */
 class DispatchEngine(private val context: Context) {
 
+    companion object {
+        const val MAX_RETRIES = 5        // per slot, then advance to avoid a stuck rule
+        const val RETRY_DELAY_MS = 15 * 60_000L // 15 min between retries
+    }
+
     private val api = GitHubApi()
     private val tokenStore = TokenStore(context)
     private val repository = AppRepository(context, api)
@@ -61,7 +66,7 @@ class DispatchEngine(private val context: Context) {
         AppLogger.i("Engine", "network ready=$networkOk")
         if (!networkOk) {
             addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = com.lucaslu.tickhub.util.L10n.tNow("等待网络超时（") + waitMinutes + com.lucaslu.tickhub.util.L10n.tNow("分钟）"), isMakeup = isMakeup)
-            advanceRule(rule)
+            retryOrAdvance(rule, plannedAt)
             return TriggerStatus.FAILED
         }
 
@@ -132,8 +137,26 @@ class DispatchEngine(private val context: Context) {
             AppLogger.i("Engine", "tracking started log=${logId.take(8)}")
         }
 
-        advanceRule(rule)
+        // Success advances to the next slot; failure retries the SAME slot instead
+        // of consuming it (a transient network/API error must not silently lose a check-in).
+        if (allSuccess) advanceRule(rule) else retryOrAdvance(rule, plannedAt)
         return status
+    }
+
+    /** Retry a failed slot a few times (short delay, same plannedAt), then give up.
+     *  Keeps the slot alive so a transient failure cannot cause a missed check-in. */
+    private suspend fun retryOrAdvance(rule: Rule, plannedAt: Long) {
+        val failCount = repository.getLogsOnce().count {
+            it.ruleId == rule.id && it.plannedAt == plannedAt && it.status == TriggerStatus.FAILED
+        }
+        if (failCount >= MAX_RETRIES) {
+            AppLogger.w("Engine", "rule=${rule.id.take(8)} slot=$plannedAt exhausted $failCount retries -> advance")
+            advanceRule(rule)
+            return
+        }
+        val retryAt = System.currentTimeMillis() + RETRY_DELAY_MS
+        alarmScheduler.scheduleRetry(rule.id, rule.workflowName, retryAt, plannedAt)
+        AppLogger.i("Engine", "rule=${rule.id.take(8)} slot=$plannedAt retry #${failCount + 1} at=$retryAt")
     }
 
     /** Compute next fire time, persist, and re-register the alarm. */

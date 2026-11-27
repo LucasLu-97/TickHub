@@ -25,6 +25,21 @@ object NotificationHelper {
         }
     }
 
+    /** One-time heads-up when exact-alarm permission is missing (triggers may be delayed). */
+    fun notifyExactAlarmNeeded(context: Context) {
+        runCatching {
+            ensureChannel(context)
+            val nm = context.getSystemService(NotificationManager::class.java)
+            val notif = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle(L10n.tNow("TickHub · 精确闹钟未开启"))
+                .setContentText(L10n.tNow("请在设置开启精确闹钟，否则定时可能延迟数分钟"))
+                .setAutoCancel(true)
+                .build()
+            nm.notify(9999, notif) // fixed id: repeated schedules overwrite, no spam
+        }
+    }
+
     fun notifyResult(context: Context, idSeed: Int, title: String, message: String, success: Boolean) {
         runCatching {
             ensureChannel(context)
