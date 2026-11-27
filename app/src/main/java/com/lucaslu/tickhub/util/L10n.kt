@@ -84,7 +84,7 @@ object L10n {
         "设备码已复制" to "Device code copied",
         "复制设备码" to "Copy code",
         "打开 GitHub 授权页面" to "Open GitHub",
-        "授权页面显示「GitHub CLI」属正常现象——TickHub 使用 GitHub 官方公开登录方式，请放心授权。" to " Seeing \"GitHub CLI\" is normal. Safe to authorize.",
+        "授权页面显示「GitHub CLI」属正常现象——TickHub 使用 GitHub 官方公开登录方式，请放心授权。" to "Seeing \"GitHub CLI\" is normal. Safe to authorize.",
         "请在浏览器输入设备码完成授权，完成后本 APP 会自动进入，无需其他操作" to "Enter code in browser; app continues automatically.",
         "正在等待授权完成，登录会自动继续，请稍候…" to "Waiting for authorization…",
         "正在确认授权结果，请稍候…" to "Confirming…",

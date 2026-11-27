@@ -43,8 +43,10 @@ data class HolidayYearData(
 object HolidayCalendar {
 
     private val json = Json { ignoreUnknownKeys = true }
-    @Volatile private var cache: HolidayYearData? = null
-    @Volatile private var cacheYear: Int = 0
+    // Atomic single-field cache (the old pair of @Volatile fields could be
+    // observed mid-update). Map also avoids the 4-year loop thrashing a
+    // single-slot cache during computeNextFire.
+    @Volatile private var cache: Map<Int, HolidayYearData> = emptyMap()
 
     /** Bundled 2026 data (State Council notice). */
     private val bundled2026 = """
@@ -105,7 +107,7 @@ object HolidayCalendar {
     }
 
     suspend fun load(context: Context, year: Int): HolidayYearData {
-        if (cache != null && cacheYear == year) return cache!!
+        cache[year]?.let { return it }
         val all = readAll(context)
         val found = all.firstOrNull { it.year == year }
         val data = found ?: if (year == 2026) {
@@ -113,7 +115,7 @@ object HolidayCalendar {
         } else {
             HolidayYearData(year, emptyList())
         }
-        cache = data; cacheYear = year
+        cache = cache + (year to data)
         return data
     }
 
@@ -127,7 +129,7 @@ object HolidayCalendar {
         val nowYear = LocalDate.now().year
         val targets = listOf(nowYear, nowYear + 1)
         val prefs = context.holidayDataStore.data.first()
-        val fetched = (prefs[KEY_HOLIDAY_FETCHED_FOR] ?: "").split(",").filter { it.isNotBlank() }.toSet()
+        val fetched = (prefs[KEY_HOLIDAY_FETCHED_FOR] ?: "").split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
         val all = readAll(context)
         var changed = false
         val fetchedYears = mutableSetOf<String>()
@@ -153,7 +155,7 @@ object HolidayCalendar {
                 p[KEY_HOLIDAY_DATA] = json.encodeToString(all)
                 p[KEY_HOLIDAY_FETCHED_FOR] = newFetched
             }
-            cache = null // force reload next time
+            cache = emptyMap() // force reload next time
         }
         return changed
     }

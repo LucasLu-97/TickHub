@@ -21,8 +21,7 @@ object RuleEngine {
     /**
      * Returns the first trigger time strictly after `from`, or null if no future
      * occurrence exists (e.g. expired ONCE rule, or invalid config).
-     */
-    /**
+     *
      * @param isWorkday optional predicate: given a date, is it a statutory workday?
      *                  If null, Mon-Fri is used (no holiday data available).
      * @param isHoliday optional predicate: given a date, is it a statutory holiday?

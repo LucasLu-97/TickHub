@@ -185,18 +185,17 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
             val idx = rules.indexOfFirst { it.id == ruleId }
             if (idx >= 0) {
                 val cur = rules[idx]
-                val updated = if (transition.completed) {
+                val updated = if (cur.status != com.lucaslu.tickhub.data.RuleStatus.ENABLED) {
+                    // C-1: rule was disabled while a Worker was in flight —
+                    // never overwrite DISABLED with COMPLETED/retry state.
+                    cur.copy(lastFiredAt = transition.lastFiredAt ?: cur.lastFiredAt)
+                } else if (transition.completed) {
                     cur.copy(
                         status = com.lucaslu.tickhub.data.RuleStatus.COMPLETED,
                         nextFireAt = null, effectiveFireAt = null,
                         lastFiredAt = transition.lastFiredAt ?: System.currentTimeMillis(),
                         retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
                     )
-                } else if (cur.status != com.lucaslu.tickhub.data.RuleStatus.ENABLED) {
-                    // C-1: the rule was disabled (or completed) while a Worker was
-                    // in flight. Never re-arm a retry on a non-ENABLED rule —
-                    // that would fire an unwanted check-in 15 minutes later.
-                    cur.copy(lastFiredAt = transition.lastFiredAt ?: cur.lastFiredAt)
                 } else {
                     cur.copy(
                         nextFireAt = transition.nextFireAt ?: cur.nextFireAt,
@@ -341,7 +340,6 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     val showExecutionStatus: Flow<Boolean> = context.dataStore.data.map { it[showExecutionKey] ?: true }
 
     suspend fun showExecutionStatusOnce(): Boolean = runCatching { context.dataStore.data.first()[showExecutionKey] ?: true }.getOrDefault(true)
-    suspend fun runTrackingOnce(): Boolean = runCatching { context.dataStore.data.first()[runTrackingKey] ?: true }.getOrDefault(true)
     suspend fun hapticsOnce(): Boolean = runCatching { context.dataStore.data.first()[hapticsKey] ?: true }.getOrDefault(true)
 
     /** Theme mode: 0=light, 1=dark, 2=system. Defaults to system (2). */

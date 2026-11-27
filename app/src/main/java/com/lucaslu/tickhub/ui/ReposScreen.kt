@@ -134,7 +134,7 @@ fun ReposScreen(vm: RepoViewModel) {
                             enabled = !state.scanning,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                         ) {
-                            Text(if (state.scanning) t("扫描仓库与工作流") else t("扫描仓库与工作流"))
+                            Text(t("扫描仓库与工作流"))
                             if (state.scanning) {
                                 Spacer(Modifier.padding(4.dp))
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
