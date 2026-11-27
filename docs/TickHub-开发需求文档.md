@@ -11,8 +11,8 @@
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
 | 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35 |
-| 当前正式版 | v1.1.5（修复立即触发耗时追踪：仓库页 manual 触发也纳入 RunTracker），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.1.5 |
-| 历史正式版 | v1.1.4（规则卡间隔天数/法定节假日下次时间 + 失败重试 + 精确闹钟降级）、v1.1.3（历史页 i18n 补全 + 实时耗时追踪）、v1.1.2（i18n 布局优化）、v1.1.1（状态实时翻译）、v1.1.0（双语/节假日开关/耗时修复）、v1.0.3（登录页优化）、v1.0.2（关闭 R8 修复闪退）、v1.0.1 / v1.0.0（R8 闪退） |
+| 当前正式版 | v1.2.0（全面加固：重试去重/后台i18n/runIds精确匹配/logout清理/HTTP分级/节假日策略/资源优化），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.2.0 |
+| 历史正式版 | v1.1.5（立即触发耗时追踪）、v1.1.4（规则卡间隔天数/失败重试/闹钟降级）、v1.1.3（历史页i18n+实时耗时）、v1.1.2（i18n布局）、v1.1.1（状态实时翻译）、v1.1.0（双语/节假日开关）、v1.0.3（登录页优化）、v1.0.2（关闭R8修复闪退）、v1.0.1/v1.0.0（R8闪退） |
 | 真机验收 | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现） |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
@@ -977,6 +977,20 @@ APP 内置了 **GitHub CLI 的官方公开 Client ID**（`178c6fc778ccc68e1d6a`�
 **时区确认**：RuleEngine 全程用 `LocalDateTime` + `ZoneId.systemDefault()`，存 epoch millis 绝对时间，AlarmManager 用 `RTC_WAKEUP` 按 epoch 触发，显示时再转回本机时区。国外用户按本机时区解释规则时间，**无硬编码北京时间**，无需改动。
 
 **i18n 修正（v1.1.1）**：① 状态文本（登录 status/error、仓库扫描 message/error）改为 ViewModel 存**中文 key**、UI 显示时 `L10n.tNow()` 实时翻译——修掉"生成时固化翻译导致切换语言后状态不跟随"的 bug（用户看到 "enter the code" 只有英文即此因）。② 补漏译：仓库页确认弹窗 `将立即触发工作流「…」`、卡片 `N 工作流`、历史页 `最近 N 条记录`（动态字符串脚本原先跳过）。③ 英文翻译精简：周期 chip `法定工作日→Weekdays`/`法定节假日→Holidays`、按钮 `立即触发→Trigger`/`扫描仓库与工作流→Scan repos`/`打开 GitHub 授权页面→Open GitHub` 等，长说明句全部缩短，避免换行导致按钮变高。④ 语言卡片移到设置页最底部（退出登录上方）。默认语言仍为中文。
+
+## 25. v1.2.0 全面加固基线
+
+用户要求"做到极致"，对所有审查发现项系统修复：
+
+1. **重试/补触发去重统一**：补触发从"排除 FAILED"改为"任何日志都算已尝试"，避免重试闹钟与补触发重复 dispatch。统一 plannedAt 口径——闹钟触发时间用 effective（含漂移），但日志/去重键用 base（nextFireAt），新增 `AlarmScheduler.scheduleWithSlot(rule, triggerAt, plannedAt)`；saveRule/setRuleEnabled/scheduleAt 全部改用新方法。
+2. **后台 i18n**：`L10n.load` 上移到 `TickHubApp.onCreate` 同步加载（runBlocking），确保闹钟/Worker 后台独立拉起时语言正确。错误文本改为可翻译 key 存储：`TriggerLog` 加 `errorKey`/`errorArgs`，DispatchEngine/Repository 写日志存 key（不再固化为某语言的文本），UI 显示时 `L10n.tFormat()` 按当前语言渲染，`{0}/{1}` 占位符替换参数。
+3. **runIds 精确匹配**：新增 `GitHubApi.getWorkflowRun(runId)`；RunTrackerWorker 首轮发现 run 后把 workflowId→runId 存日志（`updateLogTracking`），后续轮次按 runId 精确查询，避免同 workflow 短时多次触发误关联旧 run。
+4. **logout 彻底清理**：`TokenStore.clearSync()`（commit 同步落盘）；`clearAllUserData()` 清所有账号数据键（rules/logs/snapshot/running/lastCatchUp/order），保留用户偏好；先取消闹钟/WorkManager 再清数据（否则拿不到 ruleId）。
+5. **数据安全**：JSON 解析失败写 DataIntegrity 日志告警；refreshManaged/scan 在 `dataStore.edit` 块内重读最新 snapshot 再合并，保护网络请求期间的用户勾选不被旧快照覆盖。
+6. **HTTP 分级 + 默认分支**：`ApiResult.Error` 加 `isUnauthorized/isRateLimited/isServerError`；scan 遇 401 清 token 跳重登、403 提示限流；workflow_dispatch 用仓库 `defaultBranch` 而非硬编码 main（DispatchEngine + triggerWorkflowNow）。
+7. **节假日拉取策略（用户明确要求）**：只在三种时机拉取——① 首次打开开关 ② 关→开切换（等同手动拉取）③ 每年 12 月 17 日一次（次年通知通常此时已发布）。去掉 MainActivity 每次登录的主动拉取；新增 `maybeAnnualHolidayRefresh()` 用 `holiday_annual_fetch_year` 偏好防重复。平时 App 绝不主动拉取。
+8. **轮询上限**：MAX_POLLS 17280→2160（用户：3 小时超长任务足够，2160×5s=3h）。
+9. **资源优化**：头像缓存 ConcurrentHashMap→LruCache（≤8MB 或 1/16 堆）+ inSampleSize 采样到 128px；构建配置清理死依赖；CI 签名密钥 assembleRelease 后自动删除。material-icons-core 1.7.8 与 BOM 不兼容（图标缺失）已回退 extended。
 
 **立即触发耗时追踪修复（v1.1.5）**：仓库页「立即触发」原走 `AppViewModel.triggerWorkflowNow` 捷径——直接 `repository.addLog` 写死 `SUCCESS/durationMs=0/tracking=false`，完全绕过 DispatchEngine 追踪，历史卡片因此永远不显示耗时（用户多次反馈）。修复：① `TriggerLog` 加 `trackWorkflowIds` 字段，manual 触发写入自身 workflowId、`tracking=true` 并启动 `RunTrackerWorker`；② `RunTrackerWorker` 改为优先从 log 读 repoFullName/workflowIds/workflowNames（manual 无 rule），rule 触发仍回退到 rule；③ 耗时追踪改为**总是开启**（不再受"执行结果通知"开关控制）——开关只控制是否发通知，追踪与历史耗时始终有效。规则页立即触发（走 DispatchEngine）同样受益。
 
