@@ -9,7 +9,6 @@ import com.lucaslu.tickhub.util.AppLogger
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 
 /** GitHub OAuth device-flow login and logout. All state lives in AppContainer. */
@@ -58,7 +57,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         var currentInterval = intervalSec
         var consecutiveNetworkErrors = 0
         while (System.currentTimeMillis() < deadline) {
-            ensureActive() // cancelled by a newer startDeviceFlow()
+            kotlin.coroutines.coroutineContext.ensureActive() // cancelled by a newer startDeviceFlow()
             delay(currentInterval * 1000L)
             when (val result = c.api.pollToken(deviceCode)) {
                 is ApiResult.Error -> {
