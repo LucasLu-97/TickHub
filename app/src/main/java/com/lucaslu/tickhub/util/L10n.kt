@@ -112,7 +112,7 @@ object L10n {
         "最近 " to "Last ",
         " 条记录" to " records",
         "还没有触发记录。创建规则并到点后，记录会显示在这里。" to "No records yet.",
-        "计划：" to "Planned: ", "实际：" to "Fired: ", "耗时 " to "Duration ",
+        "计划：" to "Planned: ", "实际：" to "Fired: ", "耗时 " to "Duration: ",
         // ---- settings ----
         "后台运行" to "Background running",
         "⚠ 电池优化开启，定时可能延迟" to "Battery optimization on - alarms may be delayed",

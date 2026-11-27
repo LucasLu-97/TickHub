@@ -9,6 +9,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.lucaslu.tickhub.data.GhWorkflowRun
 import com.lucaslu.tickhub.data.TokenStore
+import com.lucaslu.tickhub.data.TriggerLog
 import com.lucaslu.tickhub.network.ApiResult
 import com.lucaslu.tickhub.network.GitHubApi
 import com.lucaslu.tickhub.repository.AppRepository
@@ -20,10 +21,11 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Polls GitHub Actions for the real start/end time of dispatched runs.
- * Each poll is a short WorkManager wake-up (5s delay between), NOT a persistent
- * foreground service — so it stays lightweight. The loop stops as soon as the
- * run completes (typical 1-3 min = ~12-36 polls), so the 12-min MAX_POLLS is only
- * a worst-case cap for long/stuck runs. 5s gives near-real-time result notification.
+ * Each poll is a short WorkManager wake-up (5s delay), NOT a foreground service.
+ * Polling continues until the run actually reaches "completed" — there is no
+ * short fixed cap, only a very long safety net (24h) to avoid a truly endless loop.
+ * The live duration is persisted on every poll so the history card always shows
+ * a growing timer, even across process death.
  */
 class RunTrackerWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
 
@@ -34,8 +36,9 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         val token = TokenStore(applicationContext).getToken() ?: return Result.failure()
         val api = GitHubApi()
         val repo = AppRepository(applicationContext, api)
-        val rule = repo.getRuleOnce(ruleId)
-        if (rule == null) return Result.failure()
+        val rule = repo.getRuleOnce(ruleId) ?: return Result.failure()
+        val log: TriggerLog? = repo.getLogsOnce().firstOrNull { it.id == logId }
+        val firedAt = log?.firedAt ?: System.currentTimeMillis()
 
         val parts = rule.repoFullName.split("/")
         if (parts.size != 2) return Result.failure()
@@ -46,31 +49,35 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         for (wfId in workflowIds) {
             when (val result = api.listWorkflowRuns(token, parts[0], parts[1], wfId, 5)) {
                 is ApiResult.Success -> {
-                    // newest run for this workflow (usually the one we just dispatched)
-                    val run = result.data.workflowRuns.firstOrNull()
-                    if (run != null) allRuns.add(wfId to run) else anyError = true
+                    // Only accept a run created around/after this dispatch — never an older run.
+                    val newest = result.data.workflowRuns
+                        .filter { runCreatedAfter(it, firedAt - OLD_RUN_TOLERANCE_MS) }
+                        .maxByOrNull { parseInstant(it.createdAt)?.toEpochMilli() ?: 0L }
+                    if (newest != null) allRuns.add(wfId to newest) else anyError = true
                 }
                 is ApiResult.Error -> anyError = true
             }
         }
 
+        // No run created yet (GitHub lag): keep the timer growing from firedAt and retry.
         if (allRuns.isEmpty()) {
-            return if (poll < MAX_POLLS) { reenqueue(logId, ruleId, poll + 1); Result.success() }
-            else { giveUp(repo, logId); Result.success() }
+            persistLiveElapsed(repo, logId, firedAt, null)
+            return continueOrGiveUp(logId, ruleId, poll, repo, log)
         }
 
         val allDone = allRuns.all { it.second.status == "completed" }
-        if (!allDone && poll < MAX_POLLS) {
-            reenqueue(logId, ruleId, poll + 1)
-            return Result.success()
+        if (!allDone) {
+            // Run exists but still running: persist a live duration from its start.
+            persistLiveElapsed(repo, logId, firedAt, allRuns.mapNotNull { parseInstant(it.second.runStartedAt.ifBlank { it.second.createdAt })?.toEpochMilli() }.minOrNull())
+            return continueOrGiveUp(logId, ruleId, poll, repo, log)
         }
 
-        // compute real duration: from earliest run_started_at to latest updated_at
+        // Completed: compute real duration from earliest run_started_at to latest updated_at.
         val starts = allRuns.mapNotNull { parseInstant(it.second.runStartedAt.ifBlank { it.second.createdAt }) }
         val ends = allRuns.mapNotNull { parseInstant(it.second.updatedAt) }
-        val durationMs: Long = if (starts.isNotEmpty() && ends.isNotEmpty()) {
+        val durationMs = if (starts.isNotEmpty() && ends.isNotEmpty()) {
             Duration.between(starts.min(), ends.max()).toMillis().coerceAtLeast(0L)
-        } else 0L
+        } else (System.currentTimeMillis() - firedAt).coerceAtLeast(0L)
         val success = allRuns.all { it.second.conclusion == "success" } && !anyError
         repo.finalizeLog(logId, durationMs, success)
 
@@ -82,13 +89,41 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
             "${rule.workflowNames.firstOrNull() ?: rule.workflowName}" + com.lucaslu.tickhub.util.L10n.tNow(" 用时 ") + "${durationMs / 1000}s",
             success
         )
-        AppLogger.i("Tracker", "finalized log=${logId.take(8)} duration=${durationMs}ms success=$success runs=${allRuns.size}")
+        AppLogger.i("Tracker", "finalized log=${logId.take(8)} duration=${durationMs}ms success=$success runs=${allRuns.size} polls=$poll")
         return Result.success()
     }
 
-    private suspend fun giveUp(repo: AppRepository, logId: String) {
-        repo.finalizeLog(logId, 0L, false)
-        NotificationHelper.notifyResult(applicationContext, logId.hashCode(), com.lucaslu.tickhub.util.L10n.tNow("TickHub · 执行结果未确认"), com.lucaslu.tickhub.util.L10n.tNow("无法从 GitHub 获取执行结果，请到仓库页查看"), false)
+    /** Persist a live-growing duration so the history card always shows a timer. */
+    private suspend fun persistLiveElapsed(repo: AppRepository, logId: String, firedAt: Long, runStartMs: Long?) {
+        val base = runStartMs ?: firedAt
+        val elapsed = (System.currentTimeMillis() - base).coerceAtLeast(0L)
+        repo.updateLogElapsed(logId, elapsed)
+    }
+
+    private suspend fun continueOrGiveUp(
+        logId: String, ruleId: String, poll: Int, repo: AppRepository, log: TriggerLog?
+    ): Result {
+        if (poll < MAX_POLLS) {
+            reenqueue(logId, ruleId, poll + 1)
+            return Result.success()
+        }
+        // Extreme safety net (24h): keep the elapsed time, mark as unconfirmed (not failed).
+        val elapsed = (System.currentTimeMillis() - (log?.firedAt ?: System.currentTimeMillis())).coerceAtLeast(0L)
+        repo.finalizeUnconfirmed(logId, elapsed)
+        NotificationHelper.notifyResult(
+            applicationContext,
+            logId.hashCode(),
+            com.lucaslu.tickhub.util.L10n.tNow("TickHub · 执行结果未确认"),
+            com.lucaslu.tickhub.util.L10n.tNow("无法从 GitHub 获取执行结果，请到仓库页查看"),
+            false
+        )
+        return Result.success()
+    }
+
+    /** Accept a run only if it was created at/after the dispatch (minus tolerance). */
+    private fun runCreatedAfter(run: GhWorkflowRun, thresholdMs: Long): Boolean {
+        val created = parseInstant(run.createdAt)?.toEpochMilli() ?: return false
+        return created >= thresholdMs
     }
 
     private fun parseInstant(value: String): Instant? = try {
@@ -112,7 +147,9 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         const val KEY_POLL = "poll"
         const val UNIQUE_NAME = "tickhub_track"
         const val POLL_DELAY_SEC = 5L
-        const val MAX_POLLS = 144 // ~12 minutes at 5s intervals; stops early once the run completes
+        // Safety net only: 24h at 5s. Real tasks stop as soon as run completes.
+        const val MAX_POLLS = 17280
+        const val OLD_RUN_TOLERANCE_MS = 2 * 60 * 1000L
 
         fun enqueue(context: Context, logId: String, ruleId: String) {
             val data = workDataOf(KEY_LOG_ID to logId, KEY_RULE_ID to ruleId, KEY_POLL to 0)

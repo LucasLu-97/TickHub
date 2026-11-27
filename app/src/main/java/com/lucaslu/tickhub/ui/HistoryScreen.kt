@@ -126,9 +126,9 @@ private fun LogCardContent(log: TriggerLog) {
             Text(log.repoFullName.split("/").lastOrNull() ?: log.repoFullName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.height(4.dp))
-        Text("计划：${fmt.format(Date(log.plannedAt))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(t("计划：") + fmt.format(Date(log.plannedAt)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            log.firedAt?.let { Text("实际：${fmt.format(Date(it))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f)) }
+            log.firedAt?.let { Text(t("实际：") + fmt.format(Date(it)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f)) }
                 ?: Spacer(Modifier.weight(1f))
             if (log.tracking) {
                 // plain live-growing duration text — no spinner on history cards
@@ -142,6 +142,6 @@ private fun LogCardContent(log: TriggerLog) {
                 )
             }
         }
-        log.errorMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+        log.errorMessage?.let { Text(com.lucaslu.tickhub.util.L10n.tNow(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
     }
 }

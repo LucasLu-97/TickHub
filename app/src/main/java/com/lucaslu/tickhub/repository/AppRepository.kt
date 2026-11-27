@@ -152,6 +152,30 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         }
     }
 
+    /** Update the live-growing duration of a still-tracking log (keeps tracking=true). */
+    suspend fun updateLogElapsed(logId: String, durationMs: Long) {
+        context.dataStore.edit { prefs ->
+            val logs = readLogs(prefs).toMutableList()
+            val idx = logs.indexOfFirst { it.id == logId }
+            if (idx >= 0) {
+                logs[idx] = logs[idx].copy(durationMs = durationMs, tracking = true)
+                prefs[logsKey] = json.encodeToString(logs)
+            }
+        }
+    }
+
+    /** Stop tracking after the safety net without flipping a successful dispatch to FAILED. */
+    suspend fun finalizeUnconfirmed(logId: String, durationMs: Long) {
+        context.dataStore.edit { prefs ->
+            val logs = readLogs(prefs).toMutableList()
+            val idx = logs.indexOfFirst { it.id == logId }
+            if (idx >= 0) {
+                logs[idx] = logs[idx].copy(durationMs = durationMs, tracking = false)
+                prefs[logsKey] = json.encodeToString(logs)
+            }
+        }
+    }
+
     /** Finalize a tracked log with the real GitHub run duration and conclusion. */
     suspend fun finalizeLog(logId: String, durationMs: Long, success: Boolean) {
         context.dataStore.edit { prefs ->
