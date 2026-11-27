@@ -20,6 +20,12 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     val runTrackingFlow: StateFlow<Boolean> get() = c.runTrackingFlow
     val hapticsFlow: StateFlow<Boolean> get() = c.hapticsFlow
     val holidayEnabledFlow: StateFlow<Boolean> get() = c.holidayEnabledFlow
+    // SettingsScreen also shows theme switch and logout (shared state via container).
+    val themeMode: StateFlow<Int> get() = c.themeMode
+
+    fun cycleTheme() { c.themeMode.value = (c.themeMode.value + 1) % 3 }
+
+    fun logout() = c.logout()
 
     fun holidayEnabledOnce(): Boolean = c.holidayEnabledFlow.value
 

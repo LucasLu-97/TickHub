@@ -105,6 +105,19 @@ class AppContainer private constructor(val app: Application) {
     val avatarUrl = repository.avatarUrl
     val runningExecutions = repository.runningExecutions
 
+    /** Single logout implementation shared by AuthViewModel and SettingsViewModel. */
+    fun logout() {
+        tokenStore.clearSync() // synchronous so token cannot survive a kill before write
+        scope.launch {
+            // Cancel alarms/work BEFORE clearing rules — need the rule ids first.
+            repository.getRulesOnce().forEach { alarmScheduler.cancel(it.id) }
+            com.lucaslu.tickhub.scheduler.RunTrackerWorker.cancelAll(app)
+            androidx.work.WorkManager.getInstance(app).cancelAllWorkByTag("manual")
+            repository.clearAllUserData()
+            login.value = LoginUiState()
+        }
+    }
+
     companion object {
         const val MANUAL_RULE_ID = "manual" // pseudo rule id for Repos-tab triggers
 

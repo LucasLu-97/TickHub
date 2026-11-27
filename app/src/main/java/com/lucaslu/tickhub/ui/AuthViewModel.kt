@@ -107,15 +107,5 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         c.login.value = c.login.value.copy(error = "授权超时，请重试", loading = false)
     }
 
-    fun logout() {
-        c.tokenStore.clearSync() // synchronous so token cannot survive a kill before write
-        viewModelScope.launch {
-            // Cancel alarms/work BEFORE clearing rules — need the rule ids first.
-            c.repository.getRulesOnce().forEach { c.alarmScheduler.cancel(it.id) }
-            com.lucaslu.tickhub.scheduler.RunTrackerWorker.cancelAll(getApplication())
-            androidx.work.WorkManager.getInstance(getApplication()).cancelAllWorkByTag("manual")
-            c.repository.clearAllUserData()
-            c.login.value = LoginUiState()
-        }
-    }
+    fun logout() = c.logout()
 }
