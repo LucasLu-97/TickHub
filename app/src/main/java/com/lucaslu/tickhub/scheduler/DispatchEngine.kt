@@ -267,7 +267,7 @@ class DispatchEngine(private val context: Context) {
             val infraAttempts = repository.getLogsOnce().count {
                 it.ruleId == rule.id && it.plannedAt == plannedAt && it.status == TriggerStatus.SKIPPED
             }
-            if (infraAttempts >= DispatchPolicy.MAX_INFRA_RETRIES) {
+            if (!DispatchPolicy.shouldRetryInfra(infraAttempts)) {
                 AppLogger.w("Engine", "rule=${rule.id.take(8)} slot=$plannedAt infra retries exhausted ($infraAttempts) -> advance")
                 val (next, effective) = repository.computeNextFire(rule, LocalDateTime.now())
                 if (next == null || effective == null) {
@@ -342,7 +342,7 @@ class DispatchEngine(private val context: Context) {
             tokenStore.clearSync() // next launch shows logged-out; no pointless retries
             return advanceTransition(rule)
         }
-        if (httpCode != null && httpCode in 400..499 && httpCode != 429) {
+        if (DispatchPolicy.isPermanentHttpError(httpCode)) {
             AppLogger.w("Engine", "rule=${rule.id.take(8)} permanent HTTP $httpCode -> advance")
             return advanceTransition(rule)
         }

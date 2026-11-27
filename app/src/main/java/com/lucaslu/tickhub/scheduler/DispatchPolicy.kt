@@ -13,6 +13,13 @@ object DispatchPolicy {
     /** Whether a failed slot should retry (vs. advance to the next slot). */
     fun shouldRetry(failCount: Int): Boolean = failCount < MAX_RETRIES
 
+    /** Infra failures (no token / no network) get their own smaller budget. */
+    fun shouldRetryInfra(infraCount: Int): Boolean = infraCount < MAX_INFRA_RETRIES
+
+    /** Permanent HTTP errors (except 429 rate-limit) must not be retried. */
+    fun isPermanentHttpError(code: Int?): Boolean =
+        code != null && code in 400..499 && code != 429
+
     /**
      * Which workflows to dispatch on a retry of a partially-failed slot.
      * Already-successful workflows must NOT be re-sent (duplicate check-in).

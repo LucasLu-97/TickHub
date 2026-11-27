@@ -15,6 +15,25 @@ class DispatchPolicyTest {
     private val base = now - 60_000L // slot due 1 minute ago
 
     @Test
+    fun `infra failures get a smaller retry budget than dispatch failures`() {
+        assertTrue(DispatchPolicy.shouldRetryInfra(0))
+        assertTrue(DispatchPolicy.shouldRetryInfra(2))
+        assertFalse(DispatchPolicy.shouldRetryInfra(3)) // cap: no endless 15-min wakes
+        // Dispatch failures still get the full budget.
+        assertTrue(DispatchPolicy.shouldRetry(4))
+    }
+
+    @Test
+    fun `permanent HTTP errors skip retries while 429 and 5xx retry`() {
+        assertTrue(DispatchPolicy.isPermanentHttpError(401))
+        assertTrue(DispatchPolicy.isPermanentHttpError(404))
+        assertTrue(DispatchPolicy.isPermanentHttpError(422))
+        assertFalse(DispatchPolicy.isPermanentHttpError(429)) // rate-limit: retry later
+        assertFalse(DispatchPolicy.isPermanentHttpError(500))
+        assertFalse(DispatchPolicy.isPermanentHttpError(null)) // network error
+    }
+
+    @Test
     fun `shouldRetry up to MAX_RETRIES-1 then advance`() {
         assertTrue(DispatchPolicy.shouldRetry(0))
         assertTrue(DispatchPolicy.shouldRetry(4))
