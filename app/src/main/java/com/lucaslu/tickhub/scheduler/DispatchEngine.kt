@@ -56,7 +56,7 @@ class DispatchEngine(private val context: Context) {
         val token = tokenStore.getToken()
         if (token == null) {
             AppLogger.e("Engine", "token missing -> abort")
-            addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = com.lucaslu.tickhub.util.L10n.tNow("未登录，token 缺失"), isMakeup = isMakeup)
+            addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "未登录，token 缺失", errorKey = "未登录，token 缺失", isMakeup = isMakeup)
             return TriggerStatus.FAILED
         }
 
@@ -65,7 +65,7 @@ class DispatchEngine(private val context: Context) {
         val networkOk = waitForNetwork(waitMinutes)
         AppLogger.i("Engine", "network ready=$networkOk")
         if (!networkOk) {
-            addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = com.lucaslu.tickhub.util.L10n.tNow("等待网络超时（") + waitMinutes + com.lucaslu.tickhub.util.L10n.tNow("分钟）"), isMakeup = isMakeup)
+            addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "等待网络超时（$waitMinutes分钟）", errorKey = "等待网络超时（{0}分钟）", errorArgs = listOf("$waitMinutes"), isMakeup = isMakeup)
             retryOrAdvance(rule, plannedAt)
             return TriggerStatus.FAILED
         }
@@ -77,9 +77,12 @@ class DispatchEngine(private val context: Context) {
         val parts = rule.repoFullName.split("/")
         if (parts.size != 2) {
             AppLogger.e("Engine", "invalid repo name: ${rule.repoFullName}")
-            addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = com.lucaslu.tickhub.util.L10n.tNow("仓库名无效：") + rule.repoFullName, isMakeup = isMakeup)
+            addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "仓库名无效：${rule.repoFullName}", errorKey = "仓库名无效：{0}", errorArgs = listOf(rule.repoFullName), isMakeup = isMakeup)
             return TriggerStatus.FAILED
         }
+
+        // Use the repo's actual default branch (not a hard-coded "main").
+        val ref = repository.getSnapshotOnce().repos.firstOrNull { it.fullName == rule.repoFullName }?.defaultBranch?.takeIf { it.isNotBlank() } ?: "main"
 
         // dispatch every selected workflow (concurrently via coroutines), all must succeed
         val results = kotlinx.coroutines.coroutineScope {
@@ -90,7 +93,7 @@ class DispatchEngine(private val context: Context) {
                     var success = false
                     val delays = longArrayOf(1_000, 4_000, 16_000)
                     for (attempt in 0..2) {
-                        when (val result = api.dispatchWorkflow(token, parts[0], parts[1], wfId, "main")) {
+                        when (val result = api.dispatchWorkflow(token, parts[0], parts[1], wfId, ref)) {
                             is ApiResult.Success -> {
                                 httpCode = result.data
                                 success = true
@@ -122,7 +125,9 @@ class DispatchEngine(private val context: Context) {
             plannedAt = plannedAt,
             status = status,
             httpCode = if (allSuccess) 204 else httpCode,
-            errorMessage = if (allSuccess) null else com.lucaslu.tickhub.util.L10n.tNow("工作流 ") + "${results.filter { !it.second }.map { it.first }}" + com.lucaslu.tickhub.util.L10n.tNow(" 触发失败：") + lastError,
+            errorMessage = if (allSuccess) null else "工作流 ${results.filter { !it.second }.map { it.first }} 触发失败：$lastError",
+            errorKey = if (allSuccess) null else "工作流 {0} 触发失败：{1}",
+            errorArgs = if (allSuccess) emptyList() else listOf(results.filter { !it.second }.map { it.first }.joinToString(), lastError.orEmpty()),
             isMakeup = isMakeup
         )
 
@@ -189,10 +194,10 @@ class DispatchEngine(private val context: Context) {
         scheduleAt(updated, effective)
     }
 
-    /** Schedule at the effective (drifted) time. */
+    /** Schedule at the effective (drifted) time, but keep logs keyed to the base slot. */
     private fun scheduleAt(rule: Rule, effectiveAt: Long) {
-        // temporarily swap nextFireAt so AlarmScheduler uses effective time
-        alarmScheduler.schedule(rule.copy(nextFireAt = effectiveAt))
+        val baseSlot = rule.nextFireAt ?: effectiveAt
+        alarmScheduler.scheduleWithSlot(rule, triggerAt = effectiveAt, plannedAt = baseSlot)
     }
 
     private suspend fun addLog(
@@ -201,6 +206,8 @@ class DispatchEngine(private val context: Context) {
         status: TriggerStatus,
         httpCode: Int? = null,
         errorMessage: String? = null,
+        errorKey: String? = null,
+        errorArgs: List<String> = emptyList(),
         isMakeup: Boolean = false
     ): String {
         val logId = UUID.randomUUID().toString()
@@ -216,6 +223,8 @@ class DispatchEngine(private val context: Context) {
                 status = status,
                 httpCode = httpCode,
                 errorMessage = errorMessage,
+                errorKey = errorKey,
+                errorArgs = errorArgs,
                 isMakeup = isMakeup,
                 durationMs = System.currentTimeMillis() - (repository.runningStartOnce(rule.id) ?: System.currentTimeMillis())
             )

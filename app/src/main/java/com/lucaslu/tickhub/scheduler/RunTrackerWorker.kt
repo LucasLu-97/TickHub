@@ -54,16 +54,31 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
 
         val allRuns = mutableListOf<Pair<Long, GhWorkflowRun>>()
         var anyError = false
-        for (wfId in workflowIds) {
-            when (val result = api.listWorkflowRuns(token, parts[0], parts[1], wfId, 5)) {
-                is ApiResult.Success -> {
-                    // Only accept a run created around/after this dispatch — never an older run.
-                    val newest = result.data.workflowRuns
-                        .filter { runCreatedAfter(it, firedAt - OLD_RUN_TOLERANCE_MS) }
-                        .maxByOrNull { parseInstant(it.createdAt)?.toEpochMilli() ?: 0L }
-                    if (newest != null) allRuns.add(wfId to newest) else anyError = true
+        val knownRunIds = log?.runIds.orEmpty()
+        if (knownRunIds.isNotEmpty()) {
+            // Precise mode: we already discovered the exact run ids for this dispatch.
+            for ((wfId, runId) in knownRunIds) {
+                when (val result = api.getWorkflowRun(token, parts[0], parts[1], runId)) {
+                    is ApiResult.Success -> allRuns.add(wfId to result.data)
+                    is ApiResult.Error -> anyError = true
                 }
-                is ApiResult.Error -> anyError = true
+            }
+        } else {
+            // Discovery mode: find the newest run created around this dispatch and
+            // remember its id on the log so all later polls use precise lookup.
+            for (wfId in workflowIds) {
+                when (val result = api.listWorkflowRuns(token, parts[0], parts[1], wfId, 5)) {
+                    is ApiResult.Success -> {
+                        val newest = result.data.workflowRuns
+                            .filter { runCreatedAfter(it, firedAt - OLD_RUN_TOLERANCE_MS) }
+                            .maxByOrNull { parseInstant(it.createdAt)?.toEpochMilli() ?: 0L }
+                        if (newest != null) allRuns.add(wfId to newest) else anyError = true
+                    }
+                    is ApiResult.Error -> anyError = true
+                }
+            }
+            if (allRuns.isNotEmpty()) {
+                repo.updateLogTracking(logId, allRuns.associate { (wfId, run) -> wfId.toString() to run.id })
             }
         }
 
@@ -148,6 +163,7 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
             .setInitialDelay(POLL_DELAY_SEC, TimeUnit.SECONDS)
             .setInputData(data)
             .addTag("track-$logId")
+            .addTag("tickhub_track_all")
             .build()
         WorkManager.getInstance(applicationContext)
             .enqueueUniqueWork("$UNIQUE_NAME-$logId", ExistingWorkPolicy.REPLACE, req)
@@ -159,9 +175,13 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         const val KEY_POLL = "poll"
         const val UNIQUE_NAME = "tickhub_track"
         const val POLL_DELAY_SEC = 5L
-        // Safety net only: 24h at 5s. Real tasks stop as soon as run completes.
-        const val MAX_POLLS = 17280
+        // Safety net only: 3h at 5s (a normal run finishes far sooner).
+        const val MAX_POLLS = 2160
         const val OLD_RUN_TOLERANCE_MS = 2 * 60 * 1000L
+
+        fun cancelAll(context: Context) {
+            WorkManager.getInstance(context).cancelAllWorkByTag("tickhub_track_all")
+        }
 
         fun enqueue(context: Context, logId: String, ruleId: String) {
             val data = workDataOf(KEY_LOG_ID to logId, KEY_RULE_ID to ruleId, KEY_POLL to 0)
@@ -169,6 +189,7 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
                 .setInitialDelay(20, TimeUnit.SECONDS) // let GitHub create the run first
                 .setInputData(data)
                 .addTag("track-$logId")
+            .addTag("tickhub_track_all")
                 .build()
             WorkManager.getInstance(context)
                 .enqueueUniqueWork("$UNIQUE_NAME-$logId", ExistingWorkPolicy.REPLACE, req)

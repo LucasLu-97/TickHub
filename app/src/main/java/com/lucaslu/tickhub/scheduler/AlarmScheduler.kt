@@ -28,6 +28,13 @@ class AlarmScheduler(private val context: Context) {
         scheduleAt(rule.id, rule.workflowName, triggerAt, triggerAt)
     }
 
+    /** Schedule with distinct wake time (drifted) and logical slot time (base).
+     *  Logs/dedup always key on [plannedAt]; only the alarm fires at [triggerAt]. */
+    fun scheduleWithSlot(rule: Rule, triggerAt: Long, plannedAt: Long) {
+        if (rule.status != RuleStatus.ENABLED) return
+        scheduleAt(rule.id, rule.workflowName, triggerAt, plannedAt)
+    }
+
     /** Retry alarm for a failed slot: fires at [triggerAt] but keeps the original
      *  [plannedAt] so logs/dedup stay keyed to the real scheduled slot. */
     fun scheduleRetry(ruleId: String, workflowName: String, triggerAt: Long, plannedAt: Long) {

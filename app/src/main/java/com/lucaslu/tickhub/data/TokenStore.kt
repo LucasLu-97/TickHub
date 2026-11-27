@@ -33,6 +33,11 @@ class TokenStore(context: Context) {
         prefs.edit().remove(KEY_TOKEN).apply()
     }
 
+    /** Synchronous clear — guarantees the token is gone before logout returns. */
+    fun clearSync() {
+        prefs.edit().remove(KEY_TOKEN).commit()
+    }
+
     companion object {
         private const val KEY_TOKEN = "github_access_token"
     }

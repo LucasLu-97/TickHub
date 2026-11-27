@@ -142,6 +142,9 @@ private fun LogCardContent(log: TriggerLog) {
                 )
             }
         }
-        log.errorMessage?.let { Text(com.lucaslu.tickhub.util.L10n.tNow(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+        log.errorMessage?.let {
+            val shown = if (log.errorKey != null) com.lucaslu.tickhub.util.L10n.tFormat(log.errorKey!!, log.errorArgs) else com.lucaslu.tickhub.util.L10n.tNow(it)
+            Text(shown, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
     }
 }

@@ -92,7 +92,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.compose.material.icons.core)
     implementation("sh.calvin.reorderable:reorderable-android:3.1.0")
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.security.crypto)
@@ -106,4 +106,14 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+// CI hygiene: the base64-decoded signing keystore is a build artifact, not a
+// deliverable. Remove it from the build dir once assembly finishes.
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    doLast {
+        layout.buildDirectory.file("tickhub-release.p12").get().asFile.let {
+            if (it.exists()) it.delete()
+        }
+    }
 }

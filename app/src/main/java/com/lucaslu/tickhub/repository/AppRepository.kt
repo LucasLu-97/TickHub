@@ -85,6 +85,8 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     // fixed 3-minute cap per product decision; kept as a setting key for compatibility
     suspend fun getNetworkWaitMinutesOnce(): Int = context.dataStore.data.first()[networkWaitKey] ?: 3
 
+    suspend fun getSnapshotOnce(): com.lucaslu.tickhub.data.ScanSnapshot = snapshot.first()
+
     suspend fun getRulesOnce(): List<Rule> = rules.first()
 
     suspend fun getLogsOnce(): List<TriggerLog> = logs.first()
@@ -195,7 +197,8 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
                 logs[idx] = old.copy(
                     status = newStatus,
                     httpCode = null,
-                    errorMessage = if (success) null else com.lucaslu.tickhub.util.L10n.tNow("工作流执行失败（GitHub 结论）"),
+                    errorMessage = if (success) null else "工作流执行失败（GitHub 结论）",
+                    errorKey = if (success) null else "工作流执行失败（GitHub 结论）",
                     durationMs = durationMs,
                     tracking = false
                 )
@@ -264,6 +267,12 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     suspend fun holidayEnabledOnce(): Boolean = context.dataStore.data.first()[holidayEnabledKey] ?: false
     suspend fun setHolidayEnabled(enabled: Boolean) {
         context.dataStore.edit { it[holidayEnabledKey] = enabled }
+    }
+
+    private val holidayAnnualFetchYearKey = androidx.datastore.preferences.core.intPreferencesKey("holiday_annual_fetch_year")
+    suspend fun holidayAnnualFetchYearOnce(): Int = context.dataStore.data.first()[holidayAnnualFetchYearKey] ?: 0
+    suspend fun setHolidayAnnualFetchYear(year: Int) {
+        context.dataStore.edit { it[holidayAnnualFetchYearKey] = year }
     }
 
     // ---- card ordering (reorder by long-press drag) ----
@@ -339,6 +348,18 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         context.dataStore.edit { p ->
             p.remove(tokenUserKey)
             p.remove(avatarKey)
+        }
+    }
+
+    /** Remove every account-scoped datum on logout. Preferences (network wait,
+     *  show-execution, haptics, run tracking, language, holidays) are kept. */
+    suspend fun clearAllUserData() {
+        context.dataStore.edit { p ->
+            listOf(
+                tokenUserKey, avatarKey, snapshotKey, rulesKey, logsKey,
+                lastScanKey, lastCatchUpKey, runningKey
+            ).forEach { p.remove(it) }
+            listOf("repos", "rules", "logs").forEach { p.remove(orderKey(it)) }
         }
     }
 
@@ -422,8 +443,21 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
                 is ApiResult.Error -> failures++
             }
         }
-        val updated = current.copy(workflows = refreshed, scannedAt = System.currentTimeMillis())
-        context.dataStore.edit { it[snapshotKey] = json.encodeToString(updated) }
+        context.dataStore.edit { prefs ->
+            // Re-read the latest snapshot inside edit: a user may have toggled
+            // selections while the network calls were in flight. Apply the fresh
+            // workflow list but keep the newest selected/managed state.
+            val latest = readSnapshot(prefs)
+            val latestSelected = latest.workflows.associateBy { it.id }
+            val merged = refreshed.map { wf ->
+                wf.copy(selected = latestSelected[wf.id]?.selected ?: wf.selected)
+            }
+            val latestManaged = latest.repos.associateBy { it.id }
+            val repos = latest.repos.map { r ->
+                r.copy(managed = latestManaged[r.id]?.managed ?: r.managed)
+            }
+            prefs[snapshotKey] = json.encodeToString(latest.copy(repos = repos, workflows = merged, scannedAt = System.currentTimeMillis()))
+        }
         return ApiResult.Success(failures)
     }
 
@@ -460,14 +494,16 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
                     }
                 }
 
-                val newSnapshot = ScanSnapshot(
-                    repos = mergedRepos,
-                    workflows = mergedWorkflows,
-                    scannedAt = System.currentTimeMillis()
-                )
                 context.dataStore.edit { prefs ->
-                    prefs[snapshotKey] = json.encodeToString(newSnapshot)
-                    prefs[lastScanKey] = newSnapshot.scannedAt
+                    // Preserve any selection/managed changes made while scanning.
+                    val latest = readSnapshot(prefs)
+                    val latestRepo = latest.repos.associateBy { it.id }
+                    val latestWf = latest.workflows.associateBy { it.id }
+                    val repos = mergedRepos.map { r -> r.copy(managed = latestRepo[r.id]?.managed ?: r.managed) }
+                    val workflows = mergedWorkflows.map { w -> w.copy(selected = latestWf[w.id]?.selected ?: w.selected) }
+                    val scannedAt = System.currentTimeMillis()
+                    prefs[snapshotKey] = json.encodeToString(ScanSnapshot(repos, workflows, scannedAt))
+                    prefs[lastScanKey] = scannedAt
                 }
                 return ApiResult.Success(failures)
             }
@@ -529,6 +565,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         return try {
             json.decodeFromString(raw)
         } catch (e: Exception) {
+            com.lucaslu.tickhub.util.AppLogger.e("DataIntegrity", "snapshot JSON corrupt, treating as empty: ${e.message}")
             ScanSnapshot()
         }
     }
@@ -538,6 +575,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         return try {
             json.decodeFromString(raw)
         } catch (e: Exception) {
+            com.lucaslu.tickhub.util.AppLogger.e("DataIntegrity", "rules JSON corrupt, treating as empty: ${e.message}")
             emptyList()
         }
     }
@@ -547,6 +585,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         return try {
             json.decodeFromString(raw)
         } catch (e: Exception) {
+            com.lucaslu.tickhub.util.AppLogger.e("DataIntegrity", "logs JSON corrupt, treating as empty: ${e.message}")
             emptyList()
         }
     }

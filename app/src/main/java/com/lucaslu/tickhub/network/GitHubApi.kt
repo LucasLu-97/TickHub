@@ -24,7 +24,11 @@ import java.util.concurrent.TimeUnit
 
 sealed class ApiResult<out T> {
     data class Success<T>(val data: T) : ApiResult<T>()
-    data class Error(val message: String, val code: Int? = null) : ApiResult<Nothing>()
+    data class Error(val message: String, val code: Int? = null) : ApiResult<Nothing>() {
+        val isUnauthorized: Boolean get() = code == 401
+        val isRateLimited: Boolean get() = code == 403 || code == 429
+        val isServerError: Boolean get() = code != null && code >= 500
+    }
 }
 
 class GitHubApi {
@@ -161,6 +165,18 @@ class GitHubApi {
         val url = "$apiBase/repos/$owner/$repo/actions/workflows/$workflowId/runs?per_page=$perPage"
         val req = authorized(token, url).build()
         executeJson<com.lucaslu.tickhub.data.GhRunList>(req)
+    }
+
+    /** Fetch a single workflow run by id — precise tracking without picking up a newer run. */
+    suspend fun getWorkflowRun(
+        token: String,
+        owner: String,
+        repo: String,
+        runId: Long
+    ): ApiResult<com.lucaslu.tickhub.data.GhWorkflowRun> = withContext(Dispatchers.IO) {
+        val url = "$apiBase/repos/$owner/$repo/actions/runs/$runId"
+        val req = authorized(token, url).build()
+        executeJson<com.lucaslu.tickhub.data.GhWorkflowRun>(req)
     }
 
     /** Trigger a workflow via workflow_dispatch. Uses numeric workflow id to avoid URL-encoding

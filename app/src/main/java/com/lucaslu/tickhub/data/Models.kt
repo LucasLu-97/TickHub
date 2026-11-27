@@ -93,7 +93,9 @@ data class TriggerLog(
     val durationMs: Long = 0L,
     val runIds: Map<String, Long> = emptyMap(), // workflowId -> GitHub run id, for real-duration tracking
     val tracking: Boolean = false, // true while waiting for GitHub run to finish
-    val trackWorkflowIds: List<Long> = emptyList() // workflow ids to track for manual (non-rule) triggers
+    val trackWorkflowIds: List<Long> = emptyList(), // workflow ids to track for manual (non-rule) triggers
+    val errorKey: String? = null, // translatable error key; UI renders via L10n at display time
+    val errorArgs: List<String> = emptyList() // placeholder args for errorKey ({0}, {1}...)
 )
 
 // ---- GitHub REST DTOs ----

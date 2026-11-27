@@ -42,6 +42,13 @@ object L10n {
     /** Explicit English lookup (used by Compose recomposition). */
     fun tEn(key: String): String = en[key] ?: key
 
+    /** Translate a key and substitute {0}, {1}... placeholders (synchronous). */
+    fun tFormat(key: String, args: List<String>): String {
+        var out = tNow(key)
+        args.forEachIndexed { i, arg -> out = out.replace("{$i}", arg) }
+        return out
+    }
+
     private val en = mapOf(
         // ---- common ----
         "取消" to "Cancel", "确定" to "OK", "删除" to "Delete", "全选" to "Select all",
@@ -80,6 +87,7 @@ object L10n {
         " 个工作流 / " to " workflows / ",
         " 个仓库（下拉可刷新头像与纳管项）" to " repos (pull down to refresh)",
         "扫描完成" to "Scan complete",
+        "GitHub 访问频率受限，请稍后再试" to "GitHub rate limit reached, please retry later",
         "扫描完成，" to "Scan complete, ",
         " 个仓库的工作流读取失败" to " repos failed to load workflows",
         "正在扫描仓库与工作流…" to "Scanning…",
@@ -153,6 +161,9 @@ object L10n {
         "无法从 GitHub 获取执行结果，请到仓库页查看" to "Result unavailable; check Repos tab",
         "用时 " to "Duration ", " 用时 " to " · ", "未登录，token 缺失" to "Not signed in, token missing",
         " 触发失败：" to " failed: ", "分享失败：" to "Share failed: ",
+        "等待网络超时（{0}分钟）" to "Network wait timed out ({0} min)",
+        "仓库名无效：{0}" to "Invalid repo: {0}",
+        "工作流 {0} 触发失败：{1}" to "Workflow {0} failed: {1}",
         "中国法定节假日" to "China holidays",
         "仅中国用户需要：开启后拉取节假日数据，支持「法定工作日/节假日」周期。非中国地区不支持此周期。" to "For China only: downloads holiday data to enable workday/holiday schedules. Not supported in other regions.",
         "仓库 " to "Repo ", "工作流 " to "Workflow ", " 工作流" to " workflows", "将立即触发「" to "This will trigger \"",

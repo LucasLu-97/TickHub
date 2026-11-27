@@ -191,10 +191,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun logout() {
-        tokenStore.clear()
+        tokenStore.clearSync() // synchronous so token cannot survive a kill before write
         viewModelScope.launch {
-            repository.clearUser()
-            repository.clearSnapshot()
+            // Cancel alarms/work BEFORE clearing rules — need the rule ids first.
+            repository.getRulesOnce().forEach { alarmScheduler.cancel(it.id) }
+            com.lucaslu.tickhub.scheduler.RunTrackerWorker.cancelAll(getApplication())
+            androidx.work.WorkManager.getInstance(getApplication()).cancelAllWorkByTag("manual")
+            repository.clearAllUserData()
             _login.value = LoginUiState()
         }
     }
@@ -208,7 +211,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _repo.value = RepoUiState(scanning = true, message = "正在扫描仓库与工作流…")
         viewModelScope.launch {
             when (val result = repository.scan(token)) {
-                is ApiResult.Error -> _repo.value = RepoUiState(error = result.message)
+                is ApiResult.Error -> {
+                    if (result.isUnauthorized) {
+                        // Token revoked: sign out so the user can re-authorize.
+                        tokenStore.clearSync()
+                        _login.value = LoginUiState()
+                    } else {
+                        val msg = if (result.isRateLimited) "GitHub 访问频率受限，请稍后再试" else result.message
+                        _repo.value = RepoUiState(error = msg)
+                    }
+                }
                 is ApiResult.Success -> {
                     val msg = if (result.data == 0) "扫描完成" else "扫描完成，" + "${result.data}" + " 个仓库的工作流读取失败"
                     _repo.value = RepoUiState(message = msg)
@@ -251,8 +263,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             )
             repository.saveRule(finalRule)
             alarmScheduler.cancel(rule.id)
-            if (finalRule.status == RuleStatus.ENABLED && effective != null) {
-                alarmScheduler.schedule(finalRule.copy(nextFireAt = effective))
+            if (finalRule.status == RuleStatus.ENABLED && effective != null && base != null) {
+                alarmScheduler.scheduleWithSlot(finalRule, triggerAt = effective, plannedAt = base)
             }
         }
     }
@@ -270,7 +282,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val rule = repository.getRuleOnce(id)
             if (rule == null) return@launch
             if (enabled) {
-                alarmScheduler.schedule(rule.copy(nextFireAt = rule.effectiveFireAt ?: rule.nextFireAt))
+                val trigger = rule.effectiveFireAt ?: rule.nextFireAt ?: return@launch
+                val base = rule.nextFireAt ?: trigger
+                alarmScheduler.scheduleWithSlot(rule, triggerAt = trigger, plannedAt = base)
             } else alarmScheduler.cancel(id)
         }
     }
@@ -294,12 +308,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             for (rule in rules) {
                 val planned = rule.nextFireAt ?: continue
                 if (planned > now) continue // not due yet
-                // already fired for this planned slot?
-                val alreadyFired = logs.any {
-                    it.ruleId == rule.id && it.plannedAt == planned &&
-                        it.status != com.lucaslu.tickhub.data.TriggerStatus.FAILED
+                // Already attempted this slot? Any log (success OR failure) counts:
+                // a failure log means either a retry alarm is pending or retries were
+                // exhausted and the rule advanced. Either way, no catch-up needed —
+                // excluding FAILED here used to double-dispatch with the retry alarm.
+                val alreadyAttempted = logs.any {
+                    it.ruleId == rule.id && it.plannedAt == planned
                 }
-                if (alreadyFired) continue
+                if (alreadyAttempted) continue
                 // enqueue as makeup dispatch
                 AppLogger.w("App", "catchUp MAKEUP rule=${rule.id.take(8)} missed at=$planned")
                 DispatchWorker.enqueue(getApplication(), rule.id, planned, isMakeup = true)
@@ -363,7 +379,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val token = tokenStore.getToken() ?: return@launch
             val parts = repoFullName.split("/")
             if (parts.size != 2) return@launch
-            when (val result = api.dispatchWorkflow(token, parts[0], parts[1], workflowId, "main")) {
+            val ref = repository.getSnapshotOnce().repos.firstOrNull { it.fullName == repoFullName }?.defaultBranch?.takeIf { it.isNotBlank() } ?: "main"
+            when (val result = api.dispatchWorkflow(token, parts[0], parts[1], workflowId, ref)) {
                 is ApiResult.Success -> {
                     AppLogger.i("Manual", "trigger OK wf=$workflowName repo=$repoFullName")
                     val logId = java.util.UUID.randomUUID().toString()
@@ -397,6 +414,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val ok = com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication())
             AppLogger.i("Holiday", "refresh current+next year result=$ok")
+            if (ok) repository.setHolidayAnnualFetchYear(java.time.LocalDate.now().year)
+        }
+    }
+
+    /** Fetch next-year holiday data once a year after Dec 17 (notices usually
+     *  published by then). No pull on ordinary app opens. Manual toggle on/off
+     *  already triggers a fetch via setHolidayEnabled. */
+    fun maybeAnnualHolidayRefresh() {
+        viewModelScope.launch {
+            if (!repository.holidayEnabledOnce()) return@launch
+            val today = java.time.LocalDate.now()
+            if (today.monthValue != 12 || today.dayOfMonth < 17) return@launch
+            if (repository.holidayAnnualFetchYearOnce() >= today.year) return@launch
+            AppLogger.i("Holiday", "annual Dec-17 refresh for ${today.year + 1}")
+            com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication())
+            repository.setHolidayAnnualFetchYear(today.year)
         }
     }
 }

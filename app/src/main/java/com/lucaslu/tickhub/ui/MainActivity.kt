@@ -74,8 +74,10 @@ private fun TickHubApp() {
             if (loginState.isLoggedIn) {
                 vm.syncAlarms()
                 vm.catchUpMissedRules()
-                // Chinese statutory holidays are China-only: only fetch when opted in.
-                if (vm.holidayEnabledOnce()) vm.refreshHolidays()
+                // Holiday data is fetched only on opt-in toggle or once per year
+                // after Dec 17 (when next-year notices are published). Never on
+                // ordinary app opens — see AppViewModel.maybeAnnualHolidayRefresh.
+                vm.maybeAnnualHolidayRefresh()
             }
         }
 
