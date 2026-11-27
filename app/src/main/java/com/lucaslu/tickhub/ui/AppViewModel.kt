@@ -217,7 +217,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         tokenStore.clearSync()
                         _login.value = LoginUiState()
                     } else {
-                        val msg = if (result.isRateLimited) "GitHub 访问频率受限，请稍后再试" else result.message
+                        val msg = if (result.isRateLimited) "GitHub 访问频率受限，请稍后再试"
+                            else if (result.isServerError) "GitHub 服务暂时不可用，请稍后再试"
+                            else result.message
                         _repo.value = RepoUiState(error = msg)
                     }
                 }
@@ -239,7 +241,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _refreshing.value = true
         viewModelScope.launch {
             val result = repository.refreshManaged(token)
-            if (result is ApiResult.Error) _repo.value = _repo.value.copy(error = result.message)
+            if (result is ApiResult.Error) {
+                if (result.isUnauthorized) {
+                    tokenStore.clearSync()
+                    _login.value = LoginUiState() // re-authorize; rules are preserved
+                } else {
+                    _repo.value = _repo.value.copy(error = result.message)
+                }
+            }
             _refreshing.value = false
         }
     }
@@ -279,48 +288,79 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setRuleEnabled(id: String, enabled: Boolean) {
         viewModelScope.launch {
             repository.setRuleEnabled(id, enabled)
-            val rule = repository.getRuleOnce(id)
-            if (rule == null) return@launch
-            if (enabled) {
-                val trigger = rule.effectiveFireAt ?: rule.nextFireAt ?: return@launch
-                val base = rule.nextFireAt ?: trigger
-                alarmScheduler.scheduleWithSlot(rule, triggerAt = trigger, plannedAt = base)
-            } else alarmScheduler.cancel(id)
+            var rule = repository.getRuleOnce(id) ?: return@launch
+            if (!enabled) {
+                alarmScheduler.cancel(id)
+                return@launch
+            }
+            // If the stored slot is in the past (rule was disabled across its
+            // fire time), recompute from now instead of registering a dead alarm.
+            val stored = rule.effectiveFireAt ?: rule.nextFireAt ?: 0L
+            if (stored <= System.currentTimeMillis()) {
+                val (next, effective) = repository.computeNextFire(rule, LocalDateTime.now())
+                if (next == null || effective == null) {
+                    AppLogger.w("App", "rule=$id re-enable: no future slot, mark COMPLETED")
+                    repository.updateRule(rule.copy(status = RuleStatus.COMPLETED, nextFireAt = null, effectiveFireAt = null))
+                    return@launch
+                }
+                rule = repository.updateRule(rule.copy(
+                    nextFireAt = com.lucaslu.tickhub.domain.RuleEngine.toEpochMillis(next),
+                    effectiveFireAt = effective
+                ))
+            }
+            val base = rule.nextFireAt ?: return@launch
+            alarmScheduler.scheduleWithSlot(rule, triggerAt = rule.effectiveFireAt ?: base, plannedAt = base)
         }
     }
 
-    /** Register alarms for all enabled rules (called on app start). */
-    fun syncAlarms() {
+    /** Serialized startup maintenance: timezone resync -> alarm registration ->
+     *  catch-up. Running these in one coroutine avoids stale reads between them. */
+    fun onAppReady() {
         viewModelScope.launch {
+            checkTimezoneAndResyncInternal()
+            syncAlarmsInternal()
+            dispatchEngine.catchUpMissed()
+            AppLogger.i("App", "startup maintenance done")
+        }
+    }
+
+    private suspend fun checkTimezoneAndResyncInternal() {
+            val current = java.time.ZoneId.systemDefault().id
+            val saved = repository.getSavedTimezone()
+            if (saved == null) { repository.setSavedTimezone(current); return }
+            if (saved == current) return
+            AppLogger.i("App", "timezone $saved -> $current, recomputing rules")
+            repository.setSavedTimezone(current)
             val enabled = repository.getRulesOnce().filter { it.status == RuleStatus.ENABLED }
-            AppLogger.i("App", "syncAlarms: ${enabled.size} enabled rules")
-            enabled.forEach { alarmScheduler.schedule(it.copy(nextFireAt = it.effectiveFireAt ?: it.nextFireAt)) }
+            for (rule in enabled) {
+                val (next, effective) = repository.computeNextFire(rule, LocalDateTime.now())
+                if (next == null || effective == null) {
+                    alarmScheduler.cancel(rule.id)
+                    continue
+                }
+                val updated = repository.updateRule(rule.copy(
+                    nextFireAt = com.lucaslu.tickhub.domain.RuleEngine.toEpochMillis(next),
+                    effectiveFireAt = effective
+                ))
+                alarmScheduler.scheduleWithSlot(updated, triggerAt = effective, plannedAt = updated.nextFireAt!!)
+            }
+    }
+
+    private suspend fun syncAlarmsInternal() {
+        val enabled = repository.getRulesOnce().filter { it.status == RuleStatus.ENABLED }
+        AppLogger.i("App", "syncAlarms: ${enabled.size} enabled rules")
+        enabled.forEach { rule ->
+            val base = rule.nextFireAt ?: return@forEach
+            val trigger = rule.effectiveFireAt ?: base
+            alarmScheduler.scheduleWithSlot(rule, triggerAt = trigger, plannedAt = base)
         }
     }
 
     /** Catch up any rules whose scheduled time has passed but were not fired. */
     fun catchUpMissedRules() {
         viewModelScope.launch {
-            val now = System.currentTimeMillis()
-            val rules = repository.getRulesOnce().filter { it.status == RuleStatus.ENABLED }
-            val logs = repository.getLogsOnce()
-            AppLogger.i("App", "catchUp scan: ${rules.size} enabled rules, ${logs.size} logs")
-            for (rule in rules) {
-                val planned = rule.nextFireAt ?: continue
-                if (planned > now) continue // not due yet
-                // Already attempted this slot? Any log (success OR failure) counts:
-                // a failure log means either a retry alarm is pending or retries were
-                // exhausted and the rule advanced. Either way, no catch-up needed —
-                // excluding FAILED here used to double-dispatch with the retry alarm.
-                val alreadyAttempted = logs.any {
-                    it.ruleId == rule.id && it.plannedAt == planned
-                }
-                if (alreadyAttempted) continue
-                // enqueue as makeup dispatch
-                AppLogger.w("App", "catchUp MAKEUP rule=${rule.id.take(8)} missed at=$planned")
-                DispatchWorker.enqueue(getApplication(), rule.id, planned, isMakeup = true)
-            }
-            repository.setLastCatchUpAt(now)
+            val count = dispatchEngine.catchUpMissed()
+            AppLogger.i("App", "catchUp done: $count makeup dispatched")
         }
     }
 
@@ -418,18 +458,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Fetch next-year holiday data once a year after Dec 17 (notices usually
-     *  published by then). No pull on ordinary app opens. Manual toggle on/off
-     *  already triggers a fetch via setHolidayEnabled. */
+    /** Fetch next-year holiday data when needed, with a Dec-17 trigger and a
+     *  catch-up fallback. Notices are usually published by Dec 17; if the user
+     *  doesn't open the app until January, we still detect that next-year data is
+     *  missing and fetch it once. No pull on ordinary app opens otherwise. */
     fun maybeAnnualHolidayRefresh() {
         viewModelScope.launch {
             if (!repository.holidayEnabledOnce()) return@launch
             val today = java.time.LocalDate.now()
-            if (today.monthValue != 12 || today.dayOfMonth < 17) return@launch
-            if (repository.holidayAnnualFetchYearOnce() >= today.year) return@launch
-            AppLogger.i("Holiday", "annual Dec-17 refresh for ${today.year + 1}")
-            com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication())
-            repository.setHolidayAnnualFetchYear(today.year)
+            val nextYear = today.year + 1
+            // Already fetched this year's annual refresh AND next-year data present?
+            val nextData = com.lucaslu.tickhub.data.HolidayCalendar.load(getApplication(), nextYear)
+            val alreadyFetched = repository.holidayAnnualFetchYearOnce() >= today.year
+            val inWindow = today.monthValue == 12 && today.dayOfMonth >= 17
+            if (alreadyFetched && nextData.days.isNotEmpty()) return@launch
+            if (!inWindow && nextData.days.isNotEmpty()) return@launch
+            if (!inWindow && alreadyFetched) return@launch
+            AppLogger.i("Holiday", "annual refresh for $nextYear (inWindow=$inWindow, dataReady=${nextData.days.isNotEmpty()}, fetched=$alreadyFetched)")
+            val ok = com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication())
+            // Only mark the year as fetched when data actually arrived — otherwise
+            // a failed Dec-17 attempt would block retries for the whole year.
+            if (ok) repository.setHolidayAnnualFetchYear(today.year)
         }
     }
 }

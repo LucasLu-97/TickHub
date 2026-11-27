@@ -61,8 +61,10 @@ class DispatchWorker(appContext: Context, params: WorkerParameters) : CoroutineW
                 .setInputData(data)
                 .addTag("dispatch-$ruleId")
                 .build()
+            // Unique name includes plannedAt so a manual trigger (now) never
+            // replaces a queued scheduled trigger for a different slot.
             WorkManager.getInstance(context)
-                .enqueueUniqueWork("${UNIQUE_NAME}-$ruleId", ExistingWorkPolicy.REPLACE, request)
+                .enqueueUniqueWork("${UNIQUE_NAME}-$ruleId-$plannedAt", ExistingWorkPolicy.KEEP, request)
         }
     }
 }

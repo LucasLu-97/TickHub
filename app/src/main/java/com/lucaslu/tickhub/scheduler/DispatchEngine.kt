@@ -44,6 +44,31 @@ class DispatchEngine(private val context: Context) {
     suspend fun markRunning(ruleId: String, startAt: Long) = repository.markRunning(ruleId, startAt)
     suspend fun markDone(ruleId: String) = repository.markDone(ruleId)
 
+    /**
+     * Catch up rule slots whose effective time has passed but were not attempted.
+     * Shared by app start (AppViewModel) and device boot (BootReceiver) so missed
+     * slots during shutdown are recovered without requiring the user to open the app.
+     * Due check uses effectiveFireAt (drifted); dedup key stays the base slot.
+     */
+    suspend fun catchUpMissed(): Int {
+        val now = System.currentTimeMillis()
+        val rules = repository.getRulesOnce().filter { it.status == RuleStatus.ENABLED }
+        val logs = repository.getLogsOnce()
+        var count = 0
+        for (rule in rules) {
+            val base = rule.nextFireAt ?: continue
+            val dueAt = rule.effectiveFireAt ?: base
+            if (dueAt > now) continue
+            val alreadyAttempted = logs.any { it.ruleId == rule.id && it.plannedAt == base }
+            if (alreadyAttempted) continue
+            AppLogger.w("Engine", "catchUp MAKEUP rule=${rule.id.take(8)} due=$dueAt base=$base")
+            DispatchWorker.enqueue(context, rule.id, base, isMakeup = true)
+            count++
+        }
+        repository.setLastCatchUpAt(now)
+        return count
+    }
+
     /** Execute a rule dispatch. Returns the resulting status. */
     suspend fun execute(ruleId: String, isMakeup: Boolean, plannedAt: Long): TriggerStatus {
         val rule = repository.getRuleOnce(ruleId)
@@ -55,8 +80,9 @@ class DispatchEngine(private val context: Context) {
         AppLogger.i("Engine", "execute rule=${ruleId.take(8)} wfs=${workflowIds.size} repo=${rule.repoFullName} makeup=$isMakeup")
         val token = tokenStore.getToken()
         if (token == null) {
-            AppLogger.e("Engine", "token missing -> abort")
+            AppLogger.e("Engine", "token missing -> retry (user may re-login)")
             addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "未登录，token 缺失", errorKey = "未登录，token 缺失", isMakeup = isMakeup)
+            retryOrAdvance(rule, plannedAt)
             return TriggerStatus.FAILED
         }
 
@@ -78,6 +104,7 @@ class DispatchEngine(private val context: Context) {
         if (parts.size != 2) {
             AppLogger.e("Engine", "invalid repo name: ${rule.repoFullName}")
             addLog(rule, plannedAt, TriggerStatus.FAILED, errorMessage = "仓库名无效：${rule.repoFullName}", errorKey = "仓库名无效：{0}", errorArgs = listOf(rule.repoFullName), isMakeup = isMakeup)
+            retryOrAdvance(rule, plannedAt)
             return TriggerStatus.FAILED
         }
 
@@ -272,10 +299,14 @@ class DispatchEngine(private val context: Context) {
         val network = cm.activeNetwork ?: return false
         val caps = cm.getNetworkCapabilities(network) ?: return false
         val hasInternet = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        // VALIDATED means real internet (captive portals / WiFi without internet
+        // still report INTERNET but not VALIDATED). Fall back to transport-only
+        // on older APIs where VALIDATED may be absent.
+        val validated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
         val transportOk = caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
             caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
             caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
-        return hasInternet && transportOk
+        return hasInternet && transportOk && validated
     }
 
     /** Acquire a partial wake lock for the given duration (caller must release). */

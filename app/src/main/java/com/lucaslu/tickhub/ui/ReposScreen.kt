@@ -140,8 +140,8 @@ fun ReposScreen(vm: AppViewModel) {
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                             }
                         }
-                        state.message?.let { Text(com.lucaslu.tickhub.util.L10n.tNow(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                        state.error?.let { Text(com.lucaslu.tickhub.util.L10n.tNow(it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+                        state.message?.let { Text(t(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        state.error?.let { Text(t(it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
                         Text(
                             t("已纳管 ") + "${snapshot.workflows.count { it.selected }}" + t(" 个工作流 / ") + "${snapshot.repos.size}" + t(" 个仓库（下拉可刷新头像与纳管项）"),
                             style = MaterialTheme.typography.labelSmall,

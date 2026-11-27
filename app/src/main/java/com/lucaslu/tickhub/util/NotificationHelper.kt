@@ -51,7 +51,8 @@ object NotificationHelper {
                 .setAutoCancel(true)
                 .setPriority(if (success) NotificationCompat.PRIORITY_DEFAULT else NotificationCompat.PRIORITY_HIGH)
                 .build()
-            nm.notify(NOTIF_ID_BASE + (idSeed and 0x7fffffff), notif)
+            val safeSeed = (idSeed and 0x7fffffff) % 1_000_000 // avoid overflow past base
+            nm.notify(NOTIF_ID_BASE + safeSeed, notif)
         }
     }
 }

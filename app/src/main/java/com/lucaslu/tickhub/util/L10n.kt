@@ -42,11 +42,26 @@ object L10n {
     /** Explicit English lookup (used by Compose recomposition). */
     fun tEn(key: String): String = en[key] ?: key
 
-    /** Translate a key and substitute {0}, {1}... placeholders (synchronous). */
+    /** Translate a key and substitute {0}, {1}... placeholders (synchronous).
+     *  Single pass over the template so a parameter containing "{1}" cannot be
+     *  re-substituted by later iterations. */
     fun tFormat(key: String, args: List<String>): String {
-        var out = tNow(key)
-        args.forEachIndexed { i, arg -> out = out.replace("{$i}", arg) }
-        return out
+        val template = tNow(key)
+        val sb = StringBuilder()
+        var i = 0
+        while (i < template.length) {
+            if (template[i] == '{') {
+                val end = template.indexOf('}', i + 1)
+                if (end > i) {
+                    val idx = template.substring(i + 1, end).toIntOrNull()
+                    if (idx != null && idx in args.indices) {
+                        sb.append(args[idx]); i = end + 1; continue
+                    }
+                }
+            }
+            sb.append(template[i]); i++
+        }
+        return sb.toString()
     }
 
     private val en = mapOf(
@@ -88,6 +103,7 @@ object L10n {
         " 个仓库（下拉可刷新头像与纳管项）" to " repos (pull down to refresh)",
         "扫描完成" to "Scan complete",
         "GitHub 访问频率受限，请稍后再试" to "GitHub rate limit reached, please retry later",
+        "GitHub 服务暂时不可用，请稍后再试" to "GitHub service unavailable, please retry later",
         "扫描完成，" to "Scan complete, ",
         " 个仓库的工作流读取失败" to " repos failed to load workflows",
         "正在扫描仓库与工作流…" to "Scanning…",

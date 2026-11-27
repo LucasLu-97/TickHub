@@ -24,9 +24,18 @@ class BootReceiver : BroadcastReceiver() {
             try {
                 val repository = AppRepository(context.applicationContext, GitHubApi())
                 val scheduler = AlarmScheduler(context.applicationContext)
+                val engine = DispatchEngine(context.applicationContext)
                 val enabled = repository.getRulesOnce().filter { it.status == RuleStatus.ENABLED }
                 AppLogger.i("Boot", "device rebooted, re-scheduling ${enabled.size} enabled rules")
-                enabled.forEach { scheduler.schedule(it.copy(nextFireAt = it.effectiveFireAt ?: it.nextFireAt)) }
+                enabled.forEach { rule ->
+                    val base = rule.nextFireAt ?: return@forEach
+                    val trigger = rule.effectiveFireAt ?: base
+                    scheduler.scheduleWithSlot(rule, triggerAt = trigger, plannedAt = base)
+                }
+                // Recover slots missed while the device was off — without waiting
+                // for the user to open the app (core promise of scheduled check-ins).
+                val madeUp = engine.catchUpMissed()
+                AppLogger.i("Boot", "catchUp after reboot: $madeUp makeup dispatched")
             } catch (e: Exception) {
                 AppLogger.e("Boot", "re-schedule failed: ${e.message}", e)
             } finally {

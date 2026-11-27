@@ -72,11 +72,9 @@ private fun TickHubApp() {
     TickHubTheme(darkTheme = darkTheme) {
         LaunchedEffect(loginState.isLoggedIn) {
             if (loginState.isLoggedIn) {
-                vm.syncAlarms()
-                vm.catchUpMissedRules()
-                // Holiday data is fetched only on opt-in toggle or once per year
-                // after Dec 17 (when next-year notices are published). Never on
-                // ordinary app opens — see AppViewModel.maybeAnnualHolidayRefresh.
+                // Serialized: timezone resync -> alarms -> catch-up. Holiday fetch
+                // only on opt-in toggle or once per year (Dec 17 + catch-up fallback).
+                vm.onAppReady()
                 vm.maybeAnnualHolidayRefresh()
             }
         }

@@ -2,32 +2,36 @@ package com.lucaslu.tickhub.ui
 
 import com.lucaslu.tickhub.util.t
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Alarm
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import com.lucaslu.tickhub.R
 
-/** Official Material outlined icons — clean line art, no hand-drawn paths. */
+/**
+ * Official Material outlined icons bundled as local VectorDrawables — zero
+ * third-party icon dependency, minimal APK footprint, no R8 needed.
+ */
 @Composable
 fun TabIcon(index: Int, color: Color, modifier: Modifier = Modifier) {
-    val imageVector = when (index) {
-        0 -> Icons.Outlined.Folder
-        1 -> Icons.Outlined.Alarm
-        2 -> Icons.Outlined.History
-        3 -> Icons.Outlined.Settings
-        else -> Icons.Outlined.Folder
+    val res = when (index) {
+        0 -> R.drawable.ic_folder_outlined
+        1 -> R.drawable.ic_alarm_outlined
+        2 -> R.drawable.ic_history_outlined
+        3 -> R.drawable.ic_settings_outlined
+        else -> R.drawable.ic_folder_outlined
     }
-    Icon(imageVector = imageVector, contentDescription = null, tint = color, modifier = modifier)
+    Icon(painter = painterResource(res), contentDescription = null, tint = color, modifier = modifier)
 }
 
-/** Delete icon for swipe-to-delete, using the official outlined trash can. */
+/** Delete icon for swipe-to-delete. */
 @Composable
 fun DeleteLineIcon(tint: Color, modifier: Modifier = Modifier) {
-    Icon(imageVector = Icons.Outlined.Delete, contentDescription = t("删除"), tint = tint, modifier = modifier)
+    Icon(
+        painter = painterResource(R.drawable.ic_delete_outlined),
+        contentDescription = t("删除"),
+        tint = tint,
+        modifier = modifier
+    )
 }

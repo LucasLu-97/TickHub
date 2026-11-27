@@ -54,6 +54,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         else try {
             json.decodeFromString<ScanSnapshot>(raw)
         } catch (e: Exception) {
+            com.lucaslu.tickhub.util.AppLogger.e("DataIntegrity", "snapshot flow JSON corrupt: ${e.message}")
             ScanSnapshot()
         }
     }
@@ -66,6 +67,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         else try {
             json.decodeFromString<List<Rule>>(raw)
         } catch (e: Exception) {
+            com.lucaslu.tickhub.util.AppLogger.e("DataIntegrity", "rules flow JSON corrupt: ${e.message}")
             emptyList()
         }
     }
@@ -76,6 +78,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         else try {
             json.decodeFromString<List<TriggerLog>>(raw)
         } catch (e: Exception) {
+            com.lucaslu.tickhub.util.AppLogger.e("DataIntegrity", "logs flow JSON corrupt: ${e.message}")
             emptyList()
         }
     }
@@ -199,6 +202,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
                     httpCode = null,
                     errorMessage = if (success) null else "工作流执行失败（GitHub 结论）",
                     errorKey = if (success) null else "工作流执行失败（GitHub 结论）",
+                    errorArgs = emptyList(),
                     durationMs = durationMs,
                     tracking = false
                 )
@@ -269,6 +273,10 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         context.dataStore.edit { it[holidayEnabledKey] = enabled }
     }
 
+    private val timezoneKey = androidx.datastore.preferences.core.stringPreferencesKey("app_timezone_id")
+    suspend fun getSavedTimezone(): String? = context.dataStore.data.first()[timezoneKey]
+    suspend fun setSavedTimezone(tz: String) { context.dataStore.edit { it[timezoneKey] = tz } }
+
     private val holidayAnnualFetchYearKey = androidx.datastore.preferences.core.intPreferencesKey("holiday_annual_fetch_year")
     suspend fun holidayAnnualFetchYearOnce(): Int = context.dataStore.data.first()[holidayAnnualFetchYearKey] ?: 0
     suspend fun setHolidayAnnualFetchYear(year: Int) {
@@ -330,7 +338,6 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         return try { json.decodeFromString(raw) } catch (e: Exception) { emptyMap() }
     }
 
-    suspend fun getLastCatchUpAt(): Long = context.dataStore.data.first()[lastCatchUpKey] ?: 0L
     suspend fun setLastCatchUpAt(ts: Long) {
         context.dataStore.edit { it[lastCatchUpKey] = ts }
     }

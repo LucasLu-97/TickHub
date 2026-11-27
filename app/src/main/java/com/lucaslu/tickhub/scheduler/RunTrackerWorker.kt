@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit
  * Polls GitHub Actions for the real start/end time of dispatched runs.
  * Each poll is a short WorkManager wake-up (5s delay), NOT a foreground service.
  * Polling continues until the run actually reaches "completed" — there is no
- * short fixed cap, only a very long safety net (24h) to avoid a truly endless loop.
+ * short fixed cap, only a 3-hour safety net (2160 × 5s) to avoid a truly endless loop.
  * The live duration is persisted on every poll so the history card always shows
  * a growing timer, even across process death.
  */
@@ -52,35 +52,39 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         val parts = repoFullName.split("/")
         if (parts.size != 2 || workflowIds.isEmpty()) return Result.failure()
 
+        // For each workflow: use its known runId if we have one, but ALWAYS fall
+        // back to discovery when the id is missing or the run vanished (404).
+        // This fixes two bugs: late-created runs of a multi-workflow rule were
+        // never found, and a deleted run (404) used to stall for the full 3h.
         val allRuns = mutableListOf<Pair<Long, GhWorkflowRun>>()
-        var anyError = false
-        val knownRunIds = log?.runIds.orEmpty()
-        if (knownRunIds.isNotEmpty()) {
-            // Precise mode: we already discovered the exact run ids for this dispatch.
-            for ((wfIdKey, runId) in knownRunIds) {
-                val wfId = wfIdKey.toLongOrNull() ?: continue
-                when (val result = api.getWorkflowRun(token, parts[0], parts[1], runId)) {
-                    is ApiResult.Success -> allRuns.add(wfId to result.data)
-                    is ApiResult.Error -> anyError = true
+        val knownRunIds = log?.runIds.orEmpty().toMutableMap()
+        for (wfId in workflowIds) {
+            val knownId = knownRunIds[wfId.toString()]
+            var found: GhWorkflowRun? = null
+            if (knownId != null) {
+                when (val result = api.getWorkflowRun(token, parts[0], parts[1], knownId)) {
+                    is ApiResult.Success -> found = result.data
+                    is ApiResult.Error -> knownRunIds.remove(wfId.toString()) // 404/perm -> rediscover
                 }
             }
-        } else {
-            // Discovery mode: find the newest run created around this dispatch and
-            // remember its id on the log so all later polls use precise lookup.
-            for (wfId in workflowIds) {
+            if (found == null) {
                 when (val result = api.listWorkflowRuns(token, parts[0], parts[1], wfId, 5)) {
                     is ApiResult.Success -> {
-                        val newest = result.data.workflowRuns
+                        found = result.data.workflowRuns
                             .filter { runCreatedAfter(it, firedAt - OLD_RUN_TOLERANCE_MS) }
                             .maxByOrNull { parseInstant(it.createdAt)?.toEpochMilli() ?: 0L }
-                        if (newest != null) allRuns.add(wfId to newest) else anyError = true
                     }
-                    is ApiResult.Error -> anyError = true
+                    is ApiResult.Error -> Unit
                 }
             }
-            if (allRuns.isNotEmpty()) {
-                repo.updateLogTracking(logId, allRuns.associate { (wfId, run) -> wfId.toString() to run.id })
+            if (found != null) {
+                allRuns.add(wfId to found)
+                knownRunIds[wfId.toString()] = found.id
             }
+        }
+        // Persist the (possibly grown) run-id map for precise lookups next round.
+        if (knownRunIds.isNotEmpty() && knownRunIds.size != log?.runIds?.size) {
+            repo.updateLogTracking(logId, knownRunIds)
         }
 
         // No run created yet (GitHub lag): keep the timer growing from firedAt and retry.
@@ -89,9 +93,9 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
             return continueOrGiveUp(logId, ruleId, poll, repo, log)
         }
 
-        val allDone = allRuns.all { it.second.status == "completed" }
+        val allDone = allRuns.size == workflowIds.size && allRuns.all { it.second.status == "completed" }
         if (!allDone) {
-            // Run exists but still running: persist a live duration from its start.
+            // Run exists but still running (or some workflows not found yet): keep the timer.
             persistLiveElapsed(repo, logId, firedAt, allRuns.mapNotNull { parseInstant(it.second.runStartedAt.ifBlank { it.second.createdAt })?.toEpochMilli() }.minOrNull())
             return continueOrGiveUp(logId, ruleId, poll, repo, log)
         }
@@ -102,7 +106,7 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         val durationMs = if (starts.isNotEmpty() && ends.isNotEmpty()) {
             Duration.between(starts.min(), ends.max()).toMillis().coerceAtLeast(0L)
         } else (System.currentTimeMillis() - firedAt).coerceAtLeast(0L)
-        val success = allRuns.all { it.second.conclusion == "success" } && !anyError
+        val success = allRuns.all { it.second.conclusion == "success" }
         repo.finalizeLog(logId, durationMs, success)
 
         if (repo.isRunTrackingEnabledOnce()) {
@@ -133,7 +137,7 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
             reenqueue(logId, ruleId, poll + 1)
             return Result.success()
         }
-        // Extreme safety net (24h): keep the elapsed time, mark as unconfirmed (not failed).
+        // Safety net (3h): keep the elapsed time, mark as unconfirmed (not failed).
         val elapsed = (System.currentTimeMillis() - (log?.firedAt ?: System.currentTimeMillis())).coerceAtLeast(0L)
         repo.finalizeUnconfirmed(logId, elapsed)
         if (repo.isRunTrackingEnabledOnce()) {

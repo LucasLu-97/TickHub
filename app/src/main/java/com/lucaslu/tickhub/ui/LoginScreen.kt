@@ -108,7 +108,7 @@ fun LoginScreen(state: LoginUiState, vm: AppViewModel, configured: Boolean) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.padding(8.dp))
                         Text(
-                            L10n.tNow(state.status),
+                            t(state.status),
                             style = MaterialTheme.typography.bodySmall,
                             textAlign = TextAlign.Center,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -129,7 +129,7 @@ fun LoginScreen(state: LoginUiState, vm: AppViewModel, configured: Boolean) {
 
         state.error?.let { err ->
             Spacer(Modifier.height(16.dp))
-            Text(L10n.tNow(err), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+            Text(t(err), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
             Spacer(Modifier.height(8.dp))
             Button(onClick = { vm.startDeviceFlow() }) { Text(t("重试")) }
         }
