@@ -40,7 +40,7 @@ class DispatchWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             // An unexpected exception (e.g. DataStore write failure) must not
             // silently drop the slot: record a FAILED log and schedule the same
             // persisted retry path a normal dispatch failure uses.
-            runCatching { engine.handleException(ruleId, plannedAt, isMakeup, e) }
+            runCatching { engine.handleException(ruleId, plannedAt, isMakeup, advance, e) }
                 .onFailure { AppLogger.e("Worker", "handleException FAILED: ${it.message}", it) }
             Result.success() // our own retry owns recovery; avoid WorkManager re-run + duplicate logs
         } finally {

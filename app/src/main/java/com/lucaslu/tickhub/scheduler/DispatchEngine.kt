@@ -109,7 +109,9 @@ class DispatchEngine(private val context: Context) {
         if (workflowIds.isEmpty()) {
             // No workflow selected: retrying 5 times over 75min is pure noise.
             AppLogger.w("Engine", "rule=${ruleId.take(8)} has no workflows -> advance directly")
-            val transition = buildTransition(rule, plannedAt, allSuccess = true, advance = true, emptyList(), null)
+            // Respect the caller's advance flag: a manual trigger on a rule with
+            // no workflows must not consume the planned slot either.
+            val transition = buildTransition(rule, plannedAt, allSuccess = true, advance = advance, emptyList(), null)
             val log = com.lucaslu.tickhub.data.TriggerLog(
                 id = java.util.UUID.randomUUID().toString(), ruleId = rule.id,
                 workflowName = rule.workflowName, workflowNames = rule.workflowNames,
@@ -124,7 +126,7 @@ class DispatchEngine(private val context: Context) {
         if (token == null) {
             AppLogger.e("Engine", "token missing -> retry (user may re-login)")
             commitInfraFailure(rule, plannedAt, isMakeup, TriggerStatus.SKIPPED,
-                "未登录，token 缺失", "未登录，token 缺失", emptyList(), advance = false)
+                "未登录，token 缺失", "未登录，token 缺失", emptyList(), permanent = false, advance = advance)
             return TriggerStatus.FAILED
         }
 
@@ -134,7 +136,7 @@ class DispatchEngine(private val context: Context) {
         AppLogger.i("Engine", "network ready=$networkOk")
         if (!networkOk) {
             commitInfraFailure(rule, plannedAt, isMakeup, TriggerStatus.SKIPPED,
-                "等待网络超时（${waitMinutes}分钟）", "等待网络超时（{0}分钟）", listOf("$waitMinutes"), advance = false)
+                "等待网络超时（${waitMinutes}分钟）", "等待网络超时（{0}分钟）", listOf("$waitMinutes"), permanent = false, advance = advance)
             return TriggerStatus.FAILED
         }
 
@@ -146,7 +148,7 @@ class DispatchEngine(private val context: Context) {
         if (parts.size != 2) {
             AppLogger.e("Engine", "invalid repo name: ${rule.repoFullName}")
             commitInfraFailure(rule, plannedAt, isMakeup, TriggerStatus.FAILED,
-                "仓库名无效：${rule.repoFullName}", "仓库名无效：{0}", listOf(rule.repoFullName), advance = true)
+                "仓库名无效：${rule.repoFullName}", "仓库名无效：{0}", listOf(rule.repoFullName), permanent = true, advance = advance)
             return TriggerStatus.FAILED
         }
 
@@ -240,7 +242,7 @@ class DispatchEngine(private val context: Context) {
     private suspend fun commitInfraFailure(
         rule: Rule, plannedAt: Long, isMakeup: Boolean,
         status: TriggerStatus, errorMessage: String, errorKey: String, errorArgs: List<String>,
-        advance: Boolean
+        permanent: Boolean, advance: Boolean
     ) {
         val log = com.lucaslu.tickhub.data.TriggerLog(
             id = java.util.UUID.randomUUID().toString(), ruleId = rule.id,
@@ -250,7 +252,13 @@ class DispatchEngine(private val context: Context) {
             errorMessage = errorMessage, errorKey = errorKey, errorArgs = errorArgs,
             isMakeup = isMakeup
         )
-        val transition = if (advance) {
+        val transition = if (!advance) {
+            // Manual trigger: never arm a retry alarm from an infra failure.
+            com.lucaslu.tickhub.repository.DispatchTransition(
+                nextFireAt = rule.nextFireAt, effectiveFireAt = rule.effectiveFireAt,
+                lastFiredAt = rule.lastFiredAt
+            )
+        } else if (permanent) {
             // Permanent config error: give up this slot cleanly.
             val (next, effective) = repository.computeNextFire(rule, LocalDateTime.now())
             if (next == null || effective == null) {
@@ -390,7 +398,7 @@ class DispatchEngine(private val context: Context) {
 
     /** Called when execute() throws unexpectedly: log the failure and use the
      *  same persisted retry path so the slot is not silently lost. */
-    suspend fun handleException(ruleId: String, plannedAt: Long, isMakeup: Boolean, e: Exception) {
+    suspend fun handleException(ruleId: String, plannedAt: Long, isMakeup: Boolean, advance: Boolean, e: Exception) {
         val rule = repository.getRuleOnce(ruleId) ?: return
         // If the outcome was already committed (log+rule) before the exception
         // (e.g. tracker enqueue failed), do NOT re-dispatch — that would be a
@@ -411,7 +419,13 @@ class DispatchEngine(private val context: Context) {
             errorMessage = "执行异常：${e.message}", errorKey = "执行异常：{0}",
             errorArgs = listOf(e.message.orEmpty()), isMakeup = isMakeup
         )
-        val transition = buildRetryTransition(rule, plannedAt, rule.retryFailedWfIds)
+        // Manual trigger must not arm a background retry alarm either.
+        val transition = if (!advance) {
+            com.lucaslu.tickhub.repository.DispatchTransition(
+                nextFireAt = rule.nextFireAt, effectiveFireAt = rule.effectiveFireAt,
+                lastFiredAt = rule.lastFiredAt
+            )
+        } else buildRetryTransition(rule, plannedAt, rule.retryFailedWfIds)
         val updated = repository.commitDispatchOutcome(log, false, ruleId, transition)
         updated?.let { postCommitSchedule(it, transition) }
     }

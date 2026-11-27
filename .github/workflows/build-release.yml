@@ -80,7 +80,7 @@ jobs:
             '-keep class androidx.startup.** { *; }' \
             '-keep class * extends androidx.work.InputMerger { public <init>(); }' \
             '-keep class * extends androidx.work.ListenableWorker { *; }'; do
-            grep -Fq -- "$rule" app/proguard-rules.pro || { echo "MISSING keep rule: $rule"; exit 1; }
+            grep -Fxq -- "$rule" app/proguard-rules.pro || { echo "MISSING keep rule: $rule"; exit 1; }
           done
           echo "R8 keep rules present"
 

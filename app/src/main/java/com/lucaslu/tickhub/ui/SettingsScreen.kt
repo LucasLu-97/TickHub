@@ -77,7 +77,7 @@ fun SettingsScreen(vm: SettingsViewModel, onOpenLogs: (() -> Unit)? = null) {
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp).padding(top = 4.dp, bottom = 88.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
-            fun setShowExecution(enabled: Boolean) { vm.setShowExecutionStatus(enabled); com.lucaslu.tickhub.util.Haptics.tick(context) }
+            fun setShowExecution(enabled: Boolean) { vm.setShowExecutionStatus(enabled) }
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(t("后台运行"), style = MaterialTheme.typography.titleMedium)
@@ -145,7 +145,7 @@ fun SettingsScreen(vm: SettingsViewModel, onOpenLogs: (() -> Unit)? = null) {
                             Text(t("执行结果通知"), style = MaterialTheme.typography.titleMedium)
                             Text(t("任务完成后通知成功或失败，并显示真实用时"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        MiuixSwitch(checked = runTrack, onCheckedChange = { vm.setRunTrackingEnabled(it); com.lucaslu.tickhub.util.Haptics.tick(context) }, description = t("执行结果通知"))
+                        MiuixSwitch(checked = runTrack, onCheckedChange = { vm.setRunTrackingEnabled(it) }, description = t("执行结果通知"))
                     }
                 }
             }
@@ -158,7 +158,7 @@ fun SettingsScreen(vm: SettingsViewModel, onOpenLogs: (() -> Unit)? = null) {
                             Text(t("触感反馈"), style = MaterialTheme.typography.titleMedium)
                             Text(t("开关、滑动、拨轮、页面切换的短震动反馈"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        MiuixSwitch(checked = haptics, onCheckedChange = { vm.setHapticsEnabled(it); com.lucaslu.tickhub.util.Haptics.tick(context) }, description = t("触感反馈"))
+                        MiuixSwitch(checked = haptics, onCheckedChange = { vm.setHapticsEnabled(it) }, description = t("触感反馈"))
                     }
                 }
             }
@@ -173,7 +173,7 @@ fun SettingsScreen(vm: SettingsViewModel, onOpenLogs: (() -> Unit)? = null) {
                             Text(t("中国法定节假日"), style = MaterialTheme.typography.titleMedium)
                             Text(t("仅中国用户需要：开启后拉取节假日数据，支持「法定工作日/节假日」周期。非中国地区不支持此周期。"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        MiuixSwitch(checked = holidayEnabled, onCheckedChange = { vm.setHolidayEnabled(it); com.lucaslu.tickhub.util.Haptics.tick(context) }, description = t("中国法定节假日"))
+                        MiuixSwitch(checked = holidayEnabled, onCheckedChange = { vm.setHolidayEnabled(it) }, description = t("中国法定节假日"))
                     }
                 }
             }
