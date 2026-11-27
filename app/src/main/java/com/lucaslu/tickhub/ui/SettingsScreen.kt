@@ -162,6 +162,21 @@ fun SettingsScreen(vm: AppViewModel, onOpenLogs: (() -> Unit)? = null) {
             }
             Spacer(Modifier.height(16.dp))
 
+            // China-only statutory holiday calendar — opt-in, default off
+            val holidayEnabled by vm.holidayEnabledFlow.collectAsState()
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("中国法定节假日", style = MaterialTheme.typography.titleMedium)
+                            Text("仅中国用户需要：开启后拉取节假日数据，支持「法定工作日/节假日」周期。非中国地区不支持此周期。", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        MiuixSwitch(checked = holidayEnabled, onCheckedChange = { vm.setHolidayEnabled(it); com.lucaslu.tickhub.util.Haptics.tick(context) })
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("网络恢复机制", style = MaterialTheme.typography.titleMedium)

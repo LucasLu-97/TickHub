@@ -121,21 +121,15 @@ class DispatchEngine(private val context: Context) {
             isMakeup = isMakeup
         )
 
-        // Real-duration tracking: find the GitHub runs created by this dispatch,
-        // then a lightweight Worker polls until they finish and posts a notification.
+        // Real-duration tracking: mark the log as tracking immediately and let the
+        // Worker discover the GitHub run itself on its first poll (~20s later).
+        // Previously we queried runs here, but GitHub often hasn't created the run
+        // yet right after dispatch, so tracking silently never started and the
+        // history card showed no duration.
         if (allSuccess && parts.size == 2 && repository.isRunTrackingEnabledOnce()) {
-            val runIds = mutableMapOf<String, Long>()
-            for (wfId in workflowIds) {
-                when (val runs = api.listWorkflowRuns(token, parts[0], parts[1], wfId, 5)) {
-                    is ApiResult.Success -> runs.data.workflowRuns.firstOrNull()?.let { runIds[wfId.toString()] = it.id }
-                    is ApiResult.Error -> Unit
-                }
-            }
-            if (runIds.isNotEmpty()) {
-                repository.updateLogTracking(logId, runIds)
-                RunTrackerWorker.enqueue(context, logId, rule.id)
-                AppLogger.i("Engine", "tracking started log=${logId.take(8)} runs=${runIds.size}")
-            }
+            repository.markTracking(logId)
+            RunTrackerWorker.enqueue(context, logId, rule.id)
+            AppLogger.i("Engine", "tracking started log=${logId.take(8)}")
         }
 
         advanceRule(rule)

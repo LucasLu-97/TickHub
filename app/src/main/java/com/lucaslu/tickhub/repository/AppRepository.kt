@@ -139,6 +139,19 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         }
     }
 
+    /** Mark a log as tracking right after dispatch, before GitHub has created the run.
+     *  The tracker Worker discovers the run itself on its first poll (~20s later). */
+    suspend fun markTracking(logId: String) {
+        context.dataStore.edit { prefs ->
+            val logs = readLogs(prefs).toMutableList()
+            val idx = logs.indexOfFirst { it.id == logId }
+            if (idx >= 0) {
+                logs[idx] = logs[idx].copy(tracking = true)
+                prefs[logsKey] = json.encodeToString(logs)
+            }
+        }
+    }
+
     /** Finalize a tracked log with the real GitHub run duration and conclusion. */
     suspend fun finalizeLog(logId: String, durationMs: Long, success: Boolean) {
         context.dataStore.edit { prefs ->
@@ -213,6 +226,15 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
 
     suspend fun setHapticsEnabled(enabled: Boolean) {
         context.dataStore.edit { it[hapticsKey] = enabled }
+    }
+
+    // ---- Chinese statutory holiday calendar (China-only, opt-in, default off) ----
+    private val holidayEnabledKey = androidx.datastore.preferences.core.booleanPreferencesKey("holiday_calendar_enabled")
+
+    val holidayEnabled: Flow<Boolean> = context.dataStore.data.map { it[holidayEnabledKey] ?: false }
+    suspend fun holidayEnabledOnce(): Boolean = context.dataStore.data.first()[holidayEnabledKey] ?: false
+    suspend fun setHolidayEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[holidayEnabledKey] = enabled }
     }
 
     // ---- card ordering (reorder by long-press drag) ----

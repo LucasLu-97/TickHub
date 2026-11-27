@@ -71,6 +71,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val runTrackingFlow: StateFlow<Boolean> = _runTrackingEnabled.asStateFlow()
     private val _hapticsEnabled = MutableStateFlow(kotlinx.coroutines.runBlocking { repository.hapticsOnce() })
     val hapticsFlow: StateFlow<Boolean> = _hapticsEnabled.asStateFlow()
+    private val _holidayEnabled = MutableStateFlow(kotlinx.coroutines.runBlocking { repository.holidayEnabledOnce() })
+    val holidayEnabledFlow: StateFlow<Boolean> = _holidayEnabled.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -80,6 +82,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repository.showExecutionStatus.collect { _showExecutionStatus.value = it } }
         viewModelScope.launch { repository.runTrackingEnabled.collect { _runTrackingEnabled.value = it } }
         viewModelScope.launch { repository.hapticsEnabled.collect { _hapticsEnabled.value = it } }
+        viewModelScope.launch { repository.holidayEnabled.collect { _holidayEnabled.value = it } }
     }
 
     private val _login = MutableStateFlow(LoginUiState(isLoggedIn = tokenStore.getToken() != null))
@@ -95,6 +98,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun cycleTheme() { _themeMode.value = (_themeMode.value + 1) % 3 }
 
     fun clientConfigured(): Boolean = api.isClientConfigured()
+
+    fun holidayEnabledOnce(): Boolean = _holidayEnabled.value
 
     fun startDeviceFlow() {
         _login.value = LoginUiState(status = "正在请求设备码…", loading = true)
@@ -320,6 +325,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setHapticsEnabled(enabled: Boolean) {
         viewModelScope.launch { repository.setHapticsEnabled(enabled) }
+    }
+
+    /** China-only statutory calendar opt-in. Turning it on immediately fetches
+     *  current + next year data (cached thereafter); turning off stops refreshes. */
+    fun setHolidayEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setHolidayEnabled(enabled)
+            _holidayEnabled.value = enabled
+            if (enabled) refreshHolidays()
+        }
     }
 
     fun saveOrder(kind: String, ids: List<String>) {

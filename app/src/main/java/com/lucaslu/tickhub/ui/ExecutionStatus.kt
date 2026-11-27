@@ -19,7 +19,7 @@ import kotlinx.coroutines.delay
 
 /** Live elapsed-time label, ticks once per second only while composed (foreground). */
 @Composable
-fun ElapsedText(startAt: Long, modifier: Modifier = Modifier) {
+fun ElapsedText(startAt: Long, modifier: Modifier = Modifier, prefix: String = "") {
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(startAt) {
         while (true) {
@@ -30,7 +30,7 @@ fun ElapsedText(startAt: Long, modifier: Modifier = Modifier) {
     val total = ((now - startAt) / 1000).coerceAtLeast(0)
     val mm = (total / 60).toString().padStart(2, '0')
     val ss = (total % 60).toString().padStart(2, '0')
-    Text("${mm}m${ss}s", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = modifier)
+    Text("${prefix}${mm}m${ss}s", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = modifier)
 }
 
 /** Small indeterminate spinner + elapsed time for a running rule. */

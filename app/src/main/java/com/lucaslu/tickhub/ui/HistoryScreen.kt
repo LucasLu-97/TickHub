@@ -129,8 +129,8 @@ private fun LogCardContent(log: TriggerLog) {
             log.firedAt?.let { Text("实际：${fmt.format(Date(it))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f)) }
                 ?: Spacer(Modifier.weight(1f))
             if (log.tracking) {
-                Text("耗时 ", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                ElapsedText(startAt = log.firedAt ?: log.plannedAt)
+                // plain live-growing duration text — no spinner on history cards
+                ElapsedText(startAt = log.firedAt ?: log.plannedAt, prefix = "耗时 ")
             } else if (log.durationMs > 0) {
                 val s = log.durationMs / 1000
                 Text(
