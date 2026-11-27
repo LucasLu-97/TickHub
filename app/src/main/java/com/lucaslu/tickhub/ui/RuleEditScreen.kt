@@ -37,11 +37,11 @@ import java.util.UUID
 
 @Suppress("DEPRECATION")
 private val TYPE_LABELS = mapOf(
-    RuleType.ONCE to t("单次"), RuleType.DAILY to t("每天"), RuleType.WEEKLY to t("每周"),
-    RuleType.LEGAL_WORKDAY to t("法定工作日"), RuleType.LEGAL_HOLIDAY to t("法定节假日"),
-    RuleType.EVERY_N_DAYS to t("每隔X天"), RuleType.WEEKDAYS to t("法定工作日")
+    RuleType.ONCE to "单次", RuleType.DAILY to "每天", RuleType.WEEKLY to "每周",
+    RuleType.LEGAL_WORKDAY to "法定工作日", RuleType.LEGAL_HOLIDAY to "法定节假日",
+    RuleType.EVERY_N_DAYS to "每隔X天", RuleType.WEEKDAYS to "法定工作日"
 )
-private val WEEKDAY_LABELS = mapOf(1 to t("一"), 2 to t("二"), 3 to t("三"), 4 to t("四"), 5 to t("五"), 6 to t("六"), 7 to t("日"))
+private val WEEKDAY_LABELS = mapOf(1 to "一", 2 to "二", 3 to "三", 4 to "四", 5 to "五", 6 to "六", 7 to "日")
 
 @Composable
 fun RuleEditScreen(
@@ -147,7 +147,7 @@ fun RuleEditScreen(
                     FilterChip(
                         selected = type == t,
                         onClick = { type = t; Haptics.tick(context) },
-                        label = { Text(TYPE_LABELS[t] ?: t.name) },
+                        label = { Text(t(TYPE_LABELS[t] ?: t.name)) },
                         modifier = Modifier.weight(1f).padding(end = 4.dp)
                     )
                 }
@@ -167,7 +167,7 @@ fun RuleEditScreen(
                                 selectedDays = if (selectedDays.contains(d)) selectedDays - d else selectedDays + d
                                 Haptics.tick(context)
                             },
-                            label = { Text(WEEKDAY_LABELS[d] ?: d.toString()) },
+                            label = { Text(t(WEEKDAY_LABELS[d] ?: d.toString())) },
                             modifier = Modifier.weight(1f).padding(end = 2.dp)
                         )
                     }
@@ -200,8 +200,8 @@ fun RuleEditScreen(
             Button(onClick = {
                 Haptics.tick(context)
                 when {
-                    selectedIds.isEmpty() -> error = t("请至少勾选一个工作流")
-                    type == RuleType.WEEKLY && selectedDays.isEmpty() -> error = t("请至少选择一个星期")
+                    selectedIds.isEmpty() -> error = com.lucaslu.tickhub.util.L10n.tNow("请至少勾选一个工作流")
+                    type == RuleType.WEEKLY && selectedDays.isEmpty() -> error = com.lucaslu.tickhub.util.L10n.tNow("请至少选择一个星期")
                     else -> {
                         val chosen = workflows.filter { selectedIds.contains(it.id) }
                         // split by repo: one rule per repo, each with its own workflows

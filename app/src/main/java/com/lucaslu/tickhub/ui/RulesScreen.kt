@@ -42,13 +42,13 @@ import sh.calvin.reorderable.ReorderableItem
 
 @Suppress("DEPRECATION")
 private val TYPE_LABELS = mapOf(
-    RuleType.ONCE to t("单次"),
-    RuleType.DAILY to t("每天"),
-    RuleType.WEEKLY to t("每周"),
-    RuleType.LEGAL_WORKDAY to t("法定工作日"),
-    RuleType.LEGAL_HOLIDAY to t("法定节假日"),
-    RuleType.EVERY_N_DAYS to t("每隔X天"),
-    RuleType.WEEKDAYS to t("法定工作日")
+    RuleType.ONCE to "单次",
+    RuleType.DAILY to "每天",
+    RuleType.WEEKLY to "每周",
+    RuleType.LEGAL_WORKDAY to "法定工作日",
+    RuleType.LEGAL_HOLIDAY to "法定节假日",
+    RuleType.EVERY_N_DAYS to "每隔X天",
+    RuleType.WEEKDAYS to "法定工作日"
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,7 +73,7 @@ fun RulesScreen(vm: AppViewModel) {
         .map { it.fullName.split("/").lastOrNull() ?: it.fullName }
 
     fun groupNameOf(rule: com.lucaslu.tickhub.data.Rule): String =
-        rule.repoFullName.split("/").lastOrNull().takeUnless { it.isNullOrBlank() } ?: t("未分类")
+        rule.repoFullName.split("/").lastOrNull().takeUnless { it.isNullOrBlank() } ?: com.lucaslu.tickhub.util.L10n.tNow("未分类")
 
     LaunchedEffect(rules, savedRuleOrder) {
         orderedRules = vm.applyOrder(rules, savedRuleOrder) { it.id }
@@ -116,7 +116,7 @@ fun RulesScreen(vm: AppViewModel) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmTrigger = null },
             title = { Text(t("确认立即触发")) },
-            text = { Text("将立即触发「${ruleToTrigger.workflowNames.joinToString("、t(").ifBlank { ruleToTrigger.workflowName }}」，确定继续？")) },
+            text = { Text(t("将立即触发「") + ruleToTrigger.workflowNames.joinToString("、").ifBlank { ruleToTrigger.workflowName } + t("」，确定继续？")) },
             confirmButton = {
                 TextButton(onClick = { Haptics.tick(context); vm.triggerNow(ruleToTrigger); confirmTrigger = null }) { Text(t("确认触发")) }
             },
@@ -224,7 +224,7 @@ private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () 
         Text(names.joinToString("、"), style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(6.dp))
         val timeText = rule.timeSlots.ifEmpty { listOf(String.format("%02d:%02d", rule.hour, rule.minute)) }.joinToString("、")
-        val cycleText = TYPE_LABELS[rule.type] ?: rule.type.name
+        val cycleText = t(TYPE_LABELS[rule.type] ?: rule.type.name)
         Text("$cycleText · $timeText", style = MaterialTheme.typography.bodyMedium)
         rule.effectiveFireAt?.let {
             val next = RuleEngine.fromEpochMillis(it)

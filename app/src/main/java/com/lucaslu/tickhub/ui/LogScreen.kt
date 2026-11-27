@@ -67,7 +67,7 @@ fun LogScreen(onBack: (() -> Unit)? = null) {
             Button(onClick = { logText = AppLogger.readAll() }, modifier = Modifier.weight(1f).padding(end = 4.dp)) { Text(t("刷新")) }
             OutlinedButton(onClick = {
                 copyToClipboard(context, logText)
-                Toast.makeText(context, t("日志已复制，可粘贴发送"), Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, com.lucaslu.tickhub.util.L10n.tNow("日志已复制，可粘贴发送"), Toast.LENGTH_SHORT).show()
             }, modifier = Modifier.weight(1f).padding(start = 4.dp)) { Text(t("复制全部")) }
         }
         Spacer(Modifier.height(8.dp))
@@ -76,7 +76,7 @@ fun LogScreen(onBack: (() -> Unit)? = null) {
             OutlinedButton(onClick = {
                 AppLogger.clear()
                 logText = AppLogger.readAll()
-                Toast.makeText(context, t("已清空"), Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, com.lucaslu.tickhub.util.L10n.tNow("已清空"), Toast.LENGTH_SHORT).show()
             }, modifier = Modifier.weight(1f).padding(start = 4.dp)) { Text(t("清空")) }
         }
         Spacer(Modifier.height(12.dp))
@@ -102,7 +102,7 @@ private fun copyToClipboard(context: Context, text: String) {
 private fun shareLogFile(context: Context) {
     val file = AppLogger.getFile()
     if (file == null || !file.exists()) {
-        Toast.makeText(context, t("暂无日志文件"), Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, com.lucaslu.tickhub.util.L10n.tNow("暂无日志文件"), Toast.LENGTH_SHORT).show()
         return
     }
     try {
@@ -110,10 +110,10 @@ private fun shareLogFile(context: Context) {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, t("TickHub 调试日志"))
+            putExtra(Intent.EXTRA_SUBJECT, com.lucaslu.tickhub.util.L10n.tNow("TickHub 调试日志"))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(Intent.createChooser(intent, t("分享日志")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        context.startActivity(Intent.createChooser(intent, com.lucaslu.tickhub.util.L10n.tNow("分享日志")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     } catch (e: Exception) {
         Toast.makeText(context, com.lucaslu.tickhub.util.L10n.tNow("分享失败：") + e.message, Toast.LENGTH_SHORT).show()
     }

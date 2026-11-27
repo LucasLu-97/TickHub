@@ -9,7 +9,7 @@ import androidx.core.app.NotificationCompat
 /** Posts a simple completion notification for tracked workflow runs. */
 object NotificationHelper {
     private const val CHANNEL_ID = "tickhub_run_result"
-    private const val CHANNEL_NAME = com.lucaslu.tickhub.util.L10n.tNow("触发结果通知")
+    private val CHANNEL_NAME get() = com.lucaslu.tickhub.util.L10n.tNow("触发结果通知")
     private const val NOTIF_ID_BASE = 2000
 
     private fun ensureChannel(context: Context) {
