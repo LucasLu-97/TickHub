@@ -15,6 +15,7 @@ object AppLogger {
 
     private const val TAG = "TickHub"
     private const val LOG_FILE = "tickhub-debug.log"
+    const val CRASH_FILE = "tickhub-crash.txt" // written by TickHubApp crash handler
     private const val MAX_LINES = 800
 
     private var logFile: File? = null
@@ -64,11 +65,17 @@ object AppLogger {
 
     fun readAll(): String = synchronized(lock) {
         val file = logFile ?: return "日志未初始化"
-        try {
+        val log = try {
             if (file.exists()) file.readText() else "（暂无日志）"
         } catch (e: Exception) {
             "读取日志失败：${e.message}"
         }
+        // Append last crash stack (if any) so flash-crashes are diagnosable.
+        val crash = try {
+            val f = java.io.File(file.parentFile, CRASH_FILE)
+            if (f.exists()) "\n\n===== LAST CRASH =====\n${f.readText()}" else ""
+        } catch (e: Exception) { "" }
+        log + crash
     }
 
     fun clear() = synchronized(lock) {
