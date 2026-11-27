@@ -62,3 +62,6 @@
 -keep class androidx.compose.ui.platform.ComposeView { *; }
 -dontwarn androidx.compose.**
 -dontwarn okhttp3.**
+# security-crypto/Tink references compile-only errorprone annotations at runtime.
+-dontwarn com.google.errorprone.**
+-dontwarn com.google.crypto.tink.**
