@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108">
+  <!-- TickHub stopwatch icon — simple: crown + white face + single hand, GitHub black & white -->
+  <rect width="108" height="108" fill="#181717"/>
+
+  <!-- crown -->
+  <rect x="48" y="12" width="12" height="11" rx="2.5" fill="#FFFFFF"/>
+
+  <!-- face -->
+  <circle cx="54" cy="58" r="34" fill="#FFFFFF"/>
+
+  <!-- single hand pointing up-right -->
+  <path d="M54,58 L72,40" stroke="#181717" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- center hub -->
+  <circle cx="54" cy="58" r="3.5" fill="#181717"/>
+</svg>
