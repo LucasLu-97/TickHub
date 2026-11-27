@@ -204,7 +204,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
      *  or show a permanent spinner (M3). */
     private fun trimLogs(current: List<TriggerLog>): List<TriggerLog> {
         val cutoff = System.currentTimeMillis() - 24 * 60 * 60_000L
-        val normalized = current.map { if (it.tracking && it.firedAt < cutoff) it.copy(tracking = false) else it }
+        val normalized = current.map { if (it.tracking && (it.firedAt ?: 0L) < cutoff) it.copy(tracking = false) else it }
         val kept = normalized.take(200).toMutableList()
         // Keep only recent tracking logs beyond the cap, in newest-first order.
         val extra = normalized.drop(200).filter { it.tracking }.sortedByDescending { it.firedAt }.take(10)
