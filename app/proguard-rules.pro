@@ -37,9 +37,17 @@
 -dontwarn androidx.datastore.**
 -dontwarn kotlinx.coroutines.**
 
+# ---- WorkManager / Room (CRITICAL: launch crash v1.3.1/v1.3.2-beta) ----
+# WorkManagerInitializer reflectively calls WorkDatabase_Impl's no-arg ctor.
+# R8 strips it as "unused" -> NoSuchMethodException -> crash in ContentProvider
+# before Application.onCreate. This is the official WorkManager+R8 keep rule.
+-keep class androidx.work.impl.** { *; }
+-keep class androidx.room.** { *; }
+-keep class * extends androidx.work.ListenableWorker { *; }
+-keepattributes InnerClasses, Signature, *Annotation*
+
 # ---- Android components instantiated by framework by name ----
 -keep class * extends android.app.BroadcastReceiver { *; }
--keep class * extends androidx.work.ListenableWorker { *; }
 -keep class com.lucaslu.tickhub.TickHubApp { *; }
 -keep class com.lucaslu.tickhub.ui.MainActivity { *; }
 
