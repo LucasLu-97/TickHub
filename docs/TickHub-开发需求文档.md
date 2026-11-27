@@ -11,8 +11,8 @@
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
 | 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35 |
-| 当前正式版 | v1.0.2（关闭 R8 修复启动闪退 + 5s 轮询），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.2 |
-| 历史正式版 | v1.0.1（R8 闪退）、v1.0.0（R8 闪退） |
+| 当前正式版 | v1.0.3（登录页转圈修复 + 授权等待提示优化），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.3 |
+| 历史正式版 | v1.0.2（关闭 R8 修复闪退）、v1.0.1 / v1.0.0（R8 闪退） |
 | 真机验收 | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现） |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
@@ -963,6 +963,8 @@ APP 内置了 **GitHub CLI 的官方公开 Client ID**（`178c6fc778ccc68e1d6a`�
 - 头像仅内存缓存、日志滚动 800 行（约 100KB），无磁盘缓存膨胀；80MB 存储主因是 ART 编译产物，已随 APK 瘦身下降。
 
 **仓库介绍**：description 中英双语（含 GitHub Actions scheduler / Kotlin / Compose 等英文关键词）；README 默认中文并切换英文版（`README_EN.md`）。
+
+**登录体验修正（v1.0.3）**：① 请求设备码按钮的转圈只用 `height(18.dp)` 导致宽度测量异常"圆圈乱飞"，改 `size(18.dp)`；设备卡片状态文本旁加常量程转圈明确"正在等待"。② Device Flow 切浏览器授权再回来时，后台网络收紧期的轮询文案原为"网络不可达…请切回本 APP"，用户已切回却看到此提示会误判失败退出；改为中性的"正在等待授权完成，登录会自动继续，请稍候…"，不提网络错误/重试次数（仅日志保留），仅真正失败（过期/拒绝/超时）才用 error 提示。
 
 ---
 
