@@ -141,7 +141,22 @@ class RepoViewModel(app: Application) : AndroidViewModel(app) {
                     // card shows a live-growing timer until the run completes.
                     RunTrackerWorker.enqueue(getApplication(), logId, AppContainer.MANUAL_RULE_ID)
                 }
-                is ApiResult.Error -> AppLogger.e("Manual", "trigger FAILED wf=$workflowName: ${result.message}")
+                is ApiResult.Error -> {
+                    AppLogger.e("Manual", "trigger FAILED wf=$workflowName: ${result.message}")
+                    // User-visible feedback + persisted failure record (was silent).
+                    c.repository.addLog(
+                        TriggerLog(
+                            id = java.util.UUID.randomUUID().toString(),
+                            ruleId = AppContainer.MANUAL_RULE_ID,
+                            workflowName = workflowName, workflowNames = listOf(workflowName),
+                            repoFullName = repoFullName, plannedAt = System.currentTimeMillis(),
+                            firedAt = System.currentTimeMillis(), status = TriggerStatus.FAILED,
+                            httpCode = result.code, errorMessage = result.message,
+                            errorKey = "手动触发失败：{0}", errorArgs = listOf(result.message)
+                        )
+                    )
+                    c.updateRepo { it.copy(error = "手动触发失败：${result.message}") }
+                }
             }
         }
     }

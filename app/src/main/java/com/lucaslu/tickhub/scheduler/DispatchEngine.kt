@@ -88,6 +88,20 @@ class DispatchEngine(private val context: Context) {
             rule.resolvedWorkflowIds(), rule.retryFailedWfIds, isRetry
         )
         AppLogger.i("Engine", "execute rule=${ruleId.take(8)} wfs=${workflowIds.size} retry=$isRetry repo=${rule.repoFullName} makeup=$isMakeup")
+        if (workflowIds.isEmpty()) {
+            // No workflow selected: retrying 5 times over 75min is pure noise.
+            AppLogger.w("Engine", "rule=${ruleId.take(8)} has no workflows -> advance directly")
+            val transition = buildTransition(rule, plannedAt, allSuccess = true, advance = true, emptyList())
+            val log = com.lucaslu.tickhub.data.TriggerLog(
+                id = java.util.UUID.randomUUID().toString(), ruleId = rule.id,
+                workflowName = rule.workflowName, workflowNames = rule.workflowNames,
+                repoFullName = rule.repoFullName, plannedAt = plannedAt,
+                firedAt = System.currentTimeMillis(), status = TriggerStatus.SKIPPED,
+                errorMessage = "规则未选择任何工作流", errorKey = "规则未选择任何工作流"
+            )
+            repository.commitDispatchOutcome(log, false, ruleId, transition)?.let { postCommitSchedule(it, transition) }
+            return TriggerStatus.SKIPPED
+        }
         val token = tokenStore.getToken()
         if (token == null) {
             AppLogger.e("Engine", "token missing -> retry (user may re-login)")
@@ -122,40 +136,44 @@ class DispatchEngine(private val context: Context) {
         val ref = repository.getSnapshotOnce().repos.firstOrNull { it.fullName == rule.repoFullName }?.defaultBranch?.takeIf { it.isNotBlank() } ?: "main"
 
         // dispatch every selected workflow (concurrently via coroutines), all must succeed
+        data class WfResult(val wfId: Long, val success: Boolean, val httpCode: Int?, val error: String?)
         val results = kotlinx.coroutines.coroutineScope {
             workflowIds.map { wfId ->
                 async(kotlinx.coroutines.Dispatchers.IO) {
                     var lastError: String? = null
-                    var httpCode: Int? = null
+                    var lastCode: Int? = null
                     var success = false
                     val delays = longArrayOf(1_000, 4_000, 16_000)
                     for (attempt in 0..2) {
                         when (val result = api.dispatchWorkflow(token, parts[0], parts[1], wfId, ref)) {
                             is ApiResult.Success -> {
-                                httpCode = result.data
+                                lastCode = result.data
                                 success = true
                                 AppLogger.i("Engine", "dispatch wfId=$wfId SUCCESS http=${result.data} attempt=${attempt + 1}")
                                 break
                             }
                             is ApiResult.Error -> {
                                 lastError = result.message
-                                httpCode = result.code
+                                lastCode = result.code
                                 AppLogger.w("Engine", "dispatch wfId=$wfId attempt ${attempt + 1} FAILED http=${result.code} err=${result.message}")
+                                // Don't waste 1+4+16s retrying non-transient 4xx
+                                // (401 token revoked, 422 bad params, 404 missing).
+                                val code = result.code
+                                if (code != null && code in 400..499 && code != 429) break
                                 if (attempt < 2) delay(delays[attempt])
                             }
                         }
                     }
-                    Triple(wfId, success, if (success) httpCode?.toString() else lastError)
+                    WfResult(wfId, success, if (success) lastCode ?: 204 else lastCode, if (success) null else lastError)
                 }
             }.map { it.await() }
         }
 
-        val failedWfIds = results.filter { !it.second }.map { it.first }
+        val failedWfIds = results.filter { !it.success }.map { it.wfId }
         val allSuccess = results.isNotEmpty() && failedWfIds.isEmpty()
-        val lastError = results.firstOrNull { !it.second }?.third
-        // Read http code from the FAILED result (first result may be a success 204,
-        // mislabeling the failure). On success use 204.
-        val httpCode = if (allSuccess) 204 else results.firstOrNull { !it.second }?.third?.toIntOrNull()
+        val lastError = results.firstOrNull { !it.success }?.error
+        // Keep the FAILED result's actual HTTP code (401/422/500) for diagnosis.
+        val httpCode = if (allSuccess) 204 else results.firstOrNull { !it.success }?.httpCode
         val status = if (allSuccess) {
             if (isMakeup) TriggerStatus.MAKEUP else TriggerStatus.SUCCESS
         } else TriggerStatus.FAILED

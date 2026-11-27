@@ -34,9 +34,16 @@ class TokenStore(context: Context) {
     fun getToken(): String? =
         (prefs?.getString(KEY_TOKEN, null) ?: transientToken)?.takeIf { it.isNotBlank() }
 
-    fun saveToken(token: String) {
-        if (prefs != null) prefs.edit().putString(KEY_TOKEN, token).apply()
-        else transientToken = token
+    /** Returns true if the token was securely persisted; false means Keystore is
+     *  unavailable and the token lives only in process memory (lost on restart). */
+    fun saveToken(token: String): Boolean {
+        return if (prefs != null) {
+            prefs.edit().putString(KEY_TOKEN, token).apply()
+            true
+        } else {
+            transientToken = token
+            false
+        }
     }
 
     fun clear() {

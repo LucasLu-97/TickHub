@@ -64,7 +64,15 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
             if (knownId != null) {
                 when (val result = api.getWorkflowRun(token, parts[0], parts[1], knownId)) {
                     is ApiResult.Success -> found = result.data
-                    is ApiResult.Error -> knownRunIds.remove(wfId.toString()) // 404/perm -> rediscover
+                    is ApiResult.Error -> {
+                        // ONLY 404/410 mean the run vanished — rediscover. Network /
+                        // 401 / 5xx must keep the known id (a discovery fallback
+                        // could pick a different run and misreport duration).
+                        if (result.code == 404 || result.code == 410) {
+                            knownRunIds.remove(wfId.toString())
+                        }
+                        // other errors: keep id, retry next poll
+                    }
                 }
             }
             if (found == null) {

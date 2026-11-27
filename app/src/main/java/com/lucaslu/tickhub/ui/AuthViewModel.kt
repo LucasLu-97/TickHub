@@ -68,13 +68,21 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
                     when (val poll = result.data) {
                         is TokenPoll.Success -> {
                             AppLogger.i("Auth", "token obtained, fetching user")
-                            c.tokenStore.saveToken(poll.token)
+                            val persisted = c.tokenStore.saveToken(poll.token)
                             val userResult = c.api.getCurrentUser(poll.token)
                             val loginName = if (userResult is ApiResult.Success) userResult.data.login else "GitHub 用户"
                             val avatarUrl = if (userResult is ApiResult.Success) userResult.data.avatarUrl else null
                             c.repository.saveUser(loginName, avatarUrl)
-                            AppLogger.i("Auth", "LOGIN OK user=$loginName")
-                            c.setLogin(LoginUiState(isLoggedIn = true, status = "登录成功：" + loginName, statusKey = "登录成功：{0}", statusArgs = listOf(loginName)))
+                            AppLogger.i("Auth", "LOGIN OK user=$loginName persisted=$persisted")
+                            // If Keystore is unavailable the token is process-only —
+                            // make that visible so the user isn't confused by
+                            // "logged in" + silent background failures after restart.
+                            c.setLogin(LoginUiState(
+                                isLoggedIn = true,
+                                status = "登录成功：" + loginName,
+                                statusKey = if (persisted) "登录成功：{0}" else "登录成功：{0}（安全存储不可用，重启后需重新登录）",
+                                statusArgs = listOf(loginName)
+                            ))
                             return
                         }
                         TokenPoll.Pending -> {

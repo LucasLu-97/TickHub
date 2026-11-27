@@ -95,23 +95,33 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun checkTimezoneAndResyncInternal() {
-        val current = java.time.ZoneId.systemDefault().id
+        val zone = java.time.ZoneId.systemDefault()
+        // Include the current UTC offset so DST shifts within the same ZoneId
+        // (e.g. America/New_York) are detected too — id alone misses them.
+        val offset = zone.rules.getOffset(java.time.Instant.now()).totalSeconds
+        val current = "${zone.id}|$offset"
         val saved = c.repository.getSavedTimezone()
         if (saved == null) { c.repository.setSavedTimezone(current); return }
         if (saved == current) return
-        AppLogger.i("App", "timezone $saved -> $current, recomputing rules")
+        AppLogger.i("App", "timezone $saved -> $current, catching up old slots BEFORE recomputing")
+
+        // C2: catch up slots missed under the OLD timezone before recomputing,
+        // otherwise the old slot is silently overwritten and never made up.
+        c.dispatchEngine.catchUpMissed()
         c.repository.setSavedTimezone(current)
+
+        val now = LocalDateTime.now()
         val enabled = c.repository.getRulesOnce().filter { it.status == RuleStatus.ENABLED }
         for (rule in enabled) {
-            val (next, effective) = c.repository.computeNextFire(rule, LocalDateTime.now())
+            val (next, effective) = c.repository.computeNextFire(rule, now)
             if (next == null || effective == null) {
                 c.alarmScheduler.cancel(rule.id)
                 continue
             }
-            val updated = c.repository.updateRule(rule.copy(
-                nextFireAt = RuleEngine.toEpochMillis(next),
-                effectiveFireAt = effective
-            ))
+            // Field-level patch (C3): don't overwrite concurrent retry state.
+            val updated = c.repository.updateRuleFields(rule.id) { cur ->
+                cur.copy(nextFireAt = RuleEngine.toEpochMillis(next), effectiveFireAt = effective)
+            } ?: continue
             c.alarmScheduler.scheduleWithSlot(updated, triggerAt = effective, plannedAt = updated.nextFireAt!!)
         }
     }

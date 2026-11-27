@@ -100,16 +100,27 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
      *  December) resolve correctly instead of returning null. */
     suspend fun computeNextFire(rule: Rule, from: LocalDateTime): Pair<LocalDateTime?, Long?> {
         val year = from.year
-        val holidays = HolidayCalendar.load(context, year)
-        val holidaysNext = HolidayCalendar.load(context, year + 1)
+        // Load year-1..year+2 (M5): a 400-day scan in late December can reach
+        // year+2; using the wrong year's calendar could fire on a weekend.
+        val years = (year - 1..year + 2).associateWith { HolidayCalendar.load(context, it) }
         val isWorkday: (LocalDate) -> Boolean = { d ->
-            val data = if (d.year == year) holidays else if (d.year == year + 1) holidaysNext else holidays
-            HolidayCalendar.isLegalWorkday(data, d)
+            HolidayCalendar.isLegalWorkday(years[d.year] ?: years.getValue(year), d)
         }
         val isHoliday: (LocalDate) -> Boolean = { d ->
-            val data = if (d.year == year) holidays else if (d.year == year + 1) holidaysNext else holidays
-            HolidayCalendar.isLegalHoliday(data, d)
+            HolidayCalendar.isLegalHoliday(years[d.year] ?: years.getValue(year), d)
         }
+
+        // C4: LEGAL_HOLIDAY with no calendar data must NOT return null (which would
+        // mark the rule COMPLETED forever). Keep it ENABLED with a 30-day probe.
+        val needsHolidayData = rule.type == com.lucaslu.tickhub.data.RuleType.LEGAL_HOLIDAY &&
+            years.getValue(year).days.isEmpty() && years.getValue(year + 1).days.isEmpty()
+        if (needsHolidayData) {
+            com.lucaslu.tickhub.util.AppLogger.w("Repo", "holiday data missing for ${rule.id.take(8)} — keep ENABLED, probe in 30d")
+            val probe = from.plusDays(30)
+            val base = RuleEngine.toEpochMillis(probe)
+            return probe to RuleEngine.applyDrift(rule.id, base, rule.driftMinutes)
+        }
+
         val next = RuleEngine.computeNextFire(rule, from, isWorkday, isHoliday)
         val base = next?.let { RuleEngine.toEpochMillis(it) }
         val effective = base?.let { RuleEngine.applyDrift(rule.id, it, rule.driftMinutes) }
@@ -153,12 +164,10 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     ): Rule? {
         var result: Rule? = null
         context.dataStore.edit { prefs ->
-            // 1) append log (newest first, 200-cap with tracking protection)
+            // 1) append log (newest first, 200-cap with 24h tracking expiry)
             val logs = readLogs(prefs).toMutableList()
             logs.add(0, if (tracking) log.copy(tracking = true) else log)
-            val keptLogs = logs.take(200).toMutableList()
-            logs.drop(200).filter { it.tracking }.forEach { keptLogs.add(it) }
-            prefs[logsKey] = json.encodeToString(keptLogs)
+            prefs[logsKey] = json.encodeToString(trimLogs(logs))
 
             // 2) patch rule from the LATEST stored object
             val rules = readRules(prefs).toMutableList()
@@ -190,16 +199,26 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         return result
     }
 
+    /** Trim to the newest 200, preserving still-tracking logs — but expire any
+     *  tracking older than 24h so a stuck tracker cannot grow the list forever
+     *  or show a permanent spinner (M3). */
+    private fun trimLogs(current: List<TriggerLog>): List<TriggerLog> {
+        val cutoff = System.currentTimeMillis() - 24 * 60 * 60_000L
+        val normalized = current.map { if (it.tracking && it.firedAt < cutoff) it.copy(tracking = false) else it }
+        val kept = normalized.take(200).toMutableList()
+        // Keep only recent tracking logs beyond the cap, in newest-first order.
+        val extra = normalized.drop(200).filter { it.tracking }.sortedByDescending { it.firedAt }.take(10)
+        kept.addAll(extra)
+        return kept
+    }
+
     /** Add a log. [tracking] is set atomically at insert time so a crash between
      *  addLog and a separate markTracking cannot leave an untracked dispatched log. */
     suspend fun addLog(log: TriggerLog, tracking: Boolean = false) {
         context.dataStore.edit { prefs ->
             val current = readLogs(prefs).toMutableList()
             current.add(0, if (tracking) log.copy(tracking = true) else log) // newest first
-            // Keep tracking logs even if older than the 200-item cap.
-            val kept = current.take(200).toMutableList()
-            current.drop(200).filter { it.tracking }.forEach { kept.add(it) }
-            prefs[logsKey] = json.encodeToString(kept)
+            prefs[logsKey] = json.encodeToString(trimLogs(current))
         }
     }
 
