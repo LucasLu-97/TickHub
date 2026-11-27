@@ -11,8 +11,8 @@
 | 仓库 | https://github.com/LucasLu-97/TickHub （公开） |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1 |
 | 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35 |
-| 当前正式版 | v1.1.4（规则卡间隔天数/法定节假日下次时间 + 失败重试 + 精确闹钟降级提示），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.1.4 |
-| 历史正式版 | v1.1.3（历史页 i18n 补全 + 实时耗时追踪）、v1.1.2（i18n 布局优化）、v1.1.1（状态实时翻译）、v1.1.0（双语/节假日开关/耗时修复）、v1.0.3（登录页优化）、v1.0.2（关闭 R8 修复闪退）、v1.0.1 / v1.0.0（R8 闪退） |
+| 当前正式版 | v1.1.5（修复立即触发耗时追踪：仓库页 manual 触发也纳入 RunTracker），Release: https://github.com/LucasLu-97/TickHub/releases/tag/v1.1.5 |
+| 历史正式版 | v1.1.4（规则卡间隔天数/法定节假日下次时间 + 失败重试 + 精确闹钟降级）、v1.1.3（历史页 i18n 补全 + 实时耗时追踪）、v1.1.2（i18n 布局优化）、v1.1.1（状态实时翻译）、v1.1.0（双语/节假日开关/耗时修复）、v1.0.3（登录页优化）、v1.0.2（关闭 R8 修复闪退）、v1.0.1 / v1.0.0（R8 闪退） |
 | 真机验收 | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现） |
 | 登录方式 | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16） |
 | 目标读者 | 后续接手的开发者 / AI Agent |
@@ -977,6 +977,8 @@ APP 内置了 **GitHub CLI 的官方公开 Client ID**（`178c6fc778ccc68e1d6a`�
 **时区确认**：RuleEngine 全程用 `LocalDateTime` + `ZoneId.systemDefault()`，存 epoch millis 绝对时间，AlarmManager 用 `RTC_WAKEUP` 按 epoch 触发，显示时再转回本机时区。国外用户按本机时区解释规则时间，**无硬编码北京时间**，无需改动。
 
 **i18n 修正（v1.1.1）**：① 状态文本（登录 status/error、仓库扫描 message/error）改为 ViewModel 存**中文 key**、UI 显示时 `L10n.tNow()` 实时翻译——修掉"生成时固化翻译导致切换语言后状态不跟随"的 bug（用户看到 "enter the code" 只有英文即此因）。② 补漏译：仓库页确认弹窗 `将立即触发工作流「…」`、卡片 `N 工作流`、历史页 `最近 N 条记录`（动态字符串脚本原先跳过）。③ 英文翻译精简：周期 chip `法定工作日→Weekdays`/`法定节假日→Holidays`、按钮 `立即触发→Trigger`/`扫描仓库与工作流→Scan repos`/`打开 GitHub 授权页面→Open GitHub` 等，长说明句全部缩短，避免换行导致按钮变高。④ 语言卡片移到设置页最底部（退出登录上方）。默认语言仍为中文。
+
+**立即触发耗时追踪修复（v1.1.5）**：仓库页「立即触发」原走 `AppViewModel.triggerWorkflowNow` 捷径——直接 `repository.addLog` 写死 `SUCCESS/durationMs=0/tracking=false`，完全绕过 DispatchEngine 追踪，历史卡片因此永远不显示耗时（用户多次反馈）。修复：① `TriggerLog` 加 `trackWorkflowIds` 字段，manual 触发写入自身 workflowId、`tracking=true` 并启动 `RunTrackerWorker`；② `RunTrackerWorker` 改为优先从 log 读 repoFullName/workflowIds/workflowNames（manual 无 rule），rule 触发仍回退到 rule；③ 耗时追踪改为**总是开启**（不再受"执行结果通知"开关控制）——开关只控制是否发通知，追踪与历史耗时始终有效。规则页立即触发（走 DispatchEngine）同样受益。
 
 **规则卡片与调度可靠性（v1.1.4）**：① 每隔 N 天规则卡片显示具体天数（`每隔 ` + `rule.intervalDays` + ` 天`），不再笼统显示"每隔X天"。② 法定工作日/节假日跨年算错修复：`computeNextFire` 同时加载当年+次年节假日数据，谓词按候选日期年份取对应数据，跨年元旦/春节能算出下次时间；数据不可用时卡片显示"节假日数据未就绪，请在设置开启中国法定节假日"提示而非空白。③ **C1 失败不再消费触发点**（审查高优先级）：网络超时/dispatch 全失败时不再无条件 `advanceRule()`，改 `retryOrAdvance()`——同一 slot 15 分钟后重试（携带原始 plannedAt 保持去重键一致），最多 5 次后放弃推进，避免瞬时网络错误导致漏签。④ **C4 精确闹钟权限静默吞**：无精确闹钟权限时回退 `setAndAllowWhileIdle()`（仍能触发）+ 一次性通知引导，不再静默失败。
 
