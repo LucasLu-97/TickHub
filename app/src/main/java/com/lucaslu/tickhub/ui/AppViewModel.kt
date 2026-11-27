@@ -110,7 +110,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     _login.value = LoginUiState(
                         userCode = device.userCode,
                         verificationUri = device.verificationUri,
-                        status = "请在浏览器打开 ${device.verificationUri} 并输入设备码",
+                        status = "请在浏览器输入设备码完成授权，完成后本 APP 会自动进入，无需其他操作",
                         loading = false
                     )
                     pollLoop(device.deviceCode, device.interval.coerceAtLeast(5), device.expiresIn)
@@ -132,7 +132,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     consecutiveNetworkErrors++
                     AppLogger.w("Auth", "poll error (transient #$consecutiveNetworkErrors): ${result.message}")
                     _login.value = _login.value.copy(
-                        status = "网络暂时不可达，正在重试（$consecutiveNetworkErrors）…请保持本 APP 在前台或切回来",
+                        status = "正在等待授权完成，登录会自动继续，请稍候…",
                         error = null
                     )
                 }
@@ -152,7 +152,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         TokenPoll.Pending -> {
                             if (consecutiveNetworkErrors > 0) {
                                 consecutiveNetworkErrors = 0
-                                _login.value = _login.value.copy(status = "已重新连接，等待你在浏览器完成授权…")
+                                _login.value = _login.value.copy(status = "正在确认授权结果，请稍候…")
                             }
                         }
                         TokenPoll.SlowDown -> currentInterval += 5
@@ -160,7 +160,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             consecutiveNetworkErrors++
                             AppLogger.d("Auth", "poll network unreachable (#$consecutiveNetworkErrors), retrying")
                             _login.value = _login.value.copy(
-                                status = "网络暂时不可达，正在重试（$consecutiveNetworkErrors）…请切回本 APP 或保持前台",
+                                status = "正在等待授权完成，登录会自动继续，请稍候…",
                                 error = null
                             )
                         }

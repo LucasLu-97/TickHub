@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -61,7 +63,7 @@ fun LoginScreen(state: LoginUiState, vm: AppViewModel, configured: Boolean) {
         if (state.userCode == null && state.error == null) {
             Button(onClick = { vm.startDeviceFlow() }, enabled = !state.loading) {
                 if (state.loading) {
-                    CircularProgressIndicator(modifier = Modifier.height(18.dp), strokeWidth = 2.dp)
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.padding(4.dp))
                 }
                 Text(if (state.loading) "正在请求设备码…" else "用 GitHub 登录")
@@ -90,12 +92,19 @@ fun LoginScreen(state: LoginUiState, vm: AppViewModel, configured: Boolean) {
                         Text("打开 GitHub 授权页面")
                     }
                     Spacer(Modifier.height(12.dp))
-                    Text(
-                        state.status,
-                        style = MaterialTheme.typography.bodySmall,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.padding(8.dp))
+                        Text(
+                            state.status,
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "授权页面显示「GitHub CLI」属正常现象——TickHub 使用 GitHub 官方公开登录方式，请放心授权。",
