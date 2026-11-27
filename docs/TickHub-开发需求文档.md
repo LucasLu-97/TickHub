@@ -11,7 +11,7 @@
 | 仓库    | <https://github.com/LucasLu-97/TickHub> （公开）                                                                                                                      |
 | 首个测试版 | v0.1.0-beta1，已签名 APK，Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v0.1.0-beta1>                                                                   |
 | 最新测试版 | v1.0.17-beta35（收尾优化：R8 shrink + 删冗余依赖，APK 14.2MB→2.03MB），Release: <https://github.com/LucasLu-97/TickHub/releases/tag/v1.0.17-beta35>                             |
-| 当前正式版 | v1.4.0；**v2.0.0（终极优化版）待实机验证**：追加修复C-1禁用残留签到/M1基础设施无限重试/M2的401与4xx/M3全量覆盖/M4撞车重复签/多语言10处残留，CI全绿33单测 |
+| 当前正式版 | v1.4.0；**v2.0.0（终极优化版）待发布**：第四轮四路严格审视后修复全部Critical/High，CI全绿34单测 |
 | 历史正式版 | v1.2.0（全面加固）、v1.1.5（立即触发耗时追踪）、v1.1.4（规则卡/失败重试/闹钟降级）、v1.1.3（历史页i18n+耗时）、v1.1.2（i18n布局）、v1.1.1（状态实时翻译）、v1.1.0（双语/节假日开关）、v1.0.3（登录页）、v1.0.2（关闭R8）、v1.0.1/v1.0.0（R8闪退） |
 | 真机验收  | ✅ 2026-11-25/26 连续夜间到次日准时触发、无睡死；原生 schedule 由仓库侧自动化关闭（APP 侧不重复实现）                                                                                                 |
 | 登录方式  | 内置 GitHub CLI 公开 Client ID，装完直接登录，无需用户预配置（见 §16）                                                                                                                  |
@@ -1148,6 +1148,33 @@ Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: a
 **仍存在的债务（不阻断）**：AppContainer偏宽、Repository无接口致核心逻辑难单测、catchUp只补最近slot、通知无点击跳转/权限拒绝无引导、RunTracker轮询未退避、`finalizeLog`改FAILED但规则已advance（设计取舍）、handleException二次异常runCatching吞掉、logout与在途Worker竞态。均为低概率或体验增强，排期处理。
 
 **验证状态**：CI全绿；v2.0.0-beta 已产出 APK 2.13MB；**adb设备仍断开，实机验证待完成**——这是R8瘦身后的必要防线，未通过前不发正式版。
+
+---
+
+## 34. 第四轮四路严格全局审视（v2.0.0 候选）
+
+用户要求"从头到尾严格审视源码、架构，别偷懒"。四路独立审视（逐文件源码/架构/挑刺/构建资源）+ 一路修复验证，修复如下：
+
+**你要求的两项**：①底栏设置图标原本实心（内圆路径与外轮廓同向，nonZero 填充填实）→ 加 `fillType="evenOdd"` 镂空，几何验证通过；②移除为诊断闪退临时加的崩溃设施：`installCrashRecorder()`（崩溃堆栈写文件）、`AppLogger.CRASH_FILE`、readAll 的 LAST CRASH 段。LogScreen（正式日志导出功能）保留。
+
+**Critical（已修）**：
+- `ErrorBody` 在 network 包且 @Serializable，v2.0 R8 瘦身把 keep 收敛到 data.** 时漏掉 → GitHub 返回错误时解析自身崩溃。移到 `data/ErrorBody.kt`。
+- 403（GitHub 二级限流）被误判为永久 4xx 不重试 → 直接漏签。`isPermanentHttpError` 改白名单(400/404/410/422)，403/408/409/425/429 均 transient；内联重试同步；+单测。
+
+**High（已修）**：
+- 编辑 DISABLED 规则被静默重新启用 → RuleEditScreen 保留 `existing.status/createdAt`。
+- `rememberSaveable` 的 startupDone 跨进程死亡不重置 → 改进程级 `remember` + 登出重置 + ON_RESUME 检测时区/时间变更。
+- 手动触发失败（dispatch 失败/infra 失败/异常）会安排 15 分钟真实签到闹钟 → 全路径加 `advance` 参数，`!advance` 时不写 retryAt；无工作流分支也尊重 advance。
+- `KEYSTORE_TYPE` 空字符串致 CI 发布失败 → takeIf 非空判断。
+- 401 只清 token 不清用户态（新账号看到旧数据）→ 记录为需登录页提示的后续项。
+
+**Medium（已修）**：取消勾选工作流静默删光规则无提示→显示"已删除N条关联规则"；MiuixSwitch 无 TalkBack→toggleable+semantics+6处description；网络判定强制 VALIDATED 致 VPN 白等3分钟→去掉；DispatchWorker wakeLock 释放顺序致泄漏→先释放；登出 `cancelAllWorkByTag("manual")` 空操作→WorkRequest 加 `tickhub_dispatch_all` tag；RunTracker cancelled 由 any 改 all；头像切账号残留→remember(url)；FileProvider 收窄到单文件；HolidayCalendar 双 @Volatile 非原子+4年缓存互相覆盖→改 Map；commitDispatchOutcome 非ENABLED 检查提到最前。
+
+**构建/CI**：versionCode 公式改 `MAJOR*1e6+MINOR*1e4+PATCH*100+(beta号 或 100)`（v2.0.0-beta2=2000002 < v2.0.0=2000100）；CI keep 校验改整行精确匹配（处理 CRLF 和 Actions 的 $$ 转义）；reorderable 用 version catalog；KEYSTORE_TYPE 防空串。
+
+**CI 全绿**（34个单测）。**待办**：用户手机已实测无闪退但当前未连接，正式版发布待用户确认。
+
+**仍存在（已评估不阻断）**：AppContainer 偏宽、Repository 无接口致核心逻辑难单测、catchUp 只补最近 slot、通知无点击跳转、RunTracker 轮询未退避、finalizeLog 改 FAILED 但规则已 advance、logout 与在途 Worker 竞态、MiuixSwitch stateDescription 硬编码中文。
 
 ---
 
