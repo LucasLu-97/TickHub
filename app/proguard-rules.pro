@@ -39,6 +39,9 @@
 -dontwarn kotlinx.coroutines.**
 
 # ---- WorkManager / Room (CRITICAL: launch crash v1.3.1/v1.3.2-beta) ----
+# The app has no direct Room dependency, but WorkManager 2.x pulls Room in
+# transitively and reflectively constructs WorkDatabase_Impl (Room-generated).
+# Keep both rule families — deleting either caused a ContentProvider crash.
 # WorkManagerInitializer reflectively calls WorkDatabase_Impl's no-arg ctor.
 # R8 strips it as "unused" -> NoSuchMethodException -> crash in ContentProvider
 # before Application.onCreate. This is the official WorkManager+R8 keep rule.

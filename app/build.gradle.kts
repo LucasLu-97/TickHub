@@ -49,7 +49,7 @@ android {
                 storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
                 keyAlias = System.getenv("KEY_ALIAS") ?: "tickhub"
                 keyPassword = System.getenv("KEY_PASSWORD") ?: ""
-                storeType = System.getenv("KEYSTORE_TYPE") ?: "PKCS12"
+                storeType = System.getenv("KEYSTORE_TYPE")?.takeIf { it.isNotBlank() } ?: "PKCS12"
             }
         }
     }
@@ -108,10 +108,9 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.material3)
-    implementation("sh.calvin.reorderable:reorderable-android:3.1.0")
+    implementation(libs.reorderable)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.security.crypto)
-    // Room will be added in M2 together with a KSP version aligned to the Kotlin toolchain
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)

@@ -78,7 +78,8 @@ object AppLogger {
     }
 
     fun clear() = synchronized(lock) {
-        logFile?.writeText("")
+        runCatching { logFile?.writeText("") }
+            .onFailure { Log.e(TAG, "clear log failed: ${it.message}") }
     }
 
     fun getFile(): File? = logFile

@@ -75,12 +75,24 @@ class RepoViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Unchecking a workflow/repo drops its rules in Repository; cancel the
-     *  corresponding alarms so a stale alarm cannot fire a ghost FAILED log. */
+     *  corresponding alarms so a stale alarm cannot fire a ghost FAILED log,
+     *  and TELL THE USER how many rules were removed (silent data loss was a
+     *  top complaint in the audit). */
     private suspend fun cancelAlarmsForRemovedRules(change: suspend () -> Unit) {
         val before = c.repository.getRulesOnce().map { it.id }.toSet()
         change()
         val after = c.repository.getRulesOnce().map { it.id }.toSet()
-        (before - after).forEach { c.alarmScheduler.cancel(it) }
+        val removed = before - after
+        removed.forEach { c.alarmScheduler.cancel(it) }
+        if (removed.isNotEmpty()) {
+            AppLogger.w("Repo", "removed ${removed.size} rule(s) with unchecked workflow/repo")
+            c.updateRepo {
+                it.copy(
+                    messageKey = "已删除 {0} 条关联规则",
+                    messageArgs = listOf(removed.size.toString())
+                )
+            }
+        }
     }
 
     fun toggleWorkflow(id: Long, selected: Boolean) {

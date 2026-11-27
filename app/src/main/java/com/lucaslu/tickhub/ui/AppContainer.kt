@@ -126,7 +126,10 @@ class AppContainer private constructor(val app: Application) {
             // Cancel alarms/work BEFORE clearing rules — need the rule ids first.
             repository.getRulesOnce().forEach { alarmScheduler.cancel(it.id) }
             com.lucaslu.tickhub.scheduler.RunTrackerWorker.cancelAll(app)
-            androidx.work.WorkManager.getInstance(app).cancelAllWorkByTag("manual")
+            // Cancel ALL queued dispatch work (scheduled + manual). Previously
+            // this targeted a "manual" tag that no WorkRequest ever carried —
+            // a silent no-op leaving in-flight work to write back after logout.
+            androidx.work.WorkManager.getInstance(app).cancelAllWorkByTag("tickhub_dispatch_all")
             repository.clearAllUserData()
             setLogin(LoginUiState())
         }

@@ -3,7 +3,6 @@ package com.lucaslu.tickhub.ui
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -21,7 +20,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.lucaslu.tickhub.util.Haptics
 
@@ -33,7 +36,8 @@ import com.lucaslu.tickhub.util.Haptics
 fun MiuixSwitch(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    description: String = ""
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val trackW = 44.dp
@@ -56,11 +60,15 @@ fun MiuixSwitch(
             .height(trackH)
             .clip(CircleShape)
             .background(trackColor)
-            .pointerInput(checked) {
-                detectTapGestures(onTap = {
-                    onCheckedChange(!checked)
-                    Haptics.tick(context)
-                })
+            // TalkBack / keyboard accessible (the previous pointerInput-only
+            // switch was completely invisible to accessibility services).
+            .toggleable(value = checked, role = Role.Switch) {
+                onCheckedChange(it)
+                Haptics.tick(context)
+            }
+            .semantics {
+                if (description.isNotBlank()) contentDescription = description
+                stateDescription = if (checked) "开" else "关"
             },
         contentAlignment = Alignment.CenterStart
     ) {

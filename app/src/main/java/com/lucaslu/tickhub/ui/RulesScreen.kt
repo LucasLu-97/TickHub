@@ -258,7 +258,8 @@ private fun RuleCardContent(rule: Rule, onToggle: (Boolean) -> Unit, onEdit: () 
             MiuixSwitch(
                 checked = rule.status == RuleStatus.ENABLED,
                 onCheckedChange = onToggle,
-                modifier = Modifier.padding(end = 8.dp)
+                modifier = Modifier.padding(end = 8.dp),
+                description = t("启用")
             )
             Text(t("启用"), style = MaterialTheme.typography.labelMedium)
             if (runningStart != null) {

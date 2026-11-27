@@ -119,7 +119,11 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         val success = allRuns.all { it.second.conclusion == "success" }
         // A user-cancelled / skipped run is not a failure — don't send a false
         // "execution failed" notification (M9).
-        val cancelled = allRuns.any { it.second.conclusion in setOf("cancelled", "skipped", "neutral") }
+        // Only treat as cancelled when EVERY run was cancelled/skipped. A mix of
+        // cancelled + failed must still surface the failure (old `any` hid it).
+        val cancelled = allRuns.isNotEmpty() && allRuns.all {
+            it.second.conclusion in setOf("cancelled", "skipped", "neutral")
+        }
         repo.finalizeLog(logId, durationMs, success, cancelled)
 
         if (repo.isRunTrackingEnabledOnce() && !cancelled) {

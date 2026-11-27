@@ -226,7 +226,7 @@ private fun RepoCardContent(
             Spacer(Modifier.padding(12.dp))
             Text(t("全选"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.padding(4.dp))
-            MiuixSwitch(checked = managed, onCheckedChange = { cardHaptic(); onManagedChange(it) })
+            MiuixSwitch(checked = managed, onCheckedChange = { cardHaptic(); onManagedChange(it) }, description = t("纳管"))
         }
         if (expanded) {
             Spacer(Modifier.height(8.dp))

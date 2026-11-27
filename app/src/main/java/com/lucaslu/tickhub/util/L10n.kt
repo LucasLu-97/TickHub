@@ -187,6 +187,8 @@ object L10n {
         "规则未选择任何工作流" to "No workflow selected for this rule",
         "手动触发失败：{0}" to "Manual trigger failed: {0}",
         "读取日志失败：{0}" to "Failed to read log: {0}",
+        "已删除 {0} 条关联规则" to "Removed {0} linked rule(s)",
+        "纳管" to "Managed",
         "、" to ", ",
         "中国法定节假日" to "China holidays",
         "仅中国用户需要：开启后拉取节假日数据，支持「法定工作日/节假日」周期。非中国地区不支持此周期。" to "For China only: downloads holiday data to enable workday/holiday schedules. Not supported in other regions.",

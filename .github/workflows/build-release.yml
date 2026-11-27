@@ -36,16 +36,26 @@ jobs:
           else
             VERSION_NAME="0.0.1-dev-${GITHUB_RUN_NUMBER}"
           fi
-          # Semantic versionCode from versionName: v2.0.0 -> 2000000,
-          # v2.0.0-beta -> 1999999. Monotonic across releases and independent of
-          # workflow run numbers (which jump on every manual dispatch).
-          NUMERIC="${VERSION_NAME%%-*}"  # strip -beta suffix
+          # Semantic versionCode: MAJOR*1e6 + MINOR*1e4 + PATCH*100 + (0..99).
+          # Stable adds 100 so every beta < stable and beta1 < beta2 < ... < beta99.
+          # Independent of run numbers (which jump on manual dispatch).
+          NUMERIC="${VERSION_NAME%%-*}"  # strip -beta/-dev suffix
           IFS='.' read -r MAJOR MINOR PATCH <<< "$NUMERIC"
           MAJOR=${MAJOR:-0}; MINOR=${MINOR:-0}; PATCH=${PATCH:-0}
+          if [ "$MINOR" -ge 100 ] || [ "$PATCH" -ge 100 ]; then
+            echo "MINOR/PATCH must be < 100 for semantic versionCode"; exit 1
+          fi
           VERSION_CODE=$((MAJOR * 1000000 + MINOR * 10000 + PATCH * 100))
-          case "${VERSION_NAME}" in
-            *beta*) IS_BETA=true; VERSION_CODE=$((VERSION_CODE - 1)) ;;
-            *) IS_BETA=false ;;
+          BETA_NUM=$(echo "${VERSION_NAME}" | sed -n 's/.*beta\([0-9]*\).*/\1/p')
+          case "${VERSION_NAME,,}" in
+            *beta*)
+              IS_BETA=true
+              # beta (no number) = 1, beta2 = 2 ... beta99 = 99
+              if [ -z "$BETA_NUM" ]; then BETA_NUM=1; fi
+              if [ "$BETA_NUM" -ge 100 ]; then echo "beta number >= 100 unsupported"; exit 1; fi
+              VERSION_CODE=$((VERSION_CODE + BETA_NUM))
+              ;;
+            *) IS_BETA=false; VERSION_CODE=$((VERSION_CODE + 100)) ;;
           esac
           echo "name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
           echo "code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
@@ -61,8 +71,16 @@ jobs:
         run: |
           # Three launch crashes were caused by R8 stripping reflectively-created
           # classes. Fail the build if any critical keep rule is missing.
-          for rule in "androidx.work.impl" "androidx.room" "androidx.startup" "InputMerger" "serializer"; do
-            grep -q "$rule" app/proguard-rules.pro || { echo "MISSING keep rule: $rule"; exit 1; }
+          # Exact full-line checks: a plain substring grep passes even if the
+          # rule is only mentioned in a comment (v2.0 ErrorBody regression).
+          for rule in \
+            '-keep,includedescriptorclasses class com.lucaslu.tickhub.data.**$$serializer { *; }' \
+            '-keep class com.lucaslu.tickhub.data.** { *; }' \
+            '-keep class androidx.work.impl.** { *; }' \
+            '-keep class androidx.startup.** { *; }' \
+            '-keep class * extends androidx.work.InputMerger { public <init>(); }' \
+            '-keep class * extends androidx.work.ListenableWorker { *; }'; do
+            grep -Fq -- "$rule" app/proguard-rules.pro || { echo "MISSING keep rule: $rule"; exit 1; }
           done
           echo "R8 keep rules present"
 

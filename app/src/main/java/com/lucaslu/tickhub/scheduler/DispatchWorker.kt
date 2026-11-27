@@ -41,11 +41,15 @@ class DispatchWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             // silently drop the slot: record a FAILED log and schedule the same
             // persisted retry path a normal dispatch failure uses.
             runCatching { engine.handleException(ruleId, plannedAt, isMakeup, e) }
+                .onFailure { AppLogger.e("Worker", "handleException FAILED: ${it.message}", it) }
             Result.success() // our own retry owns recovery; avoid WorkManager re-run + duplicate logs
         } finally {
-            engine.markDone(ruleId)
+            // Release the wake lock FIRST — markDone does a DataStore write and
+            // can throw on cancellation; the old order leaked the lock for 15min.
             wakeLock?.let { if (it.isHeld) it.release() }
             AppLogger.d("Worker", "wakeLock released rule=${ruleId.take(8)}")
+            runCatching { engine.markDone(ruleId) }
+                .onFailure { AppLogger.e("Worker", "markDone FAILED: ${it.message}", it) }
         }
     }
 
@@ -66,6 +70,8 @@ class DispatchWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             val request = OneTimeWorkRequestBuilder<DispatchWorker>()
                 .setInputData(data)
                 .addTag("dispatch-$ruleId")
+                .addTag("tickhub_dispatch_all") // logout cancels ALL queued dispatch work
+                .apply { if (!advance) addTag("manual") }
                 .build()
             // Unique name includes plannedAt so a manual trigger (now) never
             // replaces a queued scheduled trigger for a different slot.

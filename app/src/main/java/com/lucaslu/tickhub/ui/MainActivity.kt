@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lucaslu.tickhub.ui.theme.TickHubTheme
 
@@ -93,6 +94,13 @@ private fun TickHubApp() {
                 settingsVm.onAppReady()
                 settingsVm.maybeAnnualHolidayRefresh()
             }
+        }
+
+        // Detect timezone / system-time changes that happen while the app is
+        // foregrounded (flight mode, manual clock change, travel). onAppReady is
+        // idempotent: timezone resync -> alarms -> catch-up.
+        LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+            if (loginState.isLoggedIn) settingsVm.onAppReady()
         }
 
         if (!loginState.isLoggedIn) {

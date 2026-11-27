@@ -462,14 +462,15 @@ class DispatchEngine(private val context: Context) {
         val network = cm.activeNetwork ?: return false
         val caps = cm.getNetworkCapabilities(network) ?: return false
         val hasInternet = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-        // VALIDATED means real internet (captive portals / WiFi without internet
-        // still report INTERNET but not VALIDATED). Fall back to transport-only
-        // on older APIs where VALIDATED may be absent.
-        val validated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
         val transportOk = caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
             caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
             caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
-        return hasInternet && transportOk && validated
+        // Don't require VALIDATED: VPN / CGNAT / some ROMs report INTERNET with
+        // a working route but never set VALIDATED. Waiting the full 3-min
+        // timeout in that state caused missed check-ins. Let the HTTP result
+        // decide — a captive portal fails fast and goes through the SKIPPED
+        // (non-budget-consuming) infra retry path.
+        return hasInternet && transportOk
     }
 
     /** Acquire a partial wake lock for the given duration (caller must release). */

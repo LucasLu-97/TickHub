@@ -51,9 +51,13 @@ private object AvatarCache {
 /** Avatar with letter fallback. Uses cached bitmap first, downloads only once per URL. */
 @Composable
 fun AvatarImage(url: String?, name: String, modifier: Modifier = Modifier) {
-    val bitmapState = remember { mutableStateOf<android.graphics.Bitmap?>(url?.let { AvatarCache.get(it) }) }
+    // Keyed on url: switching accounts must not keep the previous avatar if
+    // the new URL fails to download.
+    val bitmapState = remember(url) { mutableStateOf<android.graphics.Bitmap?>(url?.let { AvatarCache.get(it) }) }
 
     LaunchedEffect(url) {
+        // Clear immediately so a stale avatar from a previous url can't linger.
+        bitmapState.value = url?.let { AvatarCache.get(it) }
         if (url.isNullOrBlank()) return@LaunchedEffect
         val cached = AvatarCache.get(url)
         if (cached != null) {
