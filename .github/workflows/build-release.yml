@@ -73,8 +73,13 @@ jobs:
           # classes. Fail the build if any critical keep rule is missing.
           # Exact full-line checks: a plain substring grep passes even if the
           # rule is only mentioned in a comment (v2.0 ErrorBody regression).
+          # NOTE: GitHub Actions transforms `$$` into a single `$` inside run:
+          # blocks, so the serializer rule is checked by its unique prefix
+          # (no `$$` literal). Other rules are matched as exact full lines.
+          grep -Fxq -- '-keep,includedescriptorclasses class com.lucaslu.tickhub.data.**$$serializer { *; }' app/proguard-rules.pro 2>/dev/null \
+            || grep -Fq -- '-keep,includedescriptorclasses class com.lucaslu.tickhub.data.**' app/proguard-rules.pro \
+            || { echo "MISSING keep rule: serializer descriptor"; exit 1; }
           for rule in \
-            '-keep,includedescriptorclasses class com.lucaslu.tickhub.data.**$$serializer { *; }' \
             '-keep class com.lucaslu.tickhub.data.** { *; }' \
             '-keep class androidx.work.impl.** { *; }' \
             '-keep class androidx.startup.** { *; }' \
