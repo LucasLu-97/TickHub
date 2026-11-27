@@ -1,4 +1,5 @@
 package com.lucaslu.tickhub.ui
+import com.lucaslu.tickhub.di.AppGraph
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -14,7 +15,7 @@ import kotlinx.coroutines.launch
 /** App settings, startup maintenance (timezone/alarms/catch-up) and holidays. */
 class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val c = AppContainer.get(app)
+    private val c = AppGraph.get(app)
 
     val showExecutionStatusFlow: StateFlow<Boolean> get() = c.showExecutionStatusFlow
     val runTrackingFlow: StateFlow<Boolean> get() = c.runTrackingFlow

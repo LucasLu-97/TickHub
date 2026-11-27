@@ -1,4 +1,5 @@
 package com.lucaslu.tickhub.ui
+import com.lucaslu.tickhub.di.AppGraph
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -12,10 +13,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-/** GitHub OAuth device-flow login and logout. All state lives in AppContainer. */
+/** GitHub OAuth device-flow login and logout. All state lives in AppGraph. */
 class AuthViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val c = AppContainer.get(app)
+    private val c = AppGraph.get(app)
     private var pollJob: Job? = null
 
     val login: StateFlow<LoginUiState> get() = c.login

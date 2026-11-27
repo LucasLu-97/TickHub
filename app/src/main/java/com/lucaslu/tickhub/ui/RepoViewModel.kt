@@ -1,4 +1,5 @@
 package com.lucaslu.tickhub.ui
+import com.lucaslu.tickhub.di.AppGraph
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -14,7 +15,7 @@ import kotlinx.coroutines.launch
 /** Repo scanning, managed-workflow selection, manual trigger and repo ordering. */
 class RepoViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val c = AppContainer.get(app)
+    private val c = AppGraph.get(app)
 
     val repo: StateFlow<RepoUiState> get() = c.repo
     val refreshing: StateFlow<Boolean> get() = c.refreshing
@@ -137,7 +138,7 @@ class RepoViewModel(app: Application) : AndroidViewModel(app) {
                     c.repository.addLog(
                         TriggerLog(
                             id = logId,
-                            ruleId = AppContainer.MANUAL_RULE_ID,
+                            ruleId = AppGraph.MANUAL_RULE_ID,
                             workflowName = workflowName,
                             workflowNames = listOf(workflowName),
                             repoFullName = repoFullName,
@@ -151,7 +152,7 @@ class RepoViewModel(app: Application) : AndroidViewModel(app) {
                     )
                     // Same real-duration tracking as rule triggers, so the history
                     // card shows a live-growing timer until the run completes.
-                    RunTrackerWorker.enqueue(getApplication(), logId, AppContainer.MANUAL_RULE_ID)
+                    RunTrackerWorker.enqueue(getApplication(), logId, AppGraph.MANUAL_RULE_ID)
                 }
                 is ApiResult.Error -> {
                     AppLogger.e("Manual", "trigger FAILED wf=$workflowName: ${result.message}")
@@ -159,7 +160,7 @@ class RepoViewModel(app: Application) : AndroidViewModel(app) {
                     c.repository.addLog(
                         TriggerLog(
                             id = java.util.UUID.randomUUID().toString(),
-                            ruleId = AppContainer.MANUAL_RULE_ID,
+                            ruleId = AppGraph.MANUAL_RULE_ID,
                             workflowName = workflowName, workflowNames = listOf(workflowName),
                             repoFullName = repoFullName, plannedAt = System.currentTimeMillis(),
                             firedAt = System.currentTimeMillis(), status = TriggerStatus.FAILED,

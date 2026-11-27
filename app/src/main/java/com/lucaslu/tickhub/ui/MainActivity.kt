@@ -1,4 +1,5 @@
 package com.lucaslu.tickhub.ui
+import com.lucaslu.tickhub.di.AppGraph
 
 import com.lucaslu.tickhub.util.t
 
@@ -58,7 +59,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun TickHubApp() {
-    // Domain ViewModels share one AppContainer, so state/instances stay consistent.
+    // Domain ViewModels share one AppGraph, so state/instances stay consistent.
     val authVm: AuthViewModel = viewModel()
     val repoVm: RepoViewModel = viewModel()
     val ruleVm: RuleViewModel = viewModel()

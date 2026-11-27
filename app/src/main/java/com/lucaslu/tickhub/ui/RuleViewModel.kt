@@ -1,4 +1,5 @@
 package com.lucaslu.tickhub.ui
+import com.lucaslu.tickhub.di.AppGraph
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -15,7 +16,7 @@ import kotlinx.coroutines.launch
 /** Rule CRUD, alarm registration, catch-up and rule-based manual trigger. */
 class RuleViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val c = AppContainer.get(app)
+    private val c = AppGraph.get(app)
 
     val rules get() = c.rules
     val snapshot get() = c.snapshot
