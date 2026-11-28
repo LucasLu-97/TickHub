@@ -1247,4 +1247,43 @@ Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: a
 用户此前看到"实心"应为覆盖安装后图标缓存未刷新——与通知栏图标同类问题，需卸载重装。
 
 ---
+## 40. 上架前四维度严格审视（2026-11-28）
+
+用户要求上架商店前彻底审视方案架构/代码/逻辑。四路独立审视（架构状态管理 / 核心调度逻辑 / 上架合规安全 / 资源构建配置）+ 修复后二次复核。
+
+**复核澄清**：CI 缺 Android SDK setup 是误报——ubuntu-latest 镜像自带 SDK，每次 release 构建均成功（compileSdk 37 已验证）。
+
+### 已修复（Critical/High）
+
+1. **手动触发抹掉 pending retry**（重复签）：buildTransition/commitInfraFailure/handleException 的 advance=false 分支从清空 retry 改为透传 rule.retryAt/retryPlannedAt/retryFailedWfIds。+单测。
+2. **手动成功 log 吞掉计划闹钟**（漏签）：TriggerLog 加 isManual 字段（4 构造点传 !advance）；20s 去重改为只统计自动 log 且只对自动触发生效（&& advance）。修复了双向吞（手动吞自动、自动吞手动）。
+3. **RunTracker 网络/5xx 时误 discovery**（误追踪）：加 allowDiscovery 标志，仅无 knownId 或 404/410 才重新发现；网络/5xx/401 保留 knownId 等下一轮。
+4. **dispatch 响应丢失重复 run**：transient 错误重试前用 listWorkflowRuns 检查 120s 内是否已创建 run，有则视为成功 break。
+5. **三态结论判定**：抽 DispatchPolicy.runVerdict 纯函数——failure 必现、全 cancelled 中性、success+cancelled 算成功；+5 个单测。
+6. **架构**：cycleTheme 原子读改写（dataStore.edit 内）、onAppReady AtomicBoolean 串行化（冷启动双重触发）、logout 主线程 commit 移到 IO + 清日志。
+7. **合规/体验**：LEGAL_WORKDAY 缺数据不再回退周一到周五（改 30 天探测，防法定节假日误签）；MiuixSwitch stateDescription i18n；三个符号按钮 contentDescription；README 英文版架构同步 + 使用边界/隐私段。
+
+### 已评估取舍（不修，明确记录）
+
+- **时区变更 resync 与 makeup 竞态**：跨时区/夏令时极端场景，makeup 用旧 slot epoch 按新时区解释可能算错。改动深风险高，保持现状。
+- **手动成功后残留 pending retry**：部分失败→15分钟内手动触发补全部→旧 retry 再补失败 wf（重复签一次）。GitHub Actions 重复触发通常幂等，发生频率低，不在上架前冒险改。
+- **120s run 检查误判他人 CI**：同一 workflow 被别的 CI 在 120s 内触发可能误判为成功（漏签）；或 GitHub run 列表延迟导致仍重试（重复签）。属权衡，无法两全。
+- **构造期 runBlocking 预读**：SettingsState/TickHubApp 各一次同步读 DataStore，首帧不闪 vs 主线程短暂阻塞的权衡，慢设备有 jank 风险。
+- **构造期 4xx/5xx fail-fast 等**：既有设计。
+
+### 上架真实状态（必须用户决策）
+
+以下为**商店上架阻断项**，用户已明确"暂不上架、先 GitHub 自行下载"，故未做，README 已诚实标注：
+- 隐私政策 URL + 应用内入口（Google Play / 国内商店硬性要求）
+- Data Safety 数据安全表单
+- Google Play 强制 AAB（当前 CI 只产 APK）
+- Play 权限用途声明表单（SCHEDULE_EXACT_ALARM / REQUEST_IGNORE_BATTERY_OPTIMIZATIONS）
+- POST_NOTIFICATIONS 启动时立即申请（建议改到首次使用场景）
+- OAuth 复用 GitHub CLI Client ID + "放心授权"文案（冒充风险，建议注册自有 OAuth App）
+真实上架前必须逐项完成。
+
+### 验证
+CI 全绿，**45 个 JVM 单测**，二次审视复核关键修复通过。按用户要求**不打 tag 不发版**——修复已在 main，手动触发 CI 可下载 APK artifact。
+
+---
 > 文档结束。任何与实现不一致之处，以「实际代码 + 本文档更新」为准；请接手人持续维护本文档。
