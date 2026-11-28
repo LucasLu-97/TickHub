@@ -10,7 +10,7 @@
 
 | 项 | 状态 |
 | --- | --- |
-| 版本 | **v2.3.2 正式版** |
+| 版本 | **v2.4.0 正式版** |
 | 需求 / 架构文档 | ✅ [`docs/TickHub-开发需求文档.md`](docs/TickHub-开发需求文档.md) |
 | CI | ✅ GitHub Actions 自动构建、单测、签名、发布 Release |
 | 登录 | ✅ GitHub OAuth Device Flow（内置公开 Client ID，装完即用） |
@@ -84,7 +84,7 @@ Actions 自动完成：单测 → R8 关键 keep 规则校验 → R8 瘦身的�
 ```bash
 # 当前仅产出 APK（暂不上架商店）
 ./gradlew assembleRelease \
-  -PversionName=2.3.2 -PversionCode=2030300 \
+  -PversionName=2.4.0 -PversionCode=2040100 \
   -PgithubClientId=<你的 GitHub OAuth Client ID>
 ```
 
