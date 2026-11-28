@@ -10,7 +10,7 @@ Replace GitHub's unreliable `on.schedule` with an Android phone: sign in to GitH
 
 | Item | Status |
 | --- | --- |
-| Version | **v2.1.3 stable** (ultimate optimization, signed APK) (signed APK, upgrade-compatible) |
+| Version | **v2.2.0 baseline** (ultimate optimization, signed APK) (signed APK, upgrade-compatible) |
 | Spec / architecture | ✅ [`docs/TickHub-开发需求文档.md`](docs/TickHub-开发需求文档.md) (Chinese) |
 | CI | ✅ GitHub Actions: build, unit tests, signing, Release publishing |
 | Login | ✅ GitHub OAuth Device Flow (built-in public Client ID, zero setup) |
@@ -82,7 +82,7 @@ Local build (Android SDK required):
 ```bash
 # APK only for now (store submission not planned yet)
 ./gradlew assembleRelease \
-  -PversionName=2.0.0 -PversionCode=2000000 \
+  -PversionName=2.2.0 -PversionCode=2020300 \
   -PgithubClientId=<your GitHub OAuth Client ID>
 ```
 

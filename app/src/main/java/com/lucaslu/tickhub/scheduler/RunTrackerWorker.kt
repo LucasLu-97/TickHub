@@ -24,8 +24,8 @@ import java.util.concurrent.TimeUnit
  * Each poll is a short WorkManager wake-up, NOT a foreground service. Intervals
  * back off 5s -> 15s -> 30s (30s cap). Polling continues until the run reaches
  * "completed", with a ~5-hour safety net (600 polls) against an endless loop.
- * The live duration is persisted on every poll so the history card always shows
- * a growing timer, even across process death.
+ * The live duration is persisted every 3rd poll so the history card shows a
+ * growing timer (even across process death) without excess DataStore writes.
  */
 class RunTrackerWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
 
@@ -55,7 +55,7 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         // For each workflow: use its known runId if we have one, but ALWAYS fall
         // back to discovery when the id is missing or the run vanished (404).
         // This fixes two bugs: late-created runs of a multi-workflow rule were
-        // never found, and a deleted run (404) used to stall for the full 3h.
+        // never found, and a deleted run (404) used to stall until the cap.
         val allRuns = mutableListOf<Pair<Long, GhWorkflowRun>>()
         val knownRunIds = log?.runIds.orEmpty().toMutableMap()
         for (wfId in workflowIds) {
@@ -208,8 +208,8 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         const val KEY_POLL = "poll"
         const val UNIQUE_NAME = "tickhub_track"
         const val POLL_DELAY_SEC = 5L
-        // Safety net ~5h with 5/15/30s backoff; a normal run finishes in minutes.
-        // 12*5s + 28*15s + 560*30s = ~4h50m.
+        // Safety net ~4h50m with 5/15/30s backoff; normal runs finish in minutes.
+        // 12*5s + 28*15s + 560*30s ~= 4h48m (+20s initial delay).
         const val MAX_POLLS = 600
         const val OLD_RUN_TOLERANCE_MS = 2 * 60 * 1000L
 
