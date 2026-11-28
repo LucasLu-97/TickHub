@@ -1212,4 +1212,17 @@ Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: a
 **验证**：每阶段 CI 全绿，39 单测；审视复核单例/状态流/登出/图标均无回归。
 
 ---
+## 37. 三项用户反馈修复（v2.1.1）
+
+用户反馈三项问题，全部修复并审视验证：
+
+1. **设置 tab 图标仍实心**：换用用户提供的空心齿轮 SVG（viewBox 1084×1024，4 个嵌套子路径），`ic_settings_outlined.xml` 用 evenOdd 填充。几何验证确认结果为"空心齿轮环 + 中心圆环"，中心镂空，与其他三个 outlined tab 图标风格一致。
+
+2. **通知栏图标与应用图标统一**：严格按 `app-icon/图标资源接入说明.md` 接入定稿图标资源——复制 6 个 mipmap 目录（5 档密度各 3 PNG + anydpi-v26），尺寸全部核对符合规范；Manifest icon/roundIcon 均指向 @mipmap/ic_launcher。通知 small icon 用同一"时钟"剪影（定稿图标核心元素），setColor 改为定稿时钟蓝 #58A6FF。遗留 drawable 图标改空壳避免冲突。
+
+3. **分享日志报 Failed to find configured root**：根因是上一轮把 file_paths.xml 的 `path` 从目录改成具体文件名 `tickhub-debug.log`，FileProvider 要求 path 必须是目录。改回 `path="."`（getUriForFile 仍只授予单个日志文件 URI）。审视确认 authority 与 Manifest 一致、日志文件确在 filesDir 根目录。
+
+**验证**：CI 全绿，审视复核三项通过。
+
+---
 > 文档结束。任何与实现不一致之处，以「实际代码 + 本文档更新」为准；请接手人持续维护本文档。
