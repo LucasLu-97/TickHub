@@ -29,13 +29,13 @@ GitHub Actions `on.schedule` on free tiers is frequently delayed or skipped duri
 
 - **Language**: Kotlin 2.4 (100% Kotlin, no legacy Java)
 - **UI**: Jetpack Compose + Material 3, MIUI-style typography and palette
-- **Architecture**: Single Activity + state-driven Compose screens; `AppViewModel` (StateFlow) as single source of truth; Repository layer for data access
+- **Architecture**: Single Activity + state-driven Compose screens; shared `AppGraph` (process singleton) holds infrastructure, with 5 domain ViewModels (Auth/Repo/Rule/History/Settings); Repository layer for data access
 - **Scheduling**: `AlarmManager.setExactAndAllowWhileIdle` + `BroadcastReceiver` + `WorkManager` (execution & result tracking)
 - **Storage**: DataStore Preferences (config / ordering / rules) + Android Keystore (encrypted token)
 - **Networking**: OkHttp + kotlinx.serialization (no redundant Retrofit dependency)
 - **Build**: Gradle 9.7 / AGP 9.3.1; release enables R8 code/resource shrinking with complete keep rules (obfuscation off for readable stacks + safe serialization), producing a signed APK
 
-~4,800 lines, clearly layered: `data` (models / storage) → `domain` (rule engine) → `network` (API) → `repository` → `scheduler` → `ui`.
+~6,400 lines, clearly layered: `data` (models / storage) → `domain` (rule engine) → `network` (API) → `repository` → `scheduler` → `ui`.
 
 ## Install
 
@@ -85,6 +85,12 @@ Local build (Android SDK required):
   -PversionName=2.0.0 -PversionCode=2000000 \
   -PgithubClientId=<your GitHub OAuth Client ID>
 ```
+
+## Usage & privacy
+
+- For personal, lawful automation only. Ensure target workflows and any third-party services comply with their terms; the author is not liable for third-party account-policy outcomes.
+- Authorize only on the official `github.com/login/device` page; never enter the device code elsewhere.
+- Debug logs contain **no token or device code**, but may include your GitHub username, repository and workflow names — check the recipient before sharing.
 
 ## License
 

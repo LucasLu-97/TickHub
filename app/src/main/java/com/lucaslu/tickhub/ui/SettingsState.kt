@@ -56,10 +56,9 @@ class SettingsState(
         scope, SharingStarted.Eagerly, initialValue = initial.holiday
     )
 
-    /** Cycle 0=light, 1=dark, 2=system. Write only to DataStore; stateIn mirrors back. */
+    /** Cycle 0=light, 1=dark, 2=system. Atomic in DataStore; stateIn mirrors back. */
     fun cycleTheme() {
-        val next = (themeMode.value + 1) % 3
-        scope.launch { repository.setThemeMode(next) }
+        scope.launch { repository.cycleThemeMode() }
     }
 
     fun saveOrder(kind: String, ids: List<String>) {

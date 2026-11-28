@@ -34,6 +34,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -62,7 +64,7 @@ fun SettingsScreen(vm: SettingsViewModel, onOpenLogs: (() -> Unit)? = null) {
                 ),
                 title = { Text(t("设置")) },
                 actions = {
-                    IconButton(onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); vm.cycleTheme() }) {
+                    IconButton(onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); vm.cycleTheme() }, modifier = androidx.compose.ui.Modifier.semantics { contentDescription = t("切换主题") }) {
                         Text(
                             when (themeMode) {
                                 0 -> "☀"   // light

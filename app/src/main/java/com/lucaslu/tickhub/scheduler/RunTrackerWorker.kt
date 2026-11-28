@@ -61,21 +61,24 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         for (wfId in workflowIds) {
             val knownId = knownRunIds[wfId.toString()]
             var found: GhWorkflowRun? = null
+            // Only discover when we have NO id, or a 404/410 proved the old run
+            // vanished. A transient network/401/5xx error must NOT fall through
+            // to discovery: `listWorkflowRuns` may return a DIFFERENT run and we
+            // would persist that wrong id, misreporting duration/conclusion.
+            var allowDiscovery = knownId == null
             if (knownId != null) {
                 when (val result = api.getWorkflowRun(token, parts[0], parts[1], knownId)) {
                     is ApiResult.Success -> found = result.data
                     is ApiResult.Error -> {
-                        // ONLY 404/410 mean the run vanished — rediscover. Network /
-                        // 401 / 5xx must keep the known id (a discovery fallback
-                        // could pick a different run and misreport duration).
                         if (result.code == 404 || result.code == 410) {
                             knownRunIds.remove(wfId.toString())
+                            allowDiscovery = true // confirmed gone — find the replacement
                         }
-                        // other errors: keep id, retry next poll
+                        // network / 401 / 5xx: keep id, retry next poll; NO discovery
                     }
                 }
             }
-            if (found == null) {
+            if (found == null && allowDiscovery) {
                 when (val result = api.listWorkflowRuns(token, parts[0], parts[1], wfId, 5)) {
                     is ApiResult.Success -> {
                         found = result.data.workflowRuns
@@ -116,7 +119,10 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         val durationMs = if (starts.isNotEmpty() && ends.isNotEmpty()) {
             Duration.between(starts.min(), ends.max()).toMillis().coerceAtLeast(0L)
         } else (System.currentTimeMillis() - firedAt).coerceAtLeast(0L)
-        val success = allRuns.all { it.second.conclusion == "success" }
+        // A workflow that concluded "success" means a check-in actually happened.
+        // Mixed [success, cancelled] or [success, failure] must NOT be reported
+        // as a total failure with a false "execution failed" notification.
+        val success = allRuns.any { it.second.conclusion == "success" }
         // A user-cancelled / skipped run is not a failure — don't send a false
         // "execution failed" notification (M9).
         // Only treat as cancelled when EVERY run was cancelled/skipped. A mix of

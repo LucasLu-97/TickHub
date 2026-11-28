@@ -6,6 +6,7 @@ import com.lucaslu.tickhub.data.TokenStore
 import com.lucaslu.tickhub.repository.AppRepository
 import com.lucaslu.tickhub.scheduler.AlarmScheduler
 import com.lucaslu.tickhub.scheduler.RunTrackerWorker
+import com.lucaslu.tickhub.util.AppLogger
 import com.lucaslu.tickhub.util.L10n
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -22,15 +23,19 @@ class AppUseCases(
     private val scope: CoroutineScope,
     private val authState: AuthState
 ) {
-    /** Sign out: clear token synchronously, then cancel work and wipe user data. */
+    /** Sign out: flip UI state immediately, then do all disk/Keystore IO off-main. */
     fun logout() {
-        tokenStore.clearSync() // synchronous so token cannot survive a kill before write
-        scope.launch {
+        // Immediately mark logged-out on the caller (main) thread so no further
+        // UI action can use the old token. The blocking Keystore commit used to
+        // run here and could jank/ANR on a click — it now runs on IO below.
+        authState.setLogin(LoginUiState())
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            tokenStore.clearSync() // commit() off-main; token gone before data wipe
             repository.getRulesOnce().forEach { alarmScheduler.cancel(it.id) }
             RunTrackerWorker.cancelAll(app)
             WorkManager.getInstance(app).cancelAllWorkByTag("tickhub_dispatch_all")
             repository.clearAllUserData()
-            authState.setLogin(LoginUiState())
+            AppLogger.clear() // logs may contain username / private repo names
         }
     }
 

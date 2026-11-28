@@ -95,6 +95,7 @@ data class TriggerLog(
     val httpCode: Int? = null,
     val errorMessage: String? = null,
     val isMakeup: Boolean = false,
+    val isManual: Boolean = false, // manual "trigger now": must not suppress a scheduled slot
     val durationMs: Long = 0L,
     val runIds: Map<String, Long> = emptyMap(), // workflowId -> GitHub run id, for real-duration tracking
     val tracking: Boolean = false, // true while waiting for GitHub run to finish

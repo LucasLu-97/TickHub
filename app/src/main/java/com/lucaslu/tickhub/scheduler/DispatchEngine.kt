@@ -87,16 +87,18 @@ class DispatchEngine(private val context: Context) {
             AppLogger.w("Engine", "rule=${ruleId.take(8)} status=${rule.status} -> skip dispatch")
             return TriggerStatus.SKIPPED
         }
-        // M4: a manual trigger at the same moment as the scheduled alarm has a
-        // different plannedAt, so WorkManager's unique name cannot dedupe it.
-        // Detect a successful dispatch for this rule in the last 20s and skip.
-        val recentSuccess = repository.getLogsOnce().any {
-            it.ruleId == ruleId &&
+        // M4: dedupe a scheduled alarm firing twice in the same 20s window.
+        // CRITICAL: only count AUTOMATIC logs. A manual "trigger now" success
+        // must NOT suppress the following scheduled slot — doing so stranded
+        // the slot until catchUp (and lost the check-in if the app stayed shut).
+        // Makeup logs are also excluded from suppressing automatic runs.
+        val recentAutoSuccess = repository.getLogsOnce().any {
+            it.ruleId == ruleId && !it.isManual && !it.isMakeup &&
                 (it.status == TriggerStatus.SUCCESS || it.status == TriggerStatus.MAKEUP) &&
                 (it.firedAt ?: 0L) > System.currentTimeMillis() - 20_000L
         }
-        if (recentSuccess && !isMakeup) {
-            AppLogger.w("Engine", "rule=${ruleId.take(8)} dispatched within 20s -> skip duplicate")
+        if (recentAutoSuccess && !isMakeup) {
+            AppLogger.w("Engine", "rule=${ruleId.take(8)} auto-dispatched within 20s -> skip duplicate")
             return TriggerStatus.SKIPPED
         }
         // On a retry of a partially-failed slot, dispatch ONLY the workflows that
@@ -117,7 +119,8 @@ class DispatchEngine(private val context: Context) {
                 workflowName = rule.workflowName, workflowNames = rule.workflowNames,
                 repoFullName = rule.repoFullName, plannedAt = plannedAt,
                 firedAt = System.currentTimeMillis(), status = TriggerStatus.SKIPPED,
-                errorMessage = "规则未选择任何工作流", errorKey = "规则未选择任何工作流"
+                errorMessage = "规则未选择任何工作流", errorKey = "规则未选择任何工作流",
+                isManual = !advance
             )
             repository.commitDispatchOutcome(log, false, ruleId, transition)?.let { postCommitSchedule(it, transition) }
             return TriggerStatus.SKIPPED
@@ -180,7 +183,33 @@ class DispatchEngine(private val context: Context) {
                                 // (401 token revoked, 422 bad params, 404 missing).
                                 val code = result.code
                                 if (DispatchPolicy.isPermanentHttpError(code) || code == 401) break
-                                if (attempt < 2) delay(delays[attempt])
+                                if (attempt < 2) {
+                                    // A POST can reach GitHub and create a run, but the
+                                    // 204 response gets lost in transit (IOException /
+                                    // gateway 5xx). Retrying blindly would create a
+                                    // SECOND run = duplicate check-in. Check whether a
+                                    // run was just created before retrying.
+                                    val justCreated = runCatching {
+                                        api.listWorkflowRuns(token, parts[0], parts[1], wfId, 5)
+                                    }.getOrNull()
+                                    val recentRuns = when (justCreated) {
+                                        is ApiResult.Success -> justCreated.data.workflowRuns
+                                        else -> emptyList()
+                                    }
+                                    val alreadyFired = recentRuns.any { run ->
+                                        val t = runCatching {
+                                            java.time.Instant.parse(run.createdAt).toEpochMilli()
+                                        }.getOrNull() ?: 0L
+                                        t > System.currentTimeMillis() - 120_000L
+                                    }
+                                    if (alreadyFired) {
+                                        AppLogger.w("Engine", "dispatch wfId=$wfId response lost but run exists -> treat as SUCCESS, no retry")
+                                        success = true
+                                        lastCode = 204
+                                        break
+                                    }
+                                    delay(delays[attempt])
+                                }
                             }
                         }
                     }
@@ -214,6 +243,7 @@ class DispatchEngine(private val context: Context) {
             errorKey = if (allSuccess) null else "工作流 {0} 触发失败：{1}",
             errorArgs = if (allSuccess) emptyList() else listOf(failedWfIds.joinToString(), lastError.orEmpty()),
             isMakeup = isMakeup,
+            isManual = !advance,
             durationMs = System.currentTimeMillis() - (repository.runningStartOnce(rule.id) ?: System.currentTimeMillis())
         )
 
@@ -268,13 +298,15 @@ class DispatchEngine(private val context: Context) {
             repoFullName = rule.repoFullName, plannedAt = plannedAt,
             firedAt = System.currentTimeMillis(), status = status,
             errorMessage = errorMessage, errorKey = errorKey, errorArgs = errorArgs,
-            isMakeup = isMakeup
+            isMakeup = isMakeup, isManual = !advance
         )
         val transition = if (!advance) {
-            // Manual trigger: never arm a retry alarm from an infra failure.
+            // Manual trigger: don't arm a retry, but preserve any pending one.
             com.lucaslu.tickhub.repository.DispatchTransition(
                 nextFireAt = rule.nextFireAt, effectiveFireAt = rule.effectiveFireAt,
-                lastFiredAt = rule.lastFiredAt
+                lastFiredAt = rule.lastFiredAt,
+                retryAt = rule.retryAt, retryPlannedAt = rule.retryPlannedAt,
+                retryFailedWfIds = rule.retryFailedWfIds
             )
         } else if (permanent) {
             // Permanent config error: give up this slot cleanly.
@@ -322,11 +354,16 @@ class DispatchEngine(private val context: Context) {
     ): com.lucaslu.tickhub.repository.DispatchTransition {
         if (allSuccess) {
             if (!advance) {
-                // Manual trigger: never consume the planned slot; just clear retry state.
+                // Manual trigger: never consume the planned slot AND never
+                // clear a pending retry. Clearing it previously left the old
+                // 15-min retry alarm armed with retryFailedWfIds wiped -> it
+                // re-dispatched ALL workflows (duplicate check-ins). Preserve
+                // the persisted retry state verbatim.
                 return com.lucaslu.tickhub.repository.DispatchTransition(
                     nextFireAt = rule.nextFireAt, effectiveFireAt = rule.effectiveFireAt,
-                    lastFiredAt = rule.lastFiredAt, retryAt = null, retryPlannedAt = null,
-                    retryFailedWfIds = emptyList()
+                    lastFiredAt = rule.lastFiredAt,
+                    retryAt = rule.retryAt, retryPlannedAt = rule.retryPlannedAt,
+                    retryFailedWfIds = rule.retryFailedWfIds
                 )
             }
             // On a makeup slot, advance from THAT slot (not "now") so the next
@@ -348,13 +385,14 @@ class DispatchEngine(private val context: Context) {
                 retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
             )
         }
-        // Manual trigger (advance=false) never arms a persistent retry alarm —
-        // otherwise a failed "test now" fires a real check-in 15 minutes later.
+        // Manual trigger (advance=false) must not arm a NEW retry alarm, but
+        // must also not ERASE an existing pending retry (see above).
         if (!advance) {
             return com.lucaslu.tickhub.repository.DispatchTransition(
                 nextFireAt = rule.nextFireAt, effectiveFireAt = rule.effectiveFireAt,
                 lastFiredAt = rule.lastFiredAt,
-                retryAt = null, retryPlannedAt = null, retryFailedWfIds = emptyList()
+                retryAt = rule.retryAt, retryPlannedAt = rule.retryPlannedAt,
+                retryFailedWfIds = rule.retryFailedWfIds
             )
         }
         // Failure: retry ONLY the failed workflows of the same slot.
@@ -445,13 +483,15 @@ class DispatchEngine(private val context: Context) {
             repoFullName = rule.repoFullName, plannedAt = plannedAt,
             firedAt = System.currentTimeMillis(), status = TriggerStatus.FAILED,
             errorMessage = "执行异常：${e.message}", errorKey = "执行异常：{0}",
-            errorArgs = listOf(e.message.orEmpty()), isMakeup = isMakeup
+            errorArgs = listOf(e.message.orEmpty()), isMakeup = isMakeup, isManual = !advance
         )
         // Manual trigger must not arm a background retry alarm either.
         val transition = if (!advance) {
             com.lucaslu.tickhub.repository.DispatchTransition(
                 nextFireAt = rule.nextFireAt, effectiveFireAt = rule.effectiveFireAt,
-                lastFiredAt = rule.lastFiredAt
+                lastFiredAt = rule.lastFiredAt,
+                retryAt = rule.retryAt, retryPlannedAt = rule.retryPlannedAt,
+                retryFailedWfIds = rule.retryFailedWfIds
             )
         } else buildRetryTransition(rule, plannedAt, rule.retryFailedWfIds)
         val updated = repository.commitDispatchOutcome(log, false, ruleId, transition)

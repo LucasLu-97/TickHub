@@ -68,7 +68,7 @@ fun MiuixSwitch(
             }
             .semantics {
                 if (description.isNotBlank()) contentDescription = description
-                stateDescription = if (checked) "开" else "关"
+                stateDescription = com.lucaslu.tickhub.util.L10n.tNow(if (checked) "开" else "关")
             },
         contentAlignment = Alignment.CenterStart
     ) {

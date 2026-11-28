@@ -82,12 +82,22 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Serialized startup maintenance: timezone resync -> alarm registration ->
      *  catch-up. Running these in one coroutine avoids stale reads between them. */
+    // Serialize startup maintenance: cold start fires from both LaunchedEffect
+    // and ON_RESUME. Running two concurrent resync->catchUp passes could race on
+    // rule state and duplicate alarms/logs. CAS gate keeps a single pass in flight.
+    private val appReadyInFlight = java.util.concurrent.atomic.AtomicBoolean(false)
+
     fun onAppReady() {
+        if (!appReadyInFlight.compareAndSet(false, true)) return
         viewModelScope.launch {
-            checkTimezoneAndResyncInternal()
-            syncAlarmsInternal()
-            c.dispatchEngine.catchUpMissed()
-            AppLogger.i("App", "startup maintenance done")
+            try {
+                checkTimezoneAndResyncInternal()
+                syncAlarmsInternal()
+                c.dispatchEngine.catchUpMissed()
+                AppLogger.i("App", "startup maintenance done")
+            } finally {
+                appReadyInFlight.set(false)
+            }
         }
     }
 

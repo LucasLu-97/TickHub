@@ -27,6 +27,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -51,7 +53,7 @@ fun LogScreen(onBack: (() -> Unit)? = null) {
                 title = { Text(t("调试日志")) },
                 navigationIcon = {
                     if (onBack != null) {
-                        androidx.compose.material3.IconButton(onClick = onBack) {
+                        androidx.compose.material3.IconButton(onClick = onBack, modifier = androidx.compose.ui.Modifier.semantics { contentDescription = com.lucaslu.tickhub.util.L10n.tNow("返回") }) {
                             Text("←", style = MaterialTheme.typography.titleLarge)
                         }
                     }

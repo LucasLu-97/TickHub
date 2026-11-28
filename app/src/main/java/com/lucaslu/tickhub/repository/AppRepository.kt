@@ -121,10 +121,14 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
             HolidayCalendar.isLegalHoliday(years[d.year] ?: years.getValue(year), d)
         }
 
-        // C4: LEGAL_HOLIDAY with no calendar data must NOT return null (which would
-        // mark the rule COMPLETED forever). Keep it ENABLED with a 30-day probe.
-        val needsHolidayData = rule.type == com.lucaslu.tickhub.data.RuleType.LEGAL_HOLIDAY &&
-            years.getValue(year).days.isEmpty() && years.getValue(year + 1).days.isEmpty()
+        // C4: LEGAL_HOLIDAY / LEGAL_WORKDAY with no calendar data must NOT return
+        // null (COMPLETED forever) AND must not silently fall back to Mon-Fri for
+        // LEGAL_WORKDAY — that would check in on statutory holidays and skip
+        // make-up weekends. Keep ENABLED with a 30-day probe for both types.
+        val needsHolidayData = rule.type in setOf(
+            com.lucaslu.tickhub.data.RuleType.LEGAL_HOLIDAY,
+            com.lucaslu.tickhub.data.RuleType.LEGAL_WORKDAY
+        ) && years.getValue(year).days.isEmpty() && years.getValue(year + 1).days.isEmpty()
         if (needsHolidayData) {
             com.lucaslu.tickhub.util.AppLogger.w("Repo", "holiday data missing for ${rule.id.take(8)} — keep ENABLED, probe in 30d")
             val probe = from.plusDays(30)
@@ -327,6 +331,15 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
     val themeMode: Flow<Int> = context.dataStore.data.map { it[themeModeKey] ?: 2 }
     suspend fun themeModeOnce(): Int = runCatching { context.dataStore.data.first()[themeModeKey] ?: 2 }.getOrDefault(2)
     suspend fun setThemeMode(mode: Int) { context.dataStore.edit { it[themeModeKey] = mode } }
+
+    /** Atomic read-modify-write inside a single edit — rapid double-taps can't
+     *  both read the same old value and collapse two cycles into one. */
+    suspend fun cycleThemeMode() {
+        context.dataStore.edit { prefs ->
+            val cur = prefs[themeModeKey] ?: 2
+            prefs[themeModeKey] = (cur + 1) % 3
+        }
+    }
 
     suspend fun setShowExecutionStatus(enabled: Boolean) {
         context.dataStore.edit { it[showExecutionKey] = enabled }

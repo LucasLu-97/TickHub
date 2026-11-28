@@ -30,6 +30,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.size
@@ -154,7 +156,7 @@ fun RulesScreen(vm: RuleViewModel) {
                         }) { Text(t("删除")) }
                         TextButton(onClick = { Haptics.tick(context); multiSelect = false; selectedIds = emptySet() }) { Text(t("取消")) }
                     } else {
-                        androidx.compose.material3.IconButton(onClick = { Haptics.tick(context); creating = true }, enabled = selectedWorkflows.isNotEmpty()) {
+                        androidx.compose.material3.IconButton(onClick = { Haptics.tick(context); creating = true }, enabled = selectedWorkflows.isNotEmpty(), modifier = androidx.compose.ui.Modifier.semantics { contentDescription = t("新建规则") }) {
                             Text("＋", style = MaterialTheme.typography.titleLarge)
                         }
                     }
