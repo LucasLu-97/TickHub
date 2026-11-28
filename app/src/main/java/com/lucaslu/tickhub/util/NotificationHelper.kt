@@ -10,14 +10,10 @@ import com.lucaslu.tickhub.R
 
 /** Posts a simple completion notification for tracked workflow runs. */
 object NotificationHelper {
-    // v3 channel: HIGH importance makes HyperOS show the full-colour app icon in
-    // the notification shade (DEFAULT renders the tinted small-icon instead).
-    // New id also busts the cached channel created by earlier builds.
-    private const val CHANNEL_ID = "tickhub_run_result_v3"
+    private const val CHANNEL_ID = "tickhub_run_result"
     private val CHANNEL_NAME get() = com.lucaslu.tickhub.util.L10n.tNow("触发结果通知")
     private const val NOTIF_ID_BASE = 2000
-    // Clock blue from the final launcher icon (#58A6FF) — notification small
-    // icon uses the same clock silhouette, tinted with this accent on MIUI.
+    // Clock blue from the launcher icon; tints the monochrome small icon.
     private const val ACCENT_COLOR = 0xFF58A6FF.toInt()
 
     /** Tap a notification to return to the app (with a clean back stack). */
@@ -35,7 +31,7 @@ object NotificationHelper {
             val nm = context.getSystemService(NotificationManager::class.java)
             if (nm.getNotificationChannel(CHANNEL_ID) == null) {
                 nm.createNotificationChannel(
-                    NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH).apply {
+                    NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_DEFAULT).apply {
                         description = com.lucaslu.tickhub.util.L10n.tNow("工作流触发执行完成后的成功/失败通知")
                     }
                 )
@@ -49,8 +45,8 @@ object NotificationHelper {
             ensureChannel(context)
             val nm = context.getSystemService(NotificationManager::class.java)
             val notif = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_notif_v4)
-                // VERIFY v2.2.5: setColor removed — does the blue shade disappear?
+                .setSmallIcon(R.drawable.ic_notif_small)
+                .setColor(ACCENT_COLOR)
                 .setContentIntent(contentIntent(context))
                 .setContentTitle(L10n.tNow("TickHub · 登录已失效"))
                 .setContentText(L10n.tNow("请重新登录以恢复定时触发"))
@@ -67,8 +63,8 @@ object NotificationHelper {
             ensureChannel(context)
             val nm = context.getSystemService(NotificationManager::class.java)
             val notif = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_notif_v4)
-                // VERIFY v2.2.5: setColor removed — does the blue shade disappear?
+                .setSmallIcon(R.drawable.ic_notif_small)
+                .setColor(ACCENT_COLOR)
                 .setContentIntent(contentIntent(context))
                 .setContentTitle(L10n.tNow("TickHub · 精确闹钟未开启"))
                 .setContentText(L10n.tNow("请在设置开启精确闹钟，否则定时可能延迟数分钟"))
@@ -83,8 +79,8 @@ object NotificationHelper {
             ensureChannel(context)
             val nm = context.getSystemService(NotificationManager::class.java)
             val notif = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_notif_v4)
-                // VERIFY v2.2.5: setColor removed — does the blue shade disappear?
+                .setSmallIcon(R.drawable.ic_notif_small)
+                .setColor(ACCENT_COLOR)
                 .setContentIntent(contentIntent(context))
                 .setContentTitle(title)
                 .setContentText(message)

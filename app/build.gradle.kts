@@ -20,7 +20,7 @@ android {
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.lucaslu.tickhub"
+        applicationId = "com.lucas.tickhub" // NEW package id — busts HyperOS cached launcher icon
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         // versionCode/versionName are injected by CI, with local fallback

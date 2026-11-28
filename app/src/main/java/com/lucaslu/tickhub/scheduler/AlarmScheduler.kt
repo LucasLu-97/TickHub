@@ -94,7 +94,7 @@ class AlarmScheduler(private val context: Context) {
     }
 
     companion object {
-        const val ACTION_DISPATCH = "com.lucaslu.tickhub.action.DISPATCH"
+        const val ACTION_DISPATCH = "com.lucas.tickhub.action.DISPATCH"
         const val EXTRA_RULE_ID = "rule_id"
     }
 }
