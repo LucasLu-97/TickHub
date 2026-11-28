@@ -20,4 +20,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "TickHub"
-include(":app")
+include(":app", ":notifydemo")

@@ -65,7 +65,7 @@ jobs:
       - name: Run unit tests
         run: |
           chmod +x ./gradlew
-          ./gradlew test
+          ./gradlew :app:test
 
       - name: Verify R8 keep rules (crash prevention)
         run: |
@@ -98,7 +98,7 @@ jobs:
           KEYSTORE_TYPE: ${{ secrets.KEYSTORE_TYPE }}
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease \
+          ./gradlew :app:assembleRelease \
             -PversionName="${{ steps.version.outputs.name }}" \
             -PversionCode=${{ steps.version.outputs.code }} \
             -PgithubClientId="${{ vars.GITHUB_CLIENT_ID }}"

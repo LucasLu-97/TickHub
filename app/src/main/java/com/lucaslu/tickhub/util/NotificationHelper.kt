@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.lucaslu.tickhub.R
@@ -16,6 +17,15 @@ object NotificationHelper {
     // Clock blue from the final launcher icon (#58A6FF) — notification small
     // icon uses the same clock silhouette, tinted with this accent on MIUI.
     private const val ACCENT_COLOR = 0xFF58A6FF.toInt()
+
+    /**
+     * HyperOS/MIUI shows this LARGE icon in the notification shade instead of
+     * tinting the small icon. Use the FINAL desktop icon PNG so the shade icon
+     * matches the home-screen icon exactly. (small icon stays a mono silhouette
+     * for the status-bar slot, where Android forces monochrome.)
+     */
+    private fun largeIcon(context: Context): android.graphics.Bitmap? =
+        runCatching { BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher_flat) }.getOrNull()
 
     /** Tap a notification to return to the app (with a clean back stack). */
     private fun contentIntent(context: Context): android.app.PendingIntent {
@@ -47,6 +57,7 @@ object NotificationHelper {
             val nm = context.getSystemService(NotificationManager::class.java)
             val notif = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notif_small)
+                .setLargeIcon(largeIcon(context))
                 .setColor(ACCENT_COLOR)
                 .setContentIntent(contentIntent(context))
                 .setContentTitle(L10n.tNow("TickHub · 登录已失效"))
@@ -65,6 +76,7 @@ object NotificationHelper {
             val nm = context.getSystemService(NotificationManager::class.java)
             val notif = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notif_small)
+                .setLargeIcon(largeIcon(context))
                 .setColor(ACCENT_COLOR)
                 .setContentIntent(contentIntent(context))
                 .setContentTitle(L10n.tNow("TickHub · 精确闹钟未开启"))
@@ -81,6 +93,7 @@ object NotificationHelper {
             val nm = context.getSystemService(NotificationManager::class.java)
             val notif = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notif_small)
+                .setLargeIcon(largeIcon(context))
                 .setColor(ACCENT_COLOR)
                 .setContentIntent(contentIntent(context))
                 .setContentTitle(title)
