@@ -47,7 +47,6 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun setHolidayEnabled(enabled: Boolean) {
         viewModelScope.launch {
             c.repository.setHolidayEnabled(enabled)
-            c.setHolidayEnabledState(enabled)
             if (enabled) refreshHolidays()
         }
     }

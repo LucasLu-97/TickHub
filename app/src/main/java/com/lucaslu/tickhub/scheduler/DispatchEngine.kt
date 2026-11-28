@@ -17,7 +17,6 @@ import com.lucaslu.tickhub.network.GitHubApi
 import com.lucaslu.tickhub.repository.AppRepository
 import com.lucaslu.tickhub.util.AppLogger
 import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.time.LocalDateTime

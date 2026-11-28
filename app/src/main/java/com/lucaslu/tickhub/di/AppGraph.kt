@@ -59,8 +59,6 @@ class AppGraph private constructor(val app: Application) {
 
     fun cycleTheme() = settings.cycleTheme()
     fun saveOrder(kind: String, ids: List<String>) = settings.saveOrder(kind, ids)
-    /** No-op: stateIn mirrors the DataStore write back to holidayEnabledFlow. */
-    fun setHolidayEnabledState(@Suppress("UNUSED_PARAMETER") value: Boolean) = Unit
 
     // Cross-cutting business actions
     fun logout() = useCases.logout()

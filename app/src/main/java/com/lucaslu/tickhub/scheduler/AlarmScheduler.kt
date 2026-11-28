@@ -25,25 +25,25 @@ class AlarmScheduler(private val context: Context) {
     fun schedule(rule: Rule) {
         if (rule.status != RuleStatus.ENABLED) return
         val triggerAt = rule.nextFireAt ?: return
-        scheduleAt(rule.id, rule.workflowName, triggerAt, triggerAt)
+        scheduleAt(rule.id, rule.workflowName, triggerAt, triggerAt, false)
     }
 
     /** Schedule with distinct wake time (drifted) and logical slot time (base).
      *  Logs/dedup always key on [plannedAt]; only the alarm fires at [triggerAt]. */
     fun scheduleWithSlot(rule: Rule, triggerAt: Long, plannedAt: Long) {
         if (rule.status != RuleStatus.ENABLED) return
-        scheduleAt(rule.id, rule.workflowName, triggerAt, plannedAt)
+        scheduleAt(rule.id, rule.workflowName, triggerAt, plannedAt, false)
     }
 
     /** Retry alarm for a failed slot: fires at [triggerAt] but keeps the original
      *  [plannedAt] so logs/dedup stay keyed to the real scheduled slot. */
     fun scheduleRetry(ruleId: String, workflowName: String, triggerAt: Long, plannedAt: Long) {
-        scheduleAt(ruleId, workflowName, triggerAt, plannedAt)
+        scheduleAt(ruleId, workflowName, triggerAt, plannedAt, true)
     }
 
-    private fun scheduleAt(ruleId: String, workflowName: String, triggerAt: Long, plannedAt: Long) {
+    private fun scheduleAt(ruleId: String, workflowName: String, triggerAt: Long, plannedAt: Long, isRetry: Boolean) {
         if (triggerAt <= System.currentTimeMillis()) return
-        val pi = pendingIntentFor(ruleId, plannedAt)
+        val pi = pendingIntentFor(ruleId, plannedAt, isRetry)
         val timeStr = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(triggerAt))
         val canExact = canScheduleExactAlarms()
         val result = runCatching {
@@ -77,11 +77,12 @@ class AlarmScheduler(private val context: Context) {
         } else true
     }
 
-    private fun pendingIntentFor(ruleId: String, plannedAt: Long): PendingIntent {
+    private fun pendingIntentFor(ruleId: String, plannedAt: Long, isRetry: Boolean = false): PendingIntent {
         val intent = Intent(context, DispatchReceiver::class.java).apply {
             action = ACTION_DISPATCH
             putExtra(EXTRA_RULE_ID, ruleId)
             putExtra(DispatchReceiver.KEY_PLANNED_AT, plannedAt)
+            putExtra(DispatchReceiver.KEY_IS_RETRY, isRetry)
         }
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0

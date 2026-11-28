@@ -121,22 +121,26 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
             HolidayCalendar.isLegalHoliday(years[d.year] ?: years.getValue(year), d)
         }
 
-        // C4: LEGAL_HOLIDAY / LEGAL_WORKDAY with no calendar data must NOT return
-        // null (COMPLETED forever) AND must not silently fall back to Mon-Fri for
-        // LEGAL_WORKDAY — that would check in on statutory holidays and skip
-        // make-up weekends. Keep ENABLED with a 30-day probe for both types.
-        val needsHolidayData = rule.type in setOf(
-            com.lucaslu.tickhub.data.RuleType.LEGAL_HOLIDAY,
-            com.lucaslu.tickhub.data.RuleType.LEGAL_WORKDAY
-        ) && years.getValue(year).days.isEmpty() && years.getValue(year + 1).days.isEmpty()
-        if (needsHolidayData) {
+        val holidayRule = rule.type == com.lucaslu.tickhub.data.RuleType.LEGAL_HOLIDAY ||
+            rule.type == com.lucaslu.tickhub.data.RuleType.LEGAL_WORKDAY
+        val next = RuleEngine.computeNextFire(rule, from, isWorkday, isHoliday)
+
+        // C4 (hardened): a holiday rule whose 400-day scan finds NO matching day
+        // means the calendar data for the coming year is not available yet.
+        // Returning null here would mark the rule COMPLETED FOREVER — e.g. in late
+        // 2026 the bundled 2026 data is non-empty (so the old "both years empty"
+        // check never fired) but 2027 data is not published until mid-December,
+        // so a LEGAL_HOLIDAY rule silently died for all of 2027. Instead keep the
+        // rule ENABLED and probe again in 30 days. This also avoids silently
+        // falling back to Mon-Fri for LEGAL_WORKDAY (would check in on statutory
+        // holidays and skip make-up weekends).
+        if (next == null && holidayRule) {
             com.lucaslu.tickhub.util.AppLogger.w("Repo", "holiday data missing for ${rule.id.take(8)} — keep ENABLED, probe in 30d")
             val probe = from.plusDays(30)
             val base = RuleEngine.toEpochMillis(probe)
             return probe to RuleEngine.applyDrift(rule.id, base, rule.driftMinutes)
         }
 
-        val next = RuleEngine.computeNextFire(rule, from, isWorkday, isHoliday)
         val base = next?.let { RuleEngine.toEpochMillis(it) }
         val effective = base?.let { RuleEngine.applyDrift(rule.id, it, rule.driftMinutes) }
         return next to effective
@@ -324,12 +328,9 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
 
     val showExecutionStatus: Flow<Boolean> = context.dataStore.data.map { it[showExecutionKey] ?: true }
 
-    suspend fun showExecutionStatusOnce(): Boolean = runCatching { context.dataStore.data.first()[showExecutionKey] ?: true }.getOrDefault(true)
-    suspend fun hapticsOnce(): Boolean = runCatching { context.dataStore.data.first()[hapticsKey] ?: true }.getOrDefault(true)
 
     /** Theme mode: 0=light, 1=dark, 2=system. Defaults to system (2). */
     val themeMode: Flow<Int> = context.dataStore.data.map { it[themeModeKey] ?: 2 }
-    suspend fun themeModeOnce(): Int = runCatching { context.dataStore.data.first()[themeModeKey] ?: 2 }.getOrDefault(2)
     suspend fun setThemeMode(mode: Int) { context.dataStore.edit { it[themeModeKey] = mode } }
 
     /** Atomic read-modify-write inside a single edit — rapid double-taps can't

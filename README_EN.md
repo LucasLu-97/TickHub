@@ -39,7 +39,9 @@ GitHub Actions `on.schedule` on free tiers is frequently delayed or skipped duri
 
 ## Install
 
-Download the latest signed APK from [Releases](https://github.com/LucasLu-97/TickHub/releases) and install over the existing version (same signing key). Minimum Android 8.0 (API 26).
+Download the latest signed APK from [Releases](https://github.com/LucasLu-97/TickHub/releases). Minimum Android 8.0 (API 26).
+
+> **IMPORTANT (package id changed in v2.2.6)**: applicationId changed from `com.lucaslu.tickhub` to `com.lucas.tickhub` (fixes a HyperOS notification-icon cache). When upgrading from an older build, **uninstall the old version first** — otherwise both apps coexist and cause **double scheduled triggers (duplicate check-ins)**; data does not migrate, so sign in and recreate rules.
 
 ## Permissions
 
@@ -82,7 +84,7 @@ Local build (Android SDK required):
 ```bash
 # APK only for now (store submission not planned yet)
 ./gradlew assembleRelease \
-  -PversionName=2.2.0 -PversionCode=2020300 \
+  -PversionName=2.2.6 -PversionCode=2020700 \
   -PgithubClientId=<your GitHub OAuth Client ID>
 ```
 

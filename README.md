@@ -10,7 +10,7 @@
 
 | 项 | 状态 |
 | --- | --- |
-| 版本 | **v2.2.4 正式版**（终极优化版，签名 APK 可覆盖安装）（签名 APK，可覆盖安装） |
+| 版本 | **v2.2.6 正式版** |
 | 需求 / 架构文档 | ✅ [`docs/TickHub-开发需求文档.md`](docs/TickHub-开发需求文档.md) |
 | CI | ✅ GitHub Actions 自动构建、单测、签名、发布 Release |
 | 登录 | ✅ GitHub OAuth Device Flow（内置公开 Client ID，装完即用） |
@@ -39,7 +39,9 @@ GitHub Actions 的 `on.schedule` 在免费额度下常被延迟甚至跳过（�
 
 ## 安装
 
-从 [Releases](https://github.com/LucasLu-97/TickHub/releases) 下载最新签名 APK，直接覆盖安装即可（同一签名）。最低 Android 8.0（API 26）。
+从 [Releases](https://github.com/LucasLu-97/TickHub/releases) 下载最新签名 APK 安装。最低 Android 8.0（API 26）。
+
+> **重要（v2.2.6 起更换包名）**：applicationId 从 `com.lucaslu.tickhub` 改为 `com.lucas.tickhub`（修复 HyperOS 通知栏旧图标缓存）。从旧版升级时**必须先卸载旧版**，否则两个版本并存会导致**双重定时触发（重复签到）**，且数据不迁移，需重新登录并重建规则。
 
 ## 权限说明
 
@@ -82,7 +84,7 @@ Actions 自动完成：单测 → R8 关键 keep 规则校验 → R8 瘦身的�
 ```bash
 # 当前仅产出 APK（暂不上架商店）
 ./gradlew assembleRelease \
-  -PversionName=2.2.0 -PversionCode=2020300 \
+  -PversionName=2.2.6 -PversionCode=2020700 \
   -PgithubClientId=<你的 GitHub OAuth Client ID>
 ```
 

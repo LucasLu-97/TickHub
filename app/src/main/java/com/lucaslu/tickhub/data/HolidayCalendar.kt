@@ -173,5 +173,4 @@ object HolidayCalendar {
         return entry?.isOffDay == true
     }
 
-    fun isKnownYear(data: HolidayYearData): Boolean = data.days.isNotEmpty()
 }
