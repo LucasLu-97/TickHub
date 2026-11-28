@@ -1240,4 +1240,11 @@ Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: a
 **重要**：存量用户通知栏旧图标是系统图标缓存 + 通知渠道固化所致，代码无法刷新，需卸载重装 / 清除应用数据 / 重启才能显示新图标。
 
 ---
+## 39. 设置图标回归 Material 系列（v2.1.3）
+
+用户反馈用户提供的齿轮图标线条偏细、比其他 tab 大一圈。改回官方 Material "settings" outlined 图标（24×24 viewport，与 folder/alarm/history 同一套），粗细大小天然一致；evenOdd 填充镂空中心圆（path 含 2 个独立子路径，验证确认中心镂空）。
+
+用户此前看到"实心"应为覆盖安装后图标缓存未刷新——与通知栏图标同类问题，需卸载重装。
+
+---
 > 文档结束。任何与实现不一致之处，以「实际代码 + 本文档更新」为准；请接手人持续维护本文档。
