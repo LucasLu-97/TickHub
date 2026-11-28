@@ -120,7 +120,7 @@ object HolidayCalendar {
     }
 
     /** Result of a holiday-data refresh, surfaced to the user via notification. */
-    data class RefreshResult(val ok: Boolean, val years: List<Int>)
+    data class RefreshResult(val ok: Boolean, val years: List<Int>, val changed: Boolean)
 
     /**
      * Fetch current + next year holiday data. Next-year notices are usually
@@ -146,6 +146,10 @@ object HolidayCalendar {
             when (val result = api.fetchHolidayYear(year)) {
                 is ApiResult.Success -> {
                     val data = result.data
+                    if (data.days.isEmpty()) {
+                        // 200 OK with an empty payload is not usable data.
+                        continue
+                    }
                     val idx = all.indexOfFirst { it.year == year }
                     if (idx >= 0) all[idx] = data else all.add(data)
                     fetchedYears.add(year.toString()) // only mark SUCCESS years
@@ -165,8 +169,11 @@ object HolidayCalendar {
         }
         // ok = at least the CURRENT year has usable data (next year may be unpublished
         // until mid-December — that alone is not a failure worth notifying).
-        val ok = successYears.contains(nowYear) || all.any { it.year == nowYear && it.days.isNotEmpty() }
-        return RefreshResult(ok = ok, years = successYears.distinct())
+        // A bundled current-year calendar (offline fallback) also counts as usable.
+        val haveCurrent = successYears.contains(nowYear) ||
+            all.any { it.year == nowYear && it.days.isNotEmpty() } ||
+            load(context, nowYear).days.isNotEmpty()
+        return RefreshResult(ok = haveCurrent, years = successYears.distinct(), changed = changed)
     }
 
     /** Is this date a statutory working day (includes makeup work weekends)? */

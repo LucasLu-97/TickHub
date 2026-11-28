@@ -25,6 +25,15 @@ object RuleEngine {
     fun holidayRuleNeedsProbe(type: RuleType, nextFire: LocalDateTime?): Boolean =
         nextFire == null && (type == RuleType.LEGAL_HOLIDAY || type == RuleType.LEGAL_WORKDAY)
 
+    /**
+     * LEGAL_WORKDAY needs calendar data for BOTH the current and next year: its
+     * scan reaches ~400 days ahead, and missing data there falls back to Mon-Fri
+     * (would check in on statutory holidays / skip make-up weekends). Probe in
+     * 30 days instead of using the fallback. WEEKDAYS never needs holiday data.
+     */
+    fun workdayNeedsProbe(type: RuleType, currentYearHasData: Boolean, nextYearHasData: Boolean): Boolean =
+        type == RuleType.LEGAL_WORKDAY && (!currentYearHasData || !nextYearHasData)
+
     private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
     /**

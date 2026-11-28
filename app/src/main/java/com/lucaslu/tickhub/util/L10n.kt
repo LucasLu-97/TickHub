@@ -196,7 +196,7 @@ object L10n {
         "返回" to "Back",
         "TickHub · 节假日数据已更新" to "TickHub · Holiday data updated",
         "TickHub · 节假日数据拉取失败" to "TickHub · Holiday data fetch failed",
-        "手动刷新成功，工作/节假日规则已按最新数据计算" to "Manual refresh OK; work/holiday rules now use the latest data",
+        "手动刷新成功，当年节假日数据已就绪" to "Manual refresh OK; current-year holiday data is ready",
         "年度自动刷新成功，已获取次年放假安排" to "Annual refresh OK; next year's schedule fetched",
         "请检查网络后重试；可到设置关闭再开启节假日开关重新拉取" to "Check your connection and retry; toggle the holiday switch off/on in Settings to refetch",
         "TickHub · 登录已失效" to "TickHub · Sign-in expired",

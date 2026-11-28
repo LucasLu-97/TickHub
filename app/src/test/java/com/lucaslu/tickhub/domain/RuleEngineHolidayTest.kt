@@ -113,4 +113,16 @@ class RuleEngineHolidayTest {
         assertFalse(RuleEngine.holidayRuleNeedsProbe(RuleType.DAILY, null))
         assertFalse(RuleEngine.holidayRuleNeedsProbe(RuleType.ONCE, null))
     }
+
+    @Test
+    fun `legal workday probes when either current or next year data missing`() {
+        // LEGAL_WORKDAY scan reaches ~400 days ahead; missing next-year data
+        // would silently fall back to Mon-Fri and mis-fire on statutory holidays.
+        assertTrue(RuleEngine.workdayNeedsProbe(RuleType.LEGAL_WORKDAY, true, false))
+        assertTrue(RuleEngine.workdayNeedsProbe(RuleType.LEGAL_WORKDAY, false, true))
+        assertTrue(RuleEngine.workdayNeedsProbe(RuleType.LEGAL_WORKDAY, false, false))
+        assertFalse(RuleEngine.workdayNeedsProbe(RuleType.LEGAL_WORKDAY, true, true))
+        // WEEKDAYS never needs holiday data.
+        assertFalse(RuleEngine.workdayNeedsProbe(RuleType.WEEKDAYS, false, false))
+    }
 }

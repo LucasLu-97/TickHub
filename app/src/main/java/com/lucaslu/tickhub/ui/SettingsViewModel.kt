@@ -57,7 +57,11 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             val result = com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication())
             AppLogger.i("Holiday", "manual refresh result=${result.ok} years=${result.years}")
             if (result.ok) c.repository.setHolidayAnnualFetchYear(java.time.LocalDate.now().year)
-            com.lucaslu.tickhub.util.NotificationHelper.notifyHolidayRefresh(getApplication(), result.ok, manual = true)
+            // Skip a redundant "success" when nothing was actually fetched (data
+            // already current) — avoid nagging on every settings toggle.
+            if (result.changed || !result.ok) {
+                com.lucaslu.tickhub.util.NotificationHelper.notifyHolidayRefresh(getApplication(), result.ok, manual = true)
+            }
         }
     }
 
@@ -71,10 +75,12 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             val nextData = com.lucaslu.tickhub.data.HolidayCalendar.load(getApplication(), nextYear)
             val alreadyFetched = c.repository.holidayAnnualFetchYearOnce() >= today.year
             val inWindow = today.monthValue == 12 && today.dayOfMonth >= 17
-            // Only auto-pull next-year data on/after Dec-17 (notices are usually
-            // published by then). Outside the window the user can still pull
-            // manually via the settings toggle, which posts its own notification.
-            if (!inWindow) return@launch
+            // Primary window: Dec-17 onward. Keep the bounded Jan catch-up fallback
+            // (if we never got next-year data) — users may not open the app in late
+            // December. Outside these windows, no auto pull; the settings toggle
+            // still works manually and posts its own notification.
+            val janFallback = today.monthValue == 1 && !alreadyFetched && nextData.days.isEmpty()
+            if (!inWindow && !janFallback) return@launch
             if (alreadyFetched && nextData.days.isNotEmpty()) return@launch
             AppLogger.i("Holiday", "annual refresh for $nextYear (inWindow=$inWindow, dataReady=${nextData.days.isNotEmpty()}, fetched=$alreadyFetched)")
             val result = com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication())

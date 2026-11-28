@@ -128,8 +128,11 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         // Mon-Fri (would check in on statutory holidays / skip make-up weekends)
         // and probe in 30 days instead — the annual/manual refresh notifies the
         // user when fresh data arrives.
-        val workdayDataMissing = rule.type == com.lucaslu.tickhub.data.RuleType.LEGAL_WORKDAY &&
-            years.getValue(year).days.isEmpty() && years.getValue(year + 1).days.isEmpty()
+        val workdayDataMissing = RuleEngine.workdayNeedsProbe(
+            rule.type,
+            years.getValue(year).days.isNotEmpty(),
+            years.getValue(year + 1).days.isNotEmpty()
+        )
         if (workdayDataMissing) {
             com.lucaslu.tickhub.util.AppLogger.w("Repo", "workday calendar missing for ${rule.id.take(8)} — keep ENABLED, probe in 30d")
             val probe = from.plusDays(30)
