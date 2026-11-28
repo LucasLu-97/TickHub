@@ -1225,4 +1225,19 @@ Caused by: androidx.startup.StartupException: java.lang.NoSuchMethodException: a
 **验证**：CI 全绿，审视复核三项通过。
 
 ---
+## 38. HyperOS 图标留白与通知栏图标（v2.1.2）
+
+用户两张截图反馈：①桌面图标主题元素铺满、定稿设计的留白丢失；②下拉通知栏图标还是旧版。
+
+**根因**：Manifest 指向 @mipmap/ic_launcher 时，API26+ 走 mipmap-anydpi-v26 自适应图标——background 铺满 108dp、foreground 占约 60%，HyperOS 圆角遮罩裁切后主题元素占可见区 85-90%，视觉上铺满。定稿 ic_launcher.png 自带的 0.72 留白在这条路径下丢失。
+
+**修法**：把定稿 legacy PNG（ic_launcher.png，深色底+居中文档+留白）逐字节复制为 ic_launcher_flat.png（5档密度），Manifest icon/roundIcon 指向 @mipmap/ic_launcher_flat。该资源名无 anydpi-v26 变体，系统回退传统图标渲染，保留定稿留白。定稿 6 个 mipmap 目录（含 anydpi 自适应配置）全部原样保留未改。
+
+**有意偏离记录**：定稿说明第2/3条要求 Manifest 指向 @mipmap/ic_launcher 并保留自适应图标；为适配 HyperOS 留白目标改为 ic_launcher_flat。图标内容/尺寸/配色仍是定稿原样，未重新设计。后续维护者勿当 bug 改回。
+
+**通知栏图标**：HyperOS 下拉通知的彩色图标取自应用 launcher icon（Manifest android:icon）并被系统缓存，不是 setLargeIcon。因此通知栏图标随 Manifest 改动统一为定稿图标；setSmallIcon（时钟剪影）+ setColor(#58A6FF) 保留给状态栏。曾尝试的 setLargeIcon 已移除（HyperOS 通知列表不使用，且制造误导）。
+
+**重要**：存量用户通知栏旧图标是系统图标缓存 + 通知渠道固化所致，代码无法刷新，需卸载重装 / 清除应用数据 / 重启才能显示新图标。
+
+---
 > 文档结束。任何与实现不一致之处，以「实际代码 + 本文档更新」为准；请接手人持续维护本文档。
