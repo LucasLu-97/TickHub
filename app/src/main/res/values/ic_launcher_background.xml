@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Deprecated: replaced by mipmap-*/ic_launcher_background.png from the final icon set.
-     Kept empty because the incremental push script cannot delete remote files. -->
-<resources />
+<!-- Legacy color kept for compatibility; final adaptive icon uses mipmap PNG layers. -->
+<resources>
+    <color name="ic_launcher_background">#0D1117</color>
+</resources>
