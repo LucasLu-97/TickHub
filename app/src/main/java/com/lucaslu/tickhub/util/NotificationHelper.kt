@@ -74,17 +74,20 @@ object NotificationHelper {
         }
     }
 
-    /** Holiday-calendar refresh outcome — lets the user know whether the
-     *  Dec-17 auto pull or a manual toggle actually fetched data. */
-    fun notifyHolidayRefresh(context: Context, success: Boolean, manual: Boolean) {
+    /** Holiday-calendar refresh outcome. outcome: 0=fetched new data,
+     *  1=already current (no fetch needed), 2=failed. Always called for a
+     *  manual toggle so the user gets a definite answer. */
+    fun notifyHolidayRefresh(context: Context, outcome: Int, manual: Boolean) {
         runCatching {
             ensureChannel(context)
             val nm = context.getSystemService(NotificationManager::class.java)
-            val title = if (success) L10n.tNow("TickHub · 节假日数据已更新") else L10n.tNow("TickHub · 节假日数据拉取失败")
-            val text = if (success) {
-                L10n.tNow(if (manual) "手动刷新成功，当年节假日数据已就绪" else "年度自动刷新成功，已获取次年放假安排")
-            } else {
-                L10n.tNow("请检查网络后重试；可到设置关闭再开启节假日开关重新拉取")
+            val (title, text) = when (outcome) {
+                0 -> L10n.tNow("TickHub · 节假日数据已更新") to
+                    L10n.tNow(if (manual) "手动刷新成功，已获取最新放假安排" else "年度自动刷新成功，已获取次年放假安排")
+                1 -> L10n.tNow("TickHub · 节假日数据已是最新") to
+                    L10n.tNow("无需重新下载，现有放假安排可正常使用")
+                else -> L10n.tNow("TickHub · 节假日数据拉取失败") to
+                    L10n.tNow("请检查网络后重试；可到设置关闭再开启节假日开关重新拉取")
             }
             val notif = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notif_small)

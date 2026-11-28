@@ -51,17 +51,27 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Refresh holiday data from GitHub (manual: settings toggle / explicit action). */
+    /** Force-refresh holiday data from GitHub (settings toggle = explicit update).
+     *  Bypasses the "already fetched" cache so toggling off/on really updates. */
     fun refreshHolidays() {
         viewModelScope.launch {
-            val result = com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication())
+            val result = com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication(), force = true)
             AppLogger.i("Holiday", "manual refresh result=${result.ok} years=${result.years}")
-            if (result.ok) c.repository.setHolidayAnnualFetchYear(java.time.LocalDate.now().year)
-            // Skip a redundant "success" when nothing was actually fetched (data
-            // already current) — avoid nagging on every settings toggle.
-            if (result.changed || !result.ok) {
-                com.lucaslu.tickhub.util.NotificationHelper.notifyHolidayRefresh(getApplication(), result.ok, manual = true)
+            // Only mark the year as fetched when NEXT year's data actually arrived;
+            // otherwise the Dec-17 auto pull would be suppressed forever.
+            val nextYear = java.time.LocalDate.now().year + 1
+            if (result.years.contains(nextYear)) c.repository.setHolidayAnnualFetchYear(java.time.LocalDate.now().year)
+            // Always notify on a manual toggle so the user gets a definite answer:
+            // 0 = new data fetched, 1 = already current, 2 = failed.
+            // force=true always hits the network, so "already current" (outcome 1)
+            // cannot happen here: either we fetched the current year (0) or the
+            // request failed despite the offline bundled fallback (2).
+            val outcome = when {
+                result.years.contains(java.time.LocalDate.now().year) -> 0
+                !result.ok -> 2
+                else -> 2 // forced update ran but nothing came back — report failure
             }
+            com.lucaslu.tickhub.util.NotificationHelper.notifyHolidayRefresh(getApplication(), outcome, manual = true)
         }
     }
 
@@ -87,7 +97,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             val nextFetched = result.years.contains(nextYear)
             if (nextFetched) c.repository.setHolidayAnnualFetchYear(today.year)
             AppLogger.i("Holiday", "annual refresh result=${result.ok} nextFetched=$nextFetched years=${result.years}")
-            com.lucaslu.tickhub.util.NotificationHelper.notifyHolidayRefresh(getApplication(), nextFetched, manual = false)
+            com.lucaslu.tickhub.util.NotificationHelper.notifyHolidayRefresh(getApplication(), if (nextFetched) 0 else 2, manual = false)
         }
     }
 

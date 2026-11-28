@@ -160,9 +160,16 @@ object HolidayCalendar {
             }
         }
         if (changed) {
-            val newFetched = (fetched + fetchedYears).joinToString(",")
+            // Prune stale years on every successful refresh. computeNextFire only
+            // ever reads year-1..year+2, so older years are pure accumulated cache.
+            // Keep year-1 (cross-year New Year), current and next year; drop the rest.
+            val keepRange = (nowYear - 1..nowYear + 1)
+            val pruned = all.filter { it.year in keepRange }
+            val newFetched = (fetched + fetchedYears)
+                .filter { it.toIntOrNull() in keepRange }
+                .joinToString(",")
             context.holidayDataStore.edit { p ->
-                p[KEY_HOLIDAY_DATA] = json.encodeToString(all)
+                p[KEY_HOLIDAY_DATA] = json.encodeToString(pruned)
                 p[KEY_HOLIDAY_FETCHED_FOR] = newFetched
             }
             cache = emptyMap() // force reload next time
