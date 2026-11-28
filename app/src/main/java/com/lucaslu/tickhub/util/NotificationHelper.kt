@@ -11,9 +11,10 @@ import com.lucaslu.tickhub.R
 
 /** Posts a simple completion notification for tracked workflow runs. */
 object NotificationHelper {
-    // v2 channel id: forces MIUI/HyperOS to rebuild the channel and re-resolve
-    // the app icon instead of reusing the cached (stale) icon bitmap.
-    private const val CHANNEL_ID = "tickhub_run_result_v2"
+    // v3 channel: HIGH importance makes HyperOS show the full-colour app icon in
+    // the notification shade (DEFAULT renders the tinted small-icon instead).
+    // New id also busts the cached channel created by earlier builds.
+    private const val CHANNEL_ID = "tickhub_run_result_v3"
     private val CHANNEL_NAME get() = com.lucaslu.tickhub.util.L10n.tNow("触发结果通知")
     private const val NOTIF_ID_BASE = 2000
     // Clock blue from the final launcher icon (#58A6FF) — notification small
@@ -44,7 +45,7 @@ object NotificationHelper {
             val nm = context.getSystemService(NotificationManager::class.java)
             if (nm.getNotificationChannel(CHANNEL_ID) == null) {
                 nm.createNotificationChannel(
-                    NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_DEFAULT).apply {
+                    NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH).apply {
                         description = com.lucaslu.tickhub.util.L10n.tNow("工作流触发执行完成后的成功/失败通知")
                     }
                 )
