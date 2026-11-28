@@ -119,16 +119,10 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         val durationMs = if (starts.isNotEmpty() && ends.isNotEmpty()) {
             Duration.between(starts.min(), ends.max()).toMillis().coerceAtLeast(0L)
         } else (System.currentTimeMillis() - firedAt).coerceAtLeast(0L)
-        // Three-way verdict: a real "failure" must always surface; cancelled
-        // runs alone are neutral; [success + cancelled] counts as success.
-        val conclusions = allRuns.map { it.second.conclusion }
-        val hasFailure = conclusions.any { c ->
-            c != null && c !in setOf("success", "cancelled", "skipped", "neutral")
-        }
-        val hasSuccess = conclusions.any { it == "success" }
-        val cancelled = conclusions.isNotEmpty() && !hasSuccess && !hasFailure &&
-            conclusions.all { it in setOf("cancelled", "skipped", "neutral") }
-        val success = !hasFailure && hasSuccess
+        // Three-way verdict (pure logic, JVM-tested in DispatchPolicyTest).
+        val verdict = DispatchPolicy.runVerdict(allRuns.map { it.second.conclusion })
+        val success = verdict.success
+        val cancelled = verdict.cancelled
         repo.finalizeLog(logId, durationMs, success, cancelled)
 
         if (repo.isRunTrackingEnabledOnce() && !cancelled) {

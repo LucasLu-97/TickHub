@@ -11,6 +11,23 @@ object DispatchPolicy {
     const val MAX_SERIAL_CATCHUP = 5 // cap catch-up bursts after long downtime (anti-fraud / battery)
     const val RETRY_DELAY_MS = 15 * 60_000L
 
+    data class RunVerdict(val success: Boolean, val cancelled: Boolean)
+
+    /**
+     * Three-way verdict for a multi-workflow run's conclusions.
+     * A real failure ALWAYS surfaces; all-cancelled is neutral; success mixed
+     * with cancellations counts as success (the check-in did happen).
+     */
+    fun runVerdict(conclusions: List<String?>): RunVerdict {
+        val hasFailure = conclusions.any { c -> c != null && c !in NEUTRAL_CONCLUSIONS && c != "success" }
+        val hasSuccess = conclusions.any { it == "success" }
+        val cancelled = conclusions.isNotEmpty() && !hasSuccess && !hasFailure &&
+            conclusions.all { it in NEUTRAL_CONCLUSIONS }
+        return RunVerdict(success = !hasFailure && hasSuccess, cancelled = cancelled)
+    }
+
+    private val NEUTRAL_CONCLUSIONS = setOf("cancelled", "skipped", "neutral")
+
     /** Whether a failed slot should retry (vs. advance to the next slot). */
     fun shouldRetry(failCount: Int): Boolean = failCount < MAX_RETRIES
 

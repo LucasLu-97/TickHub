@@ -104,4 +104,34 @@ class DispatchPolicyTest {
         )
         assertEquals(DispatchPolicy.CatchUpAction.DISPATCH_MAKEUP, action)
     }
+
+    @Test
+    fun `run verdict - all success`() {
+        val v = DispatchPolicy.runVerdict(listOf("success", "success"))
+        assertTrue(v.success); assertFalse(v.cancelled)
+    }
+
+    @Test
+    fun `run verdict - success plus cancelled counts as success not failure`() {
+        val v = DispatchPolicy.runVerdict(listOf("success", "cancelled"))
+        assertTrue(v.success); assertFalse(v.cancelled)
+    }
+
+    @Test
+    fun `run verdict - failure always surfaces even with a success`() {
+        val v = DispatchPolicy.runVerdict(listOf("success", "failure"))
+        assertFalse(v.success); assertFalse(v.cancelled)
+    }
+
+    @Test
+    fun `run verdict - all cancelled is neutral`() {
+        val v = DispatchPolicy.runVerdict(listOf("cancelled", "skipped", "neutral"))
+        assertFalse(v.success); assertTrue(v.cancelled)
+    }
+
+    @Test
+    fun `run verdict - empty is neither success nor cancelled`() {
+        val v = DispatchPolicy.runVerdict(emptyList())
+        assertFalse(v.success); assertFalse(v.cancelled)
+    }
 }

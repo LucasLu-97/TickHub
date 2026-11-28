@@ -89,4 +89,18 @@ class TransitionApplierTest {
         assertEquals(emptyList<Long>(), out.retryFailedWfIds)
         assertEquals(500L, out.lastFiredAt) // preserved when transition omits it
     }
+
+    @Test
+    fun `manual trigger preserves pending retry state`() {
+        // A manual "trigger now" must not wipe a pending retry: doing so left
+        // the old 15-min alarm armed with retryFailedWfIds wiped -> full re-dispatch.
+        val cur = rule() // has retryAt=900, retryPlannedAt=800, retryFailedWfIds=[11]
+        val t = DispatchTransition(retryAt = cur.retryAt, retryPlannedAt = cur.retryPlannedAt,
+            retryFailedWfIds = cur.retryFailedWfIds, lastFiredAt = 1234L)
+        val out = TransitionApplier.apply(cur, t, now = 5000L)
+        assertEquals(900L, out.retryAt)
+        assertEquals(800L, out.retryPlannedAt)
+        assertEquals(listOf(11L), out.retryFailedWfIds)
+        assertEquals(1234L, out.lastFiredAt)
+    }
 }
