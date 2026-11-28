@@ -50,7 +50,7 @@ object NotificationHelper {
             val nm = context.getSystemService(NotificationManager::class.java)
             val notif = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notif_v4)
-                .setColor(ACCENT_COLOR)
+                // VERIFY v2.2.5: setColor removed — does the blue shade disappear?
                 .setContentIntent(contentIntent(context))
                 .setContentTitle(L10n.tNow("TickHub · 登录已失效"))
                 .setContentText(L10n.tNow("请重新登录以恢复定时触发"))
@@ -68,7 +68,7 @@ object NotificationHelper {
             val nm = context.getSystemService(NotificationManager::class.java)
             val notif = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notif_v4)
-                .setColor(ACCENT_COLOR)
+                // VERIFY v2.2.5: setColor removed — does the blue shade disappear?
                 .setContentIntent(contentIntent(context))
                 .setContentTitle(L10n.tNow("TickHub · 精确闹钟未开启"))
                 .setContentText(L10n.tNow("请在设置开启精确闹钟，否则定时可能延迟数分钟"))
@@ -84,7 +84,7 @@ object NotificationHelper {
             val nm = context.getSystemService(NotificationManager::class.java)
             val notif = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notif_v4)
-                .setColor(ACCENT_COLOR)
+                // VERIFY v2.2.5: setColor removed — does the blue shade disappear?
                 .setContentIntent(contentIntent(context))
                 .setContentTitle(title)
                 .setContentText(message)
