@@ -77,13 +77,18 @@ object NotificationHelper {
     /** Holiday-calendar refresh outcome. outcome: 0=fetched new data,
      *  1=already current (no fetch needed), 2=failed. Always called for a
      *  manual toggle so the user gets a definite answer. */
-    fun notifyHolidayRefresh(context: Context, outcome: Int, manual: Boolean) {
+    fun notifyHolidayRefresh(context: Context, outcome: Int, manual: Boolean, years: List<Int> = emptyList()) {
         runCatching {
             ensureChannel(context)
             val nm = context.getSystemService(NotificationManager::class.java)
             val (title, text) = when (outcome) {
                 0 -> L10n.tNow("TickHub · 节假日数据已更新") to
-                    L10n.tNow(if (manual) "手动刷新成功，已获取最新放假安排" else "年度自动刷新成功，已获取次年放假安排")
+                    if (manual && years.isNotEmpty()) {
+                        val yearText = years.sorted().joinToString("、") { "$it年" }
+                        L10n.tFormat("手动刷新，已成功获取{0}法定日期信息", listOf(yearText))
+                    } else {
+                        L10n.tNow("年度自动刷新成功，已获取次年放假安排")
+                    }
                 1 -> L10n.tNow("TickHub · 节假日数据已是最新") to
                     L10n.tNow("无需重新下载，现有放假安排可正常使用")
                 else -> L10n.tNow("TickHub · 节假日数据拉取失败") to

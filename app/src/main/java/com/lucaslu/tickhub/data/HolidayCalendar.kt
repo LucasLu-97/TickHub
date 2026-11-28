@@ -48,53 +48,6 @@ object HolidayCalendar {
     // single-slot cache during computeNextFire.
     @Volatile private var cache: Map<Int, HolidayYearData> = emptyMap()
 
-    /** Bundled 2026 data (State Council notice). */
-    private val bundled2026 = """
-    {
-      "year": 2026,
-      "days": [
-        {"name":"元旦","date":"2026-01-01","isOffDay":true},
-        {"name":"元旦","date":"2026-01-02","isOffDay":true},
-        {"name":"元旦","date":"2026-01-03","isOffDay":true},
-        {"name":"元旦","date":"2026-01-04","isOffDay":false},
-        {"name":"春节","date":"2026-02-14","isOffDay":false},
-        {"name":"春节","date":"2026-02-15","isOffDay":true},
-        {"name":"春节","date":"2026-02-16","isOffDay":true},
-        {"name":"春节","date":"2026-02-17","isOffDay":true},
-        {"name":"春节","date":"2026-02-18","isOffDay":true},
-        {"name":"春节","date":"2026-02-19","isOffDay":true},
-        {"name":"春节","date":"2026-02-20","isOffDay":true},
-        {"name":"春节","date":"2026-02-21","isOffDay":true},
-        {"name":"春节","date":"2026-02-22","isOffDay":true},
-        {"name":"春节","date":"2026-02-23","isOffDay":true},
-        {"name":"春节","date":"2026-02-28","isOffDay":false},
-        {"name":"清明节","date":"2026-04-04","isOffDay":true},
-        {"name":"清明节","date":"2026-04-05","isOffDay":true},
-        {"name":"清明节","date":"2026-04-06","isOffDay":true},
-        {"name":"劳动节","date":"2026-05-01","isOffDay":true},
-        {"name":"劳动节","date":"2026-05-02","isOffDay":true},
-        {"name":"劳动节","date":"2026-05-03","isOffDay":true},
-        {"name":"劳动节","date":"2026-05-04","isOffDay":true},
-        {"name":"劳动节","date":"2026-05-05","isOffDay":true},
-        {"name":"劳动节","date":"2026-05-09","isOffDay":false},
-        {"name":"端午节","date":"2026-06-19","isOffDay":true},
-        {"name":"端午节","date":"2026-06-20","isOffDay":true},
-        {"name":"端午节","date":"2026-06-21","isOffDay":true},
-        {"name":"国庆节/中秋节","date":"2026-09-20","isOffDay":false},
-        {"name":"中秋节","date":"2026-09-25","isOffDay":true},
-        {"name":"中秋节","date":"2026-09-26","isOffDay":true},
-        {"name":"中秋节","date":"2026-09-27","isOffDay":true},
-        {"name":"国庆节","date":"2026-10-01","isOffDay":true},
-        {"name":"国庆节","date":"2026-10-02","isOffDay":true},
-        {"name":"国庆节","date":"2026-10-03","isOffDay":true},
-        {"name":"国庆节","date":"2026-10-04","isOffDay":true},
-        {"name":"国庆节","date":"2026-10-05","isOffDay":true},
-        {"name":"国庆节","date":"2026-10-06","isOffDay":true},
-        {"name":"国庆节","date":"2026-10-07","isOffDay":true},
-        {"name":"国庆节","date":"2026-10-10","isOffDay":false}
-      ]
-    }
-    """.trimIndent()
 
     private suspend fun readAll(context: Context): MutableList<HolidayYearData> {
         val raw = context.holidayDataStore.data.first()[KEY_HOLIDAY_DATA]
@@ -110,11 +63,9 @@ object HolidayCalendar {
         cache[year]?.let { return it }
         val all = readAll(context)
         val found = all.firstOrNull { it.year == year }
-        val data = found ?: if (year == 2026) {
-            json.decodeFromString<HolidayYearData>(bundled2026)
-        } else {
-            HolidayYearData(year, emptyList())
-        }
+        // No bundled fallback: holiday data only exists after the user opts in
+        // and a refresh succeeds. Without it the rule probes instead of guessing.
+        val data = found ?: HolidayYearData(year, emptyList())
         cache = cache + (year to data)
         return data
     }
@@ -176,10 +127,8 @@ object HolidayCalendar {
         }
         // ok = at least the CURRENT year has usable data (next year may be unpublished
         // until mid-December — that alone is not a failure worth notifying).
-        // A bundled current-year calendar (offline fallback) also counts as usable.
         val haveCurrent = successYears.contains(nowYear) ||
-            all.any { it.year == nowYear && it.days.isNotEmpty() } ||
-            load(context, nowYear).days.isNotEmpty()
+            all.any { it.year == nowYear && it.days.isNotEmpty() }
         return RefreshResult(ok = haveCurrent, years = successYears.distinct(), changed = changed)
     }
 

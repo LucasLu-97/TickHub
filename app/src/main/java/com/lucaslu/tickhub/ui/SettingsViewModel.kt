@@ -71,7 +71,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 !result.ok -> 2
                 else -> 2 // forced update ran but nothing came back — report failure
             }
-            com.lucaslu.tickhub.util.NotificationHelper.notifyHolidayRefresh(getApplication(), outcome, manual = true)
+            com.lucaslu.tickhub.util.NotificationHelper.notifyHolidayRefresh(getApplication(), outcome, manual = true, years = result.years)
         }
     }
 
@@ -97,7 +97,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             val nextFetched = result.years.contains(nextYear)
             if (nextFetched) c.repository.setHolidayAnnualFetchYear(today.year)
             AppLogger.i("Holiday", "annual refresh result=${result.ok} nextFetched=$nextFetched years=${result.years}")
-            com.lucaslu.tickhub.util.NotificationHelper.notifyHolidayRefresh(getApplication(), if (nextFetched) 0 else 2, manual = false)
+            com.lucaslu.tickhub.util.NotificationHelper.notifyHolidayRefresh(getApplication(), if (nextFetched) 0 else 2, manual = false, years = result.years)
         }
     }
 

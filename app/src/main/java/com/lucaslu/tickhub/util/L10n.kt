@@ -199,6 +199,7 @@ object L10n {
         "TickHub · 节假日数据已是最新" to "TickHub · Holiday data already current",
         "无需重新下载，现有放假安排可正常使用" to "No download needed; current schedule is ready to use",
         "手动刷新成功，已获取最新放假安排" to "Manual refresh OK; latest schedule fetched",
+        "手动刷新，已成功获取{0}法定日期信息" to "Manual refresh: fetched statutory dates for {0}",
         "手动刷新成功，当年节假日数据已就绪" to "Manual refresh OK; current-year holiday data is ready",
         "年度自动刷新成功，已获取次年放假安排" to "Annual refresh OK; next year's schedule fetched",
         "请检查网络后重试；可到设置关闭再开启节假日开关重新拉取" to "Check your connection and retry; toggle the holiday switch off/on in Settings to refetch",
