@@ -21,9 +21,9 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Polls GitHub Actions for the real start/end time of dispatched runs.
- * Each poll is a short WorkManager wake-up (5s delay), NOT a foreground service.
- * Polling continues until the run actually reaches "completed" — there is no
- * short fixed cap, only a 3-hour safety net (2160 × 5s) to avoid a truly endless loop.
+ * Each poll is a short WorkManager wake-up, NOT a foreground service. Intervals
+ * back off 5s -> 15s -> 30s (30s cap). Polling continues until the run reaches
+ * "completed", with a ~5-hour safety net (600 polls) against an endless loop.
  * The live duration is persisted on every poll so the history card always shows
  * a growing timer, even across process death.
  */
@@ -141,8 +141,8 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
 
     /** Persist a live-growing duration so the history card always shows a timer. */
     private suspend fun persistLiveElapsed(repo: AppRepository, logId: String, firedAt: Long, runStartMs: Long?, poll: Int) {
-        // GitHub completion detection still polls every 5s, but the live timer is
-        // written to DataStore only every 3rd poll (~15s) — each write re-encodes
+        // GitHub completion detection polls every 5s/15s/30s, but the live timer
+        // is written to DataStore only every 3rd poll — each write re-encodes
         // the whole logs JSON, so this cuts background IO/CPU by ~2/3.
         if (poll % 3 != 0 && poll != MAX_POLLS) return
         val base = runStartMs ?: firedAt
@@ -157,7 +157,7 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
             reenqueue(logId, ruleId, poll + 1)
             return Result.success()
         }
-        // Safety net (3h): keep the elapsed time, mark as unconfirmed (not failed).
+        // Safety net (~5h): keep elapsed time, mark as unconfirmed (not failed).
         val elapsed = (System.currentTimeMillis() - (log?.firedAt ?: System.currentTimeMillis())).coerceAtLeast(0L)
         repo.finalizeUnconfirmed(logId, elapsed)
         if (repo.isRunTrackingEnabledOnce()) {
@@ -184,8 +184,8 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
 
     private fun reenqueue(logId: String, ruleId: String, poll: Int) {
         val data = workDataOf(KEY_LOG_ID to logId, KEY_RULE_ID to ruleId, KEY_POLL to poll)
-        // Exponential-ish backoff: 5s for the first minute (catch fast runs
-        // promptly), then 15s, then 30s cap. Cuts API calls/battery for long
+        // Stepped backoff: 5s for the first minute (catch fast runs promptly),
+        // then 15s, then a 30s cap. Cuts API calls/battery for long
         // runs without delaying short ones.
         val delaySec = when {
             poll < 12 -> POLL_DELAY_SEC          // <1 min: 5s
@@ -208,8 +208,9 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         const val KEY_POLL = "poll"
         const val UNIQUE_NAME = "tickhub_track"
         const val POLL_DELAY_SEC = 5L
-        // Safety net only: 3h at 5s (a normal run finishes far sooner).
-        const val MAX_POLLS = 2160
+        // Safety net ~5h with 5/15/30s backoff; a normal run finishes in minutes.
+        // 12*5s + 28*15s + 560*30s = ~4h50m.
+        const val MAX_POLLS = 600
         const val OLD_RUN_TOLERANCE_MS = 2 * 60 * 1000L
 
         fun cancelAll(context: Context) {
