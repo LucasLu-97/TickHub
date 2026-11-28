@@ -119,13 +119,16 @@ object HolidayCalendar {
         return data
     }
 
+    /** Result of a holiday-data refresh, surfaced to the user via notification. */
+    data class RefreshResult(val ok: Boolean, val years: List<Int>)
+
     /**
      * Fetch current + next year holiday data. Next-year notices are usually
      * published by early December, so we attempt both but tolerate failure.
      * A year is fetched at most once (persisted in fetched-years) unless forced.
      * Years are merged by year key, so no conflicts between adjacent years.
      */
-    suspend fun refresh(context: Context, force: Boolean = false): Boolean {
+    suspend fun refresh(context: Context, force: Boolean = false): RefreshResult {
         val nowYear = LocalDate.now().year
         val targets = listOf(nowYear, nowYear + 1)
         val prefs = context.holidayDataStore.data.first()
@@ -133,10 +136,12 @@ object HolidayCalendar {
         val all = readAll(context)
         var changed = false
         val fetchedYears = mutableSetOf<String>()
+        val successYears = mutableListOf<Int>()
         val api = GitHubApi()
         for (year in targets) {
             if (!force && fetched.contains(year.toString()) && all.any { it.year == year && it.days.isNotEmpty() }) {
-                continue // already have this year, no network
+                successYears.add(year) // already have this year, no network needed
+                continue
             }
             when (val result = api.fetchHolidayYear(year)) {
                 is ApiResult.Success -> {
@@ -144,6 +149,7 @@ object HolidayCalendar {
                     val idx = all.indexOfFirst { it.year == year }
                     if (idx >= 0) all[idx] = data else all.add(data)
                     fetchedYears.add(year.toString()) // only mark SUCCESS years
+                    successYears.add(year)
                     changed = true
                 }
                 is ApiResult.Error -> { /* next year may not be published yet, ignore */ }
@@ -157,7 +163,10 @@ object HolidayCalendar {
             }
             cache = emptyMap() // force reload next time
         }
-        return changed
+        // ok = at least the CURRENT year has usable data (next year may be unpublished
+        // until mid-December — that alone is not a failure worth notifying).
+        val ok = successYears.contains(nowYear) || all.any { it.year == nowYear && it.days.isNotEmpty() }
+        return RefreshResult(ok = ok, years = successYears.distinct())
     }
 
     /** Is this date a statutory working day (includes makeup work weekends)? */

@@ -121,6 +121,22 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
             HolidayCalendar.isLegalHoliday(years[d.year] ?: years.getValue(year), d)
         }
 
+        // LEGAL_WORKDAY is different from LEGAL_HOLIDAY: computeLegalWorkdays()
+        // never returns null (it falls back to Mon-Fri after a 400-day scan), so
+        // the probe check below can never fire for it. When the calendar for the
+        // current AND next year is missing, avoid silently falling back to
+        // Mon-Fri (would check in on statutory holidays / skip make-up weekends)
+        // and probe in 30 days instead — the annual/manual refresh notifies the
+        // user when fresh data arrives.
+        val workdayDataMissing = rule.type == com.lucaslu.tickhub.data.RuleType.LEGAL_WORKDAY &&
+            years.getValue(year).days.isEmpty() && years.getValue(year + 1).days.isEmpty()
+        if (workdayDataMissing) {
+            com.lucaslu.tickhub.util.AppLogger.w("Repo", "workday calendar missing for ${rule.id.take(8)} — keep ENABLED, probe in 30d")
+            val probe = from.plusDays(30)
+            val base = RuleEngine.toEpochMillis(probe)
+            return probe to RuleEngine.applyDrift(rule.id, base, rule.driftMinutes)
+        }
+
         val next = RuleEngine.computeNextFire(rule, from, isWorkday, isHoliday)
 
         // C4 (hardened): a holiday rule whose 400-day scan finds NO matching day

@@ -51,17 +51,18 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Refresh holiday data from GitHub (best effort). */
+    /** Refresh holiday data from GitHub (manual: settings toggle / explicit action). */
     fun refreshHolidays() {
         viewModelScope.launch {
-            val ok = com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication())
-            AppLogger.i("Holiday", "refresh current+next year result=$ok")
-            if (ok) c.repository.setHolidayAnnualFetchYear(java.time.LocalDate.now().year)
+            val result = com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication())
+            AppLogger.i("Holiday", "manual refresh result=${result.ok} years=${result.years}")
+            if (result.ok) c.repository.setHolidayAnnualFetchYear(java.time.LocalDate.now().year)
+            com.lucaslu.tickhub.util.NotificationHelper.notifyHolidayRefresh(getApplication(), result.ok, manual = true)
         }
     }
 
-    /** Fetch next-year holiday data when needed, with a Dec-17 trigger and a
-     *  catch-up fallback. No pull on ordinary app opens otherwise. */
+    /** Auto-pull next-year holiday data on/after Dec-17 only; posts a result
+     *  notification. Outside that window use the settings toggle to pull manually. */
     fun maybeAnnualHolidayRefresh() {
         viewModelScope.launch {
             if (!c.repository.holidayEnabledOnce()) return@launch
@@ -70,12 +71,17 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             val nextData = com.lucaslu.tickhub.data.HolidayCalendar.load(getApplication(), nextYear)
             val alreadyFetched = c.repository.holidayAnnualFetchYearOnce() >= today.year
             val inWindow = today.monthValue == 12 && today.dayOfMonth >= 17
+            // Only auto-pull next-year data on/after Dec-17 (notices are usually
+            // published by then). Outside the window the user can still pull
+            // manually via the settings toggle, which posts its own notification.
+            if (!inWindow) return@launch
             if (alreadyFetched && nextData.days.isNotEmpty()) return@launch
-            if (!inWindow && nextData.days.isNotEmpty()) return@launch
-            if (!inWindow && alreadyFetched) return@launch
             AppLogger.i("Holiday", "annual refresh for $nextYear (inWindow=$inWindow, dataReady=${nextData.days.isNotEmpty()}, fetched=$alreadyFetched)")
-            val ok = com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication())
-            if (ok) c.repository.setHolidayAnnualFetchYear(today.year)
+            val result = com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication())
+            val nextFetched = result.years.contains(nextYear)
+            if (nextFetched) c.repository.setHolidayAnnualFetchYear(today.year)
+            AppLogger.i("Holiday", "annual refresh result=${result.ok} nextFetched=$nextFetched years=${result.years}")
+            com.lucaslu.tickhub.util.NotificationHelper.notifyHolidayRefresh(getApplication(), nextFetched, manual = false)
         }
     }
 

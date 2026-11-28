@@ -74,6 +74,31 @@ object NotificationHelper {
         }
     }
 
+    /** Holiday-calendar refresh outcome — lets the user know whether the
+     *  Dec-17 auto pull or a manual toggle actually fetched data. */
+    fun notifyHolidayRefresh(context: Context, success: Boolean, manual: Boolean) {
+        runCatching {
+            ensureChannel(context)
+            val nm = context.getSystemService(NotificationManager::class.java)
+            val title = if (success) L10n.tNow("TickHub · 节假日数据已更新") else L10n.tNow("TickHub · 节假日数据拉取失败")
+            val text = if (success) {
+                L10n.tNow(if (manual) "手动刷新成功，工作/节假日规则已按最新数据计算" else "年度自动刷新成功，已获取次年放假安排")
+            } else {
+                L10n.tNow("请检查网络后重试；可到设置关闭再开启节假日开关重新拉取")
+            }
+            val notif = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_notif_small)
+                .setColor(ACCENT_COLOR)
+                .setContentIntent(contentIntent(context))
+                .setContentTitle(title)
+                .setContentText(text)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .build()
+            nm.notify(if (manual) 9996 else 9997, notif) // fixed ids: overwrite, no spam
+        }
+    }
+
     fun notifyResult(context: Context, idSeed: Int, title: String, message: String, success: Boolean) {
         runCatching {
             ensureChannel(context)
