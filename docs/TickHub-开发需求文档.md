@@ -1338,4 +1338,21 @@ CI 全绿，**45 个 JVM 单测**，二次审视复核关键修复通过。按�
 **状态**：修复已在 main，CI 全绿 47 单测。用户已装 v2.2.6（通知图标已确认修复成功），本轮 P1/P2 修复尚未发版，待用户决定。
 
 ---
+## 44. 最终版 v2.3.0（2026-11-28）
+
+用户要求解决最后两条已知取舍（第5条 probe 真实签到、第6条 LEGAL_WORKDAY 死分支），方案：12/17 自动拉次年 + 手动开关拉当年次年，成功/失败都通知让用户知道状态。
+
+**实现**：
+- `HolidayCalendar.refresh()` 返回 `RefreshResult(ok, years, changed)`；空 days 不算成功；ok 纳入 bundled 当年数据（离线不误报）。
+- `NotificationHelper.notifyHolidayRefresh(success, manual)`：fixed id 9996(手动)/9997(年度)，IMPORTANCE_DEFAULT 不打扰；L10n 补 5 key。
+- `SettingsViewModel`：手动拉取（开关开启）发通知，skip（数据已最新）不发避免骚扰；年度拉取 12/17 窗口 + **恢复 1 月补拉兜底**（审视抓到我误删了 §26 P1 的既有修复）；年度成功判定用 `years.contains(nextYear)`。
+- `RuleEngine.workdayNeedsProbe(type, currentHasData, nextHasData)` 纯函数：LEGAL_WORKDAY 任一年数据缺失就 30 天 probe，避免 400 天扫描回退 Mon-Fri 误签（修第6条）；WEEKDAYS 不受影响。+ 单测。
+
+**审视修复**：一路审视发现并修复——①误删1月兜底（已恢复）②workdayDataMissing 原只覆盖"当年+次年都空"，未覆盖"当年有、次年无"（2026年末会回退 Mon-Fri 误签2027），改为任一年空即 probe ③ok 不含 bundled 误报 ④空 days 当成功 ⑤通知骚扰（skip 不发）⑥手动文案不区分年份。
+
+**状态**：tag v2.3.0 @16575b65，非 prerelease，APK 2.12MB，CI 全绿 48 单测，已 adb 覆盖安装到 com.lucas.tickhub（用户手机 v2.2.6→v2.3.0）。
+
+**这是用户确认的"最终极一版"**：核心签到逻辑经四轮审视、图标问题经六轮定位最终换包名解决、最后两条取舍已加固。剩余取舍仅时区竞态/手动残留 retry/120s 检查/构造期阻塞等极低概率边角。
+
+---
 > 文档结束。任何与实现不一致之处，以「实际代码 + 本文档更新」为准；请接手人持续维护本文档。
