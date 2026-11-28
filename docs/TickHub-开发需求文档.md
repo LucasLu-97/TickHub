@@ -1320,4 +1320,22 @@ CI 全绿，**45 个 JVM 单测**，二次审视复核关键修复通过。按�
 
 **验证**：换新包名后需卸载旧包重装（两个包名并存），确认通知栏图标显示定稿黑底文档图标。
 ---
+## 43. 基线定版前最终三维度审视（2026-11-28）
+
+用户要求定为真正基线版前再仔细审视架构/代码/逻辑。三路独立审视（架构代码质量 / 核心调度逻辑 / 包名构建资源）+ 修复后针对性复核。
+
+**发现并修复 2 个真 bug**：
+
+1. **P1 节假日规则永久 COMPLETED**：原 needsHolidayData 判断要求"当前+次年都无数据"，但 2026 年内嵌数据恒非空、2027 数据 12 月中旬才发布，导致 2026 年末 LEGAL_HOLIDAY 规则扫描 400 天找不到 2027 节假日 → next=null → 标记 COMPLETED，2027 全年不再签到。修法：抽纯函数 `RuleEngine.holidayRuleNeedsProbe(type, next)`，节假日类型且 next=null 时保持 ENABLED + 30 天探测（不 COMPLETED）。+ 单测。
+2. **P2 补签链 retry 断裂**：补签失败挂 retry 闹钟，经 DispatchReceiver 入队时 isMakeup 硬编码 false，重试成功后从 now 算下一槽，跳过中间所有过期槽。修法：AlarmScheduler 给 retry 闹钟加 isRetry extra，DispatchReceiver 用纯函数 `DispatchPolicy.retryIsMakeup` 判断（过期 retry 保持 makeup）。+ 单测。
+
+**清理负面残留**：README/EN 版本 v2.2.4→v2.2.6 + 换包名"必须先卸载旧版否则双包重复签到"警告 + 构建示例 2020700；CI release 文案同步；ic_notif_small 过时 setLargeIcon 注释；删 4 个死方法（hapticsOnce/showExecutionStatusOnce/themeModeOnce/isKnownYear）+ setHolidayEnabledState no-op + 未用 import。
+
+**复核确认通过**：架构（DCL 单例、stateIn 单一数据源、进程 scope、无协程泄漏）、v2.2.0 的 13 项基线修复全部完好、通知代码回退基线干净、换包名一致性（namespace/applicationId 分离规范、FileProvider authority/action/PendingIntent 一致）、线程安全、内存性能、45→47 单测。
+
+**已知取舍（不修，文档记录）**：时区 makeup 竞态、手动后残留 retry 低概率重复、120s run 检查误判、构造期 runBlocking、P1 probe 每 30 天会真实触发一次 workflow（数据长期缺失时，比永久死亡好）、LEGAL_WORKDAY computeLegalWorkdays 永不返回 null 使纯函数判断为死分支（既有行为）。
+
+**状态**：修复已在 main，CI 全绿 47 单测。用户已装 v2.2.6（通知图标已确认修复成功），本轮 P1/P2 修复尚未发版，待用户决定。
+
+---
 > 文档结束。任何与实现不一致之处，以「实际代码 + 本文档更新」为准；请接手人持续维护本文档。
