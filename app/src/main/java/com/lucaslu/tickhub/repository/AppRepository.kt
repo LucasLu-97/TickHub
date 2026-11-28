@@ -121,8 +121,6 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
             HolidayCalendar.isLegalHoliday(years[d.year] ?: years.getValue(year), d)
         }
 
-        val holidayRule = rule.type == com.lucaslu.tickhub.data.RuleType.LEGAL_HOLIDAY ||
-            rule.type == com.lucaslu.tickhub.data.RuleType.LEGAL_WORKDAY
         val next = RuleEngine.computeNextFire(rule, from, isWorkday, isHoliday)
 
         // C4 (hardened): a holiday rule whose 400-day scan finds NO matching day
@@ -134,7 +132,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         // rule ENABLED and probe again in 30 days. This also avoids silently
         // falling back to Mon-Fri for LEGAL_WORKDAY (would check in on statutory
         // holidays and skip make-up weekends).
-        if (next == null && holidayRule) {
+        if (RuleEngine.holidayRuleNeedsProbe(rule.type, next)) {
             com.lucaslu.tickhub.util.AppLogger.w("Repo", "holiday data missing for ${rule.id.take(8)} — keep ENABLED, probe in 30d")
             val probe = from.plusDays(30)
             val base = RuleEngine.toEpochMillis(probe)

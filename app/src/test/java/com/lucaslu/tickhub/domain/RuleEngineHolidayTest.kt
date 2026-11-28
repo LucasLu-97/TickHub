@@ -4,6 +4,7 @@ import com.lucaslu.tickhub.data.Rule
 import com.lucaslu.tickhub.data.RuleType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -96,5 +97,20 @@ class RuleEngineHolidayTest {
         // legacy fallback
         val legacy = Rule(id = "old", workflowId = 99L)
         assertEquals(listOf(99L), legacy.resolvedWorkflowIds())
+    }
+
+    @Test
+    fun `holiday rule with no next fire stays enabled via probe not COMPLETED`() {
+        // Regression: in late 2026, bundled 2026 data is non-empty but 2027 data
+        // is unpublished; a LEGAL_HOLIDAY scan returns null and used to mark the
+        // rule COMPLETED forever. It must probe instead.
+        assertTrue(RuleEngine.holidayRuleNeedsProbe(RuleType.LEGAL_HOLIDAY, null))
+        assertTrue(RuleEngine.holidayRuleNeedsProbe(RuleType.LEGAL_WORKDAY, null))
+        // A normal next fire means no probe needed.
+        val next = java.time.LocalDateTime.of(2027, 1, 1, 9, 0)
+        assertFalse(RuleEngine.holidayRuleNeedsProbe(RuleType.LEGAL_HOLIDAY, next))
+        // Non-holiday rules with no next fire are genuinely COMPLETED.
+        assertFalse(RuleEngine.holidayRuleNeedsProbe(RuleType.DAILY, null))
+        assertFalse(RuleEngine.holidayRuleNeedsProbe(RuleType.ONCE, null))
     }
 }

@@ -11,6 +11,15 @@ object DispatchPolicy {
     const val MAX_SERIAL_CATCHUP = 5 // cap catch-up bursts after long downtime (anti-fraud / battery)
     const val RETRY_DELAY_MS = 15 * 60_000L
 
+    /**
+     * Whether a triggered retry alarm belongs to an overdue (makeup) slot.
+     * Keeping isMakeup=true on retry lets a successful retry continue the
+     * serial catch-up chain from the original slot instead of skipping all
+     * still-overdue slots by advancing from "now".
+     */
+    fun retryIsMakeup(isRetry: Boolean, plannedAt: Long, now: Long): Boolean =
+        isRetry && plannedAt < now - 60_000L
+
     data class RunVerdict(val success: Boolean, val cancelled: Boolean)
 
     /**

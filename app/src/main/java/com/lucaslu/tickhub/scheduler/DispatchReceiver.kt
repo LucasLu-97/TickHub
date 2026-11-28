@@ -24,7 +24,7 @@ class DispatchReceiver : BroadcastReceiver() {
         // it advances from THAT slot so the serial catch-up chain continues,
         // instead of skipping all intermediate overdue slots to "now".
         val isRetry = intent.getBooleanExtra(KEY_IS_RETRY, false)
-        val fromOverdue = isRetry && plannedAt < System.currentTimeMillis() - 60_000L
+        val fromOverdue = DispatchPolicy.retryIsMakeup(isRetry, plannedAt, System.currentTimeMillis())
         DispatchWorker.enqueue(context, ruleId, plannedAt, isMakeup = fromOverdue)
     }
 

@@ -16,6 +16,15 @@ import java.time.temporal.ChronoUnit
  */
 object RuleEngine {
 
+    /**
+     * A holiday rule whose scan found no next fire means the coming year's
+     * calendar is not loaded yet. It must NOT be treated as COMPLETED — keep
+     * the rule ENABLED and probe again later, otherwise it dies permanently
+     * (e.g. LEGAL_HOLIDAY in late 2026 before 2027 data is published).
+     */
+    fun holidayRuleNeedsProbe(type: RuleType, nextFire: LocalDateTime?): Boolean =
+        nextFire == null && (type == RuleType.LEGAL_HOLIDAY || type == RuleType.LEGAL_WORKDAY)
+
     private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
     /**

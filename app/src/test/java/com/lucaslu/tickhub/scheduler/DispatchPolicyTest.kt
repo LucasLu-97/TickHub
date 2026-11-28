@@ -134,4 +134,16 @@ class DispatchPolicyTest {
         val v = DispatchPolicy.runVerdict(emptyList())
         assertFalse(v.success); assertFalse(v.cancelled)
     }
+
+    @Test
+    fun `retry of overdue slot stays makeup to continue catch-up chain`() {
+        val now = 1_700_000_000_000L
+        // Retry for a slot 3 days overdue: must stay makeup so success advances
+        // from that slot (chain continues) instead of skipping to now.
+        assertTrue(DispatchPolicy.retryIsMakeup(true, now - 3 * 86_400_000L, now))
+        // Retry for a recent slot: not a makeup (normal retry).
+        assertFalse(DispatchPolicy.retryIsMakeup(true, now - 1_000L, now))
+        // Non-retry alarm: never makeup, regardless of slot age.
+        assertFalse(DispatchPolicy.retryIsMakeup(false, now - 3 * 86_400_000L, now))
+    }
 }
