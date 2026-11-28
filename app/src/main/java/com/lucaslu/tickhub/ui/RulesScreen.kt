@@ -156,7 +156,8 @@ fun RulesScreen(vm: RuleViewModel) {
                         }) { Text(t("删除")) }
                         TextButton(onClick = { Haptics.tick(context); multiSelect = false; selectedIds = emptySet() }) { Text(t("取消")) }
                     } else {
-                        androidx.compose.material3.IconButton(onClick = { Haptics.tick(context); creating = true }, enabled = selectedWorkflows.isNotEmpty(), modifier = androidx.compose.ui.Modifier.semantics { contentDescription = t("新建规则") }) {
+                        val newRuleLabel = t("新建规则")
+                        androidx.compose.material3.IconButton(onClick = { Haptics.tick(context); creating = true }, enabled = selectedWorkflows.isNotEmpty(), modifier = androidx.compose.ui.Modifier.semantics { contentDescription = newRuleLabel }) {
                             Text("＋", style = MaterialTheme.typography.titleLarge)
                         }
                     }

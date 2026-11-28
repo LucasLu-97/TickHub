@@ -64,7 +64,8 @@ fun SettingsScreen(vm: SettingsViewModel, onOpenLogs: (() -> Unit)? = null) {
                 ),
                 title = { Text(t("设置")) },
                 actions = {
-                    IconButton(onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); vm.cycleTheme() }, modifier = androidx.compose.ui.Modifier.semantics { contentDescription = t("切换主题") }) {
+                    val themeLabel = t("切换主题")
+                    IconButton(onClick = { com.lucaslu.tickhub.util.Haptics.tick(context); vm.cycleTheme() }, modifier = androidx.compose.ui.Modifier.semantics { contentDescription = themeLabel }) {
                         Text(
                             when (themeMode) {
                                 0 -> "☀"   // light
