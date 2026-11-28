@@ -16,12 +16,6 @@ import java.time.temporal.ChronoUnit
  */
 object RuleEngine {
 
-    /**
-     * A holiday rule whose scan found no next fire means the coming year's
-     * calendar is not loaded yet. It must NOT be treated as COMPLETED — keep
-     * the rule ENABLED and probe again later, otherwise it dies permanently
-     * (e.g. LEGAL_HOLIDAY in late 2026 before 2027 data is published).
-     */
     /** Pure guard used before a holiday rule dispatches: a probe slot must not
      *  check in on an ordinary day. No data or a non-matching date => invalid. */
     fun holidaySlotValid(type: RuleType, hasCalendarData: Boolean, dateMatches: Boolean): Boolean {
@@ -29,6 +23,12 @@ object RuleEngine {
         return hasCalendarData && dateMatches
     }
 
+    /**
+     * A holiday rule whose scan found no next fire means the coming year's
+     * calendar is not loaded yet. It must NOT be treated as COMPLETED — keep
+     * the rule ENABLED and probe again later, otherwise it dies permanently
+     * (e.g. LEGAL_HOLIDAY in late 2026 before 2027 data is published).
+     */
     fun holidayRuleNeedsProbe(type: RuleType, nextFire: LocalDateTime?): Boolean =
         nextFire == null && (type == RuleType.LEGAL_HOLIDAY || type == RuleType.LEGAL_WORKDAY)
 

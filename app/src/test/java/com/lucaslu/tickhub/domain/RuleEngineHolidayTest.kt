@@ -101,9 +101,9 @@ class RuleEngineHolidayTest {
 
     @Test
     fun `holiday rule with no next fire stays enabled via probe not COMPLETED`() {
-        // Regression: in late 2026, bundled 2026 data is non-empty but 2027 data
-        // is unpublished; a LEGAL_HOLIDAY scan returns null and used to mark the
-        // rule COMPLETED forever. It must probe instead.
+        // Regression: in late 2026, 2027 data is unpublished; a LEGAL_HOLIDAY
+        // scan returns null and used to mark the rule COMPLETED forever.
+        // It must probe instead.
         assertTrue(RuleEngine.holidayRuleNeedsProbe(RuleType.LEGAL_HOLIDAY, null))
         assertTrue(RuleEngine.holidayRuleNeedsProbe(RuleType.LEGAL_WORKDAY, null))
         // A normal next fire means no probe needed.

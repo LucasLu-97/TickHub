@@ -416,7 +416,9 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         context.dataStore.data.first()[holidayJanFallbackYearKey] == java.time.LocalDate.now().year
     suspend fun markHolidayJanFallbackDone() {
         context.dataStore.edit { it[holidayJanFallbackYearKey] = java.time.LocalDate.now().year }
-    }    suspend fun setHolidayAnnualFetchYear(year: Int) {
+    }
+
+    suspend fun setHolidayAnnualFetchYear(year: Int) {
         context.dataStore.edit { it[holidayAnnualFetchYearKey] = year }
     }
 
