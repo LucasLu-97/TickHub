@@ -65,7 +65,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             // 0 = new data fetched, 1 = already current, 2 = failed.
             // force=true always hits the network, so "already current" (outcome 1)
             // cannot happen here: either we fetched the current year (0) or the
-            // request failed despite the offline bundled fallback (2).
+            // request failed (2).
             val outcome = when {
                 result.years.contains(java.time.LocalDate.now().year) -> 0
                 !result.ok -> 2
@@ -89,11 +89,13 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             // (if we never got next-year data) — users may not open the app in late
             // December. Outside these windows, no auto pull; the settings toggle
             // still works manually and posts its own notification.
-            val janFallback = today.monthValue == 1 && !alreadyFetched && nextData.days.isEmpty()
+            val janFallback = today.monthValue == 1 && !alreadyFetched && nextData.days.isEmpty() &&
+                !c.repository.holidayJanFallbackDoneOnce()
             if (!inWindow && !janFallback) return@launch
             if (alreadyFetched && nextData.days.isNotEmpty()) return@launch
             AppLogger.i("Holiday", "annual refresh for $nextYear (inWindow=$inWindow, dataReady=${nextData.days.isNotEmpty()}, fetched=$alreadyFetched)")
             val result = com.lucaslu.tickhub.data.HolidayCalendar.refresh(getApplication())
+            if (janFallback) c.repository.markHolidayJanFallbackDone() // one attempt per January
             val nextFetched = result.years.contains(nextYear)
             if (nextFetched) c.repository.setHolidayAnnualFetchYear(today.year)
             AppLogger.i("Holiday", "annual refresh result=${result.ok} nextFetched=$nextFetched years=${result.years}")

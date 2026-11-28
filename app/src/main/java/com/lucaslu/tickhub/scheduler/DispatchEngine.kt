@@ -102,6 +102,24 @@ class DispatchEngine(private val context: Context) {
             AppLogger.w("Engine", "rule=${ruleId.take(8)} auto-dispatched within 20s -> skip duplicate")
             return TriggerStatus.SKIPPED
         }
+        // P0 guard: a holiday rule's "probe" slot was scheduled while calendar
+        // data was missing. When that alarm fires, it must NOT perform a real
+        // check-in on an ordinary day. Re-validate the slot against the calendar
+        // before dispatching; if data is still missing or the date is not a real
+        // holiday/workday, skip and recompute so the rule stays alive. Manual
+        // triggers (advance=false) are exempt — an explicit tap always dispatches.
+        if (advance && !repository.isHolidaySlotValid(rule, plannedAt)) {
+            AppLogger.w("Engine", "rule=${rule.id.take(8)} slot not a valid holiday/workday (data missing or mismatch) -> skip, recompute")
+            val (next, effective) = repository.computeNextFire(rule, java.time.LocalDateTime.now())
+            val base = next?.let { RuleEngine.toEpochMillis(it) }
+            repository.updateRuleFields(rule.id) { cur ->
+                cur.copy(nextFireAt = base, effectiveFireAt = effective, status = RuleStatus.ENABLED)
+            }?.let { updated ->
+                alarmScheduler.cancel(updated.id)
+                if (base != null && effective != null) alarmScheduler.scheduleWithSlot(updated, effective, base)
+            }
+            return TriggerStatus.SKIPPED
+        }
         // On a retry of a partially-failed slot, dispatch ONLY the workflows that
         // failed — re-sending already-successful ones causes duplicate check-ins.
         val isRetry = rule.retryPlannedAt == plannedAt && rule.retryFailedWfIds.isNotEmpty()

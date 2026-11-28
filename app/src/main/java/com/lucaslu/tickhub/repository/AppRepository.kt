@@ -131,6 +131,7 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         val workdayDataMissing = RuleEngine.workdayNeedsProbe(
             rule.type,
             years.getValue(year).days.isNotEmpty(),
+            years.getValue(year + 1).days.isNotEmpty(),
             years.getValue(year + 1).days.isNotEmpty()
         )
         if (workdayDataMissing) {
@@ -145,10 +146,9 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         // C4 (hardened): a holiday rule whose 400-day scan finds NO matching day
         // means the calendar data for the coming year is not available yet.
         // Returning null here would mark the rule COMPLETED FOREVER — e.g. in late
-        // 2026 the bundled 2026 data is non-empty (so the old "both years empty"
-        // check never fired) but 2027 data is not published until mid-December,
-        // so a LEGAL_HOLIDAY rule silently died for all of 2027. Instead keep the
-        // rule ENABLED and probe again in 30 days. This also avoids silently
+        // 2026 the 2027 data is not published until mid-December, so the rule would
+        // otherwise silently die for all of 2027. Instead keep it ENABLED and probe
+        // again in 30 days. This also avoids silently
         // falling back to Mon-Fri for LEGAL_WORKDAY (would check in on statutory
         // holidays and skip make-up weekends).
         if (RuleEngine.holidayRuleNeedsProbe(rule.type, next)) {
@@ -161,6 +161,24 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         val base = next?.let { RuleEngine.toEpochMillis(it) }
         val effective = base?.let { RuleEngine.applyDrift(rule.id, it, rule.driftMinutes) }
         return next to effective
+    }
+
+    /**
+     * Guard for holiday rules: a probe slot (scheduled while calendar data was
+     * missing) must NOT dispatch a real check-in on an ordinary day. Returns
+     * false when the calendar for that date is unavailable or the date is not
+     * actually a matching holiday/workday. Other rule types are always valid.
+     */
+    suspend fun isHolidaySlotValid(rule: Rule, atEpoch: Long): Boolean {
+        val date = java.time.Instant.ofEpochMilli(atEpoch)
+            .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+        val data = HolidayCalendar.load(context, date.year)
+        val matches = if (rule.type == com.lucaslu.tickhub.data.RuleType.LEGAL_HOLIDAY) {
+            HolidayCalendar.isLegalHoliday(data, date)
+        } else {
+            HolidayCalendar.isLegalWorkday(data, date)
+        }
+        return RuleEngine.holidaySlotValid(rule.type, data.days.isNotEmpty(), matches)
     }
 
     suspend fun getRuleOnce(id: String): Rule? = getRulesOnce().firstOrNull { it.id == id }
@@ -392,7 +410,14 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
 
     private val holidayAnnualFetchYearKey = androidx.datastore.preferences.core.intPreferencesKey("holiday_annual_fetch_year")
     suspend fun holidayAnnualFetchYearOnce(): Int = context.dataStore.data.first()[holidayAnnualFetchYearKey] ?: 0
-    suspend fun setHolidayAnnualFetchYear(year: Int) {
+
+    // One-shot flag for the January catch-up pull (avoid retrying every launch).
+    private val holidayJanFallbackYearKey = androidx.datastore.preferences.core.intPreferencesKey("holiday_jan_fallback_year")
+    suspend fun holidayJanFallbackDoneOnce(): Boolean =
+        context.dataStore.data.first()[holidayJanFallbackYearKey] == java.time.LocalDate.now().year
+    suspend fun markHolidayJanFallbackDone() {
+        context.dataStore.edit { it[holidayJanFallbackYearKey] = java.time.LocalDate.now().year }
+    }    suspend fun setHolidayAnnualFetchYear(year: Int) {
         context.dataStore.edit { it[holidayAnnualFetchYearKey] = year }
     }
 

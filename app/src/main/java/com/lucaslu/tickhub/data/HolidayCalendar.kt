@@ -37,7 +37,7 @@ data class HolidayYearData(
  * - isOffDay = true  -> statutory holiday / day off
  * - isOffDay = false -> makeup working day (weekend that must work)
  *
- * Bundled 2026 data works offline; app tries to refresh the current year from
+ * No bundled data: the user must opt in once, then the app refreshes yearly.
  * GitHub on startup so new years don't require an app release.
  */
 object HolidayCalendar {

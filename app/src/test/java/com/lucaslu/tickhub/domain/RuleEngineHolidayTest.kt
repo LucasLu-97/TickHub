@@ -125,4 +125,18 @@ class RuleEngineHolidayTest {
         // WEEKDAYS never needs holiday data.
         assertFalse(RuleEngine.workdayNeedsProbe(RuleType.WEEKDAYS, false, false))
     }
+
+    @Test
+    fun `holiday probe slot must not dispatch on a non-matching day`() {
+        // A probe slot scheduled while data was missing must never check in on
+        // an ordinary day (no data => invalid, non-matching date => invalid).
+        assertFalse(RuleEngine.holidaySlotValid(RuleType.LEGAL_HOLIDAY, false, false))
+        assertFalse(RuleEngine.holidaySlotValid(RuleType.LEGAL_HOLIDAY, false, true))
+        assertFalse(RuleEngine.holidaySlotValid(RuleType.LEGAL_HOLIDAY, true, false))
+        assertTrue(RuleEngine.holidaySlotValid(RuleType.LEGAL_HOLIDAY, true, true))
+        assertFalse(RuleEngine.holidaySlotValid(RuleType.LEGAL_WORKDAY, true, false))
+        assertTrue(RuleEngine.holidaySlotValid(RuleType.LEGAL_WORKDAY, true, true))
+        // Non-holiday rules unaffected.
+        assertTrue(RuleEngine.holidaySlotValid(RuleType.DAILY, false, false))
+    }
 }
