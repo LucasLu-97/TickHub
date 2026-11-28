@@ -84,7 +84,7 @@ object NotificationHelper {
             val (title, text) = when (outcome) {
                 0 -> L10n.tNow("TickHub · 节假日数据已更新") to
                     if (manual && years.isNotEmpty()) {
-                        val yearText = years.sorted().joinToString("、") { "$it年" }
+                        val yearText = years.sorted().joinToString("、") { "${it}年" }
                         L10n.tFormat("手动刷新，已成功获取{0}法定日期信息", listOf(yearText))
                     } else {
                         L10n.tNow("年度自动刷新成功，已获取次年放假安排")
