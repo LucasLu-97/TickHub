@@ -13,9 +13,9 @@
     <application
         android:name=".TickHubApp"
         android:allowBackup="false"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/ic_launcher_flat"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_flat"
         android:supportsRtl="true"
         android:theme="@style/Theme.TickHub">
 
