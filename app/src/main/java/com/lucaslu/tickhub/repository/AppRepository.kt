@@ -131,7 +131,6 @@ class AppRepository(private val context: Context, private val api: GitHubApi) {
         val workdayDataMissing = RuleEngine.workdayNeedsProbe(
             rule.type,
             years.getValue(year).days.isNotEmpty(),
-            years.getValue(year + 1).days.isNotEmpty(),
             years.getValue(year + 1).days.isNotEmpty()
         )
         if (workdayDataMissing) {
