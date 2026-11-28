@@ -1298,4 +1298,19 @@ CI 全绿，**45 个 JVM 单测**，二次审视复核关键修复通过。按�
 用户定性：这是"真正的第一个基线版"——四轮严格审视 + 全部高危修复 + 二次复核后的稳定起点。
 
 ---
+## 42. 通知图标缓存问题定位 + v2.2.1（2026-11-28）
+
+用户反馈 v2.2.0 下拉通知图标仍是旧的蓝底白时钟，桌面图标却正常。
+
+**用独立 demo 定位**（新建 notifydemo module，包名 com.lucaslu.notifydemo，6 个按钮发不同图标配置的通知）：用户实测截图显示 A/B/C/D/E 五条通知左侧**全部显示黑底文档桌面图标**，无论 small icon / setColor / setLargeIcon 怎么配。结论：**HyperOS 下拉通知图标固定取应用 launcher icon，与通知配置无关**——之前审视 agent 说"取 launcher icon"是对的，但它让我移除 setLargeIcon 过程中反复误导（已恢复 setLargeIcon 作为展开态彩色图标，无害）。
+
+**真正根因**：通知渠道 `tickhub_run_result` 从旧版本就存在，MIUI/HyperOS 缓存了该渠道的图标位图（蓝白旧图标）。卸载重装不清除通知渠道缓存。
+
+**修法**：通知渠道 ID 改为 `tickhub_run_result_v2`，强制系统重建渠道、重新解析图标。恢复 setLargeIcon（定稿桌面 PNG）。
+
+**demo module 后续**：作为测试工具保留在仓库（独立包名，不影响主 app）；新增 `.github/workflows/notify-demo.yml` 手动触发构建 debug APK artifact。主 CI 改为 `:app:test` / `:app:assembleRelease` 明确只构建主 app。
+
+**发布**：tag v2.2.1 @fa267173，APK 2.12MB，CI 全绿 45 单测。已 adb 覆盖安装到用户手机。等下一次真实签到通知验证图标是否恢复黑底文档。
+
+---
 > 文档结束。任何与实现不一致之处，以「实际代码 + 本文档更新」为准；请接手人持续维护本文档。
