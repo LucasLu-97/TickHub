@@ -97,7 +97,9 @@ class DispatchEngine(private val context: Context) {
                 (it.status == TriggerStatus.SUCCESS || it.status == TriggerStatus.MAKEUP) &&
                 (it.firedAt ?: 0L) > System.currentTimeMillis() - 20_000L
         }
-        if (recentAutoSuccess && !isMakeup) {
+        // Dedupe ONLY automatic scheduled runs. A manual "trigger now" must
+        // always execute even if an automatic run happened seconds ago.
+        if (recentAutoSuccess && !isMakeup && advance) {
             AppLogger.w("Engine", "rule=${ruleId.take(8)} auto-dispatched within 20s -> skip duplicate")
             return TriggerStatus.SKIPPED
         }

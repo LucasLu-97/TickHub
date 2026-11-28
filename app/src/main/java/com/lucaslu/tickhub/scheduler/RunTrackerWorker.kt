@@ -119,17 +119,16 @@ class RunTrackerWorker(appContext: Context, params: WorkerParameters) : Coroutin
         val durationMs = if (starts.isNotEmpty() && ends.isNotEmpty()) {
             Duration.between(starts.min(), ends.max()).toMillis().coerceAtLeast(0L)
         } else (System.currentTimeMillis() - firedAt).coerceAtLeast(0L)
-        // A workflow that concluded "success" means a check-in actually happened.
-        // Mixed [success, cancelled] or [success, failure] must NOT be reported
-        // as a total failure with a false "execution failed" notification.
-        val success = allRuns.any { it.second.conclusion == "success" }
-        // A user-cancelled / skipped run is not a failure — don't send a false
-        // "execution failed" notification (M9).
-        // Only treat as cancelled when EVERY run was cancelled/skipped. A mix of
-        // cancelled + failed must still surface the failure (old `any` hid it).
-        val cancelled = allRuns.isNotEmpty() && allRuns.all {
-            it.second.conclusion in setOf("cancelled", "skipped", "neutral")
+        // Three-way verdict: a real "failure" must always surface; cancelled
+        // runs alone are neutral; [success + cancelled] counts as success.
+        val conclusions = allRuns.map { it.second.conclusion }
+        val hasFailure = conclusions.any { c ->
+            c != null && c !in setOf("success", "cancelled", "skipped", "neutral")
         }
+        val hasSuccess = conclusions.any { it == "success" }
+        val cancelled = conclusions.isNotEmpty() && !hasSuccess && !hasFailure &&
+            conclusions.all { it in setOf("cancelled", "skipped", "neutral") }
+        val success = !hasFailure && hasSuccess
         repo.finalizeLog(logId, durationMs, success, cancelled)
 
         if (repo.isRunTrackingEnabledOnce() && !cancelled) {
