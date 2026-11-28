@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- MIUI/Miuix blue — same as the app primary color (Theme.kt #3B7CFF). -->
-    <color name="ic_launcher_background">#3B7CFF</color>
-</resources>
+<!-- Deprecated: replaced by mipmap-*/ic_launcher_background.png from the final icon set.
+     Kept empty because the incremental push script cannot delete remote files. -->
+<resources />

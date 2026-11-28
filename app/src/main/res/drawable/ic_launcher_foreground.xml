@@ -1,21 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Deprecated: replaced by mipmap-*/ic_launcher_foreground.png from the final icon set.
+     Kept as an empty file because the incremental push script cannot delete remote files. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <!-- MIUI blue/white: white clock disc + blue hands on the blue background
-         (@color/ic_launcher_background = #3B7CFF). Scaled 1.6 about center. -->
-    <group
-        android:pivotX="54"
-        android:pivotY="54"
-        android:scaleX="1.6"
-        android:scaleY="1.6">
-        <path
-            android:fillColor="#FFFFFFFF"
-            android:pathData="M54,28a26,26 0 1,0 0,52a26,26 0 1,0 0,-52z" />
-        <path
-            android:fillColor="#3B7CFF"
-            android:pathData="M54,36a2,2 0 0,1 2,2v16l12,7a2,2 0 1,1 -2,3.5l-13,-7.5a2,2 0 0,1 -1,-1.7V38a2,2 0 0,1 2,-2z" />
-    </group>
-</vector>
+    android:width="1dp" android:height="1dp" android:viewportWidth="1" android:viewportHeight="1" />

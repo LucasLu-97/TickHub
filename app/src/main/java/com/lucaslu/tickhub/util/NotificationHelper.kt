@@ -13,8 +13,9 @@ object NotificationHelper {
     private const val CHANNEL_ID = "tickhub_run_result"
     private val CHANNEL_NAME get() = com.lucaslu.tickhub.util.L10n.tNow("触发结果通知")
     private const val NOTIF_ID_BASE = 2000
-    // MIUI/Miuix blue accent — tints the notification small-icon background.
-    private const val ACCENT_COLOR = 0xFF3B7CFF.toInt()
+    // Clock blue from the final launcher icon (#58A6FF) — notification small
+    // icon uses the same clock silhouette, tinted with this accent on MIUI.
+    private const val ACCENT_COLOR = 0xFF58A6FF.toInt()
 
     /** Tap a notification to return to the app (with a clean back stack). */
     private fun contentIntent(context: Context): android.app.PendingIntent {

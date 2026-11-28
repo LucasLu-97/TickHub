@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <!-- Least privilege: only the debug log is shareable, not all of filesDir
-         (which also holds DataStore files). -->
-    <files-path name="logs" path="tickhub-debug.log" />
+    <!-- NOTE: `path` must be a DIRECTORY, not a file name. A previous
+         `path="tickhub-debug.log"` made FileProvider treat the file name as a
+         directory and fail with "Failed to find configured root that contains
+         /data/data/...". getUriForFile only grants the single log URI. -->
+    <files-path name="logs" path="." />
 </paths>
